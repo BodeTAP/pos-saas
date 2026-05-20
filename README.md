@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# POS SaaS — Sistem Kasir Modern
 
-## Getting Started
+Aplikasi Point of Sale berbasis SaaS & Multi-Tenant untuk UMKM Indonesia.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Komponen | Teknologi |
+|---|---|
+| Framework | Next.js 16 (App Router) + TypeScript |
+| Database | PostgreSQL |
+| ORM | Prisma v7 |
+| Auth | NextAuth.js v5 |
+| Styling | Tailwind CSS v4 |
+| State Kasir | Zustand |
+| Payment | Tripay (Fase 2) |
+
+## Struktur Proyek
+
+```
+src/
+├── app/
+│   ├── (auth)/          # Login, Register
+│   ├── (dashboard)/     # Semua halaman dashboard
+│   │   └── dashboard/
+│   │       ├── page.tsx         # Dashboard utama
+│   │       ├── pos/             # Halaman kasir
+│   │       ├── products/        # Manajemen produk
+│   │       ├── transactions/    # Riwayat transaksi
+│   │       ├── reports/         # Laporan & analitik
+│   │       ├── staff/           # Manajemen karyawan
+│   │       ├── billing/         # Langganan & billing
+│   │       └── settings/        # Pengaturan toko
+│   └── api/             # API Routes
+├── components/
+│   ├── layout/          # Sidebar, Header
+│   ├── pos/             # Komponen kasir
+│   ├── products/        # Komponen produk
+│   └── ui/              # Komponen UI dasar
+├── lib/
+│   ├── auth.ts          # NextAuth config
+│   ├── prisma.ts        # Prisma client
+│   └── utils.ts         # Helper functions
+├── stores/
+│   └── cart-store.ts    # Zustand cart state
+└── types/
+    └── next-auth.d.ts   # Type extensions
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Install dependencies
+```bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Setup database
+Pastikan PostgreSQL berjalan, lalu update `.env`:
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/pos_saas_db"
+NEXTAUTH_SECRET="your-secret-key"
+```
 
-## Learn More
+### 3. Migrate database
+```bash
+npm run db:migrate
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Seed data demo
+```bash
+npm run db:seed
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 5. Jalankan development server
+```bash
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Buka [http://localhost:3000](http://localhost:3000)
 
-## Deploy on Vercel
+## Akun Demo
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Role | Email | Password |
+|---|---|---|
+| Super Admin | superadmin@pos-saas.com | superadmin123 |
+| Owner | owner@demo-toko.com | owner123 |
+| Kasir | kasir@demo-toko.com | kasir123 |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Roadmap
+
+### ✅ Fase 1 — MVP (Selesai)
+- [x] Autentikasi multi-role (Super Admin, Owner, Kasir)
+- [x] Multi-tenant dengan isolasi data via `tenantId`
+- [x] Halaman kasir (POS) dengan keranjang real-time
+- [x] Manajemen produk & inventaris (CRUD)
+- [x] Riwayat transaksi
+- [x] Laporan dasar
+- [x] Pengaturan toko
+
+### 🔄 Fase 2 — SaaS & Komersialisasi
+- [ ] Self-service onboarding tenant baru
+- [ ] Integrasi Tripay untuk billing langganan
+- [ ] Dashboard analitik dengan grafik (Recharts)
+- [ ] Ekspor laporan ke Excel/CSV
+- [ ] Manajemen kasir (tambah/edit staff)
+
+### 📋 Fase 3 — Fitur Lanjutan
+- [ ] Multi-cabang per tenant
+- [ ] Sistem loyalitas pelanggan
+- [ ] Cetak struk thermal printer
+- [ ] Offline mode (PWA)

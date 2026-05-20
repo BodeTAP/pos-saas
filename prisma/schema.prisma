@@ -1,0 +1,458 @@
+// This is your Prisma schema file
+// POS SaaS - Multi-Tenant Architecture
+// Single Database, Shared Schema with tenantId isolation
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  KASIR
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  TRIAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  HELD
+}
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  TRANSFER
+  CARD
+  OTHER
+}
+
+enum StockMutationType {
+  IN
+  OUT
+  ADJUSTMENT
+  SALE
+  RETURN
+}
+
+enum BillingStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+// ─────────────────────────────────────────────
+// PRICING PLAN (dikelola Super Admin)
+// ─────────────────────────────────────────────
+
+model PricingPlan {
+  id           String           @id @default(cuid())
+  tier         SubscriptionPlan @unique // FREE, PRO, ENTERPRISE
+  name         String           // Display name, misal "Paket Pro"
+  description  String?          // Deskripsi singkat
+  monthlyPrice Float            @default(0)
+  yearlyPrice  Float            @default(0)
+
+  maxProducts  Int @default(50)
+  maxCashiers  Int @default(1)
+  maxOutlets   Int @default(1)
+
+  features    String[] // List fitur yang ditampilkan di UI
+  isActive    Boolean  @default(true) // Bisa dinonaktifkan tanpa hapus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing_plans")
+}
+
+// ─────────────────────────────────────────────
+// TENANT (Badan Usaha / Toko)
+// ─────────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String   // Nama toko
+  slug        String   @unique // URL-friendly identifier
+  email       String   @unique
+  phone       String?
+  address     String?
+  city        String?
+  logoUrl     String?
+  currency    String   @default("IDR")
+  taxRate     Float    @default(0) // PPN dalam persen, misal 11
+  receiptNote String?  // Catatan di bawah struk
+  receiptWidth Int     @default(80) // 58 atau 80 mm
+
+  // Subscription
+  plan              SubscriptionPlan   @default(FREE)
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  subscriptionEndsAt DateTime?
+
+  // Limits berdasarkan plan
+  maxProducts   Int @default(50)   // FREE: 50, PRO: unlimited
+  maxCashiers   Int @default(1)    // FREE: 1, PRO: 5, ENTERPRISE: unlimited
+  maxOutlets    Int @default(1)    // FREE/PRO: 1, ENTERPRISE: unlimited
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users         User[]
+  products      Product[]
+  categories    Category[]
+  transactions  Transaction[]
+  stockMutations StockMutation[]
+  billingInvoices BillingInvoice[]
+  customers     Customer[]
+  outlets       Outlet[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// OUTLET (Cabang)
+// ─────────────────────────────────────────────
+
+model Outlet {
+  id        String  @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  isMain    Boolean @default(false) // cabang utama, auto-created saat register
+  isActive  Boolean @default(true)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi
+  transactions   Transaction[]
+  users          User[]
+  outletStocks   OutletStock[]
+  stockMutations StockMutation[]
+
+  @@index([tenantId])
+  @@map("outlets")
+}
+
+// ─────────────────────────────────────────────
+// OUTLET STOCK (stok per cabang)
+// ─────────────────────────────────────────────
+
+model OutletStock {
+  id       String @id @default(cuid())
+  stock    Int    @default(0)
+  minStock Int    @default(5)
+
+  outletId  String
+  outlet    Outlet  @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenantId  String // denormalize untuk filter cepat
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([outletId, productId])
+  @@index([tenantId])
+  @@index([productId])
+  @@map("outlet_stocks")
+}
+
+// ─────────────────────────────────────────────
+// USER (Pengguna)
+// ─────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String    // bcrypt hashed
+  role          UserRole  @default(KASIR)
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
+  image         String?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  outletId String?
+  outlet   Outlet? @relation(fields: [outletId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactions Transaction[]
+  sessions     Session[]
+  accounts     Account[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// NEXTAUTH TABLES
+// ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────
+// KATEGORI PRODUK
+// ─────────────────────────────────────────────
+
+model Category {
+  id       String @id @default(cuid())
+  name     String
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
+  @@map("categories")
+}
+
+// ─────────────────────────────────────────────
+// PRODUK
+// ─────────────────────────────────────────────
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  sku         String?
+  barcode     String?
+  description String?
+  imageUrl    String?
+
+  buyPrice  Float @default(0) // Harga beli
+  sellPrice Float             // Harga jual
+
+  stock    Int @default(0)
+  minStock Int @default(5)  // Threshold low stock alert
+  unit     String @default("pcs")
+
+  isActive Boolean @default(true)
+
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  transactionItems TransactionItem[]
+  stockMutations   StockMutation[]
+  outletStocks     OutletStock[]
+
+  @@unique([sku, tenantId])
+  @@index([tenantId])
+  @@index([barcode])
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────
+// PELANGGAN (opsional, untuk loyalty)
+// ─────────────────────────────────────────────
+
+model Customer {
+  id       String  @id @default(cuid())
+  name     String
+  phone    String?
+  email    String?
+  points   Int     @default(0)
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customers")
+}
+
+// ─────────────────────────────────────────────
+// TRANSAKSI
+// ─────────────────────────────────────────────
+
+model Transaction {
+  id            String            @id @default(cuid())
+  invoiceNumber String            // Nomor struk, misal: INV-20260520-001
+  status        TransactionStatus @default(PENDING)
+  paymentMethod PaymentMethod     @default(CASH)
+
+  subtotal    Float // Sebelum diskon & pajak
+  discount    Float @default(0) // Nominal diskon
+  discountPct Float @default(0) // Persen diskon
+  tax         Float @default(0) // Nominal pajak
+  taxPct      Float @default(0) // Persen pajak
+  total       Float // Total akhir = (subtotal - discount) * (1 + taxPct/100)
+  amountPaid  Float @default(0) // Uang yang dibayar
+  change      Float @default(0) // Kembalian
+
+  note     String?
+  isHeld   Boolean @default(false) // Hold transaction
+
+  tenantId   String
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashierId  String
+  cashier    User   @relation(fields: [cashierId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  outletId   String
+  outlet     Outlet  @relation(fields: [outletId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items TransactionItem[]
+
+  @@index([tenantId])
+  @@index([outletId])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id        String @id @default(cuid())
+  quantity  Int
+  unitPrice Float  // Harga saat transaksi (snapshot)
+  discount  Float  @default(0)
+  subtotal  Float  // quantity * unitPrice - discount
+
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+
+  productName  String // Snapshot nama produk
+  productSku   String? // Snapshot SKU
+
+  @@map("transaction_items")
+}
+
+// ─────────────────────────────────────────────
+// MUTASI STOK
+// ─────────────────────────────────────────────
+
+model StockMutation {
+  id        String            @id @default(cuid())
+  type      StockMutationType
+  quantity  Int               // Positif = masuk, negatif = keluar
+  stockBefore Int
+  stockAfter  Int
+  note      String?
+
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  outletId  String
+  outlet    Outlet  @relation(fields: [outletId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([outletId])
+  @@map("stock_mutations")
+}
+
+// ─────────────────────────────────────────────
+// BILLING & LANGGANAN (Tripay)
+// ─────────────────────────────────────────────
+
+model BillingInvoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  plan            SubscriptionPlan
+  amount          Float
+  status          BillingStatus @default(PENDING)
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  // Tripay fields
+  tripayReference  String?  // Merchant ref dari Tripay
+  tripayPaymentUrl String?  // URL pembayaran
+  tripayChannel    String?  // Metode pembayaran (BRIVA, MANDIRIVA, dll)
+  paidAt           DateTime?
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("billing_invoices")
+}
