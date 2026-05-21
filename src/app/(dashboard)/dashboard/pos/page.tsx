@@ -63,7 +63,6 @@ export default async function POSPage() {
         receiptWidth: true,
         receiptNote: true,
         receiptHeader: true,
-        invoicePrefix: true,
         pointsPerAmount: true,
         pointValue: true,
         activePaymentMethods: true,

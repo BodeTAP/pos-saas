@@ -42,13 +42,14 @@ export function formatDateTime(date: Date | string): string {
 }
 
 /**
- * Generate nomor invoice: INV-YYYYMMDD-XXXX
+ * Generate nomor invoice dengan suffix waktu dan entropy UUID.
  */
 export function generateInvoiceNumber(prefix = "INV"): string {
   const now = new Date();
   const date = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const random = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${date}-${random}`;
+  const time = now.getTime().toString(36).toUpperCase();
+  const entropy = crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase();
+  return `${prefix}-${date}-${time}-${entropy}`;
 }
 
 /**

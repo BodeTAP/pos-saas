@@ -25,7 +25,6 @@ interface POSInterfaceProps {
     receiptWidth: number;
     receiptNote: string | null;
     receiptHeader?: string | null;
-    invoicePrefix?: string | null;
     pointsPerAmount?: number;
     pointValue?: number;
     activePaymentMethods?: string | null;

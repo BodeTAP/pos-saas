@@ -3,9 +3,23 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getActiveOutletId } from "@/lib/active-outlet";
 import { parseBody, createTransactionSchema } from "@/lib/schemas";
+import { generateInvoiceNumber } from "@/lib/utils";
+import { Prisma } from "@prisma/client";
 
 export const POINT_VALUE = 100; // default
 export const POINT_PER_AMOUNT = 10000; // default
+const MAX_INVOICE_ATTEMPTS = 3;
+
+function isInvoiceNumberConflict(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  return Array.isArray(target)
+    ? target.includes("invoiceNumber")
+    : String(target).includes("invoiceNumber");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,7 +34,6 @@ export async function POST(req: NextRequest) {
     }
 
     const {
-      invoiceNumber,
       items,
       discountPct,
       discountNominal,
@@ -54,6 +67,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const activeOutletId = outletId;
 
     if (redeemedPoints > 0 && !customerId) {
       return NextResponse.json(
@@ -70,6 +84,7 @@ export async function POST(req: NextRequest) {
         pointValue: true,
         taxRate: true,
         activePaymentMethods: true,
+        invoicePrefix: true,
       },
     });
     if (!tenantConfig) {
@@ -184,7 +199,8 @@ export async function POST(req: NextRequest) {
     // Hitung poin yang didapat dari transaksi ini (berdasarkan total final)
     const earnedPoints = Math.floor(total / pointsPerAmount);
 
-    const transaction = await prisma.$transaction(async (tx) => {
+    async function createCompletedTransaction(invoiceNumber: string) {
+      return prisma.$transaction(async (tx) => {
       // Buat transaksi utama (dengan outletId)
       const newTransaction = await tx.transaction.create({
         data: {
@@ -205,7 +221,7 @@ export async function POST(req: NextRequest) {
           tenantId,
           cashierId,
           customerId: customerId || null,
-          outletId,
+          outletId: activeOutletId,
           items: {
             create: transactionItems.map((item) => ({
                 productId: item.productId,
@@ -226,7 +242,7 @@ export async function POST(req: NextRequest) {
       for (const item of transactionItems) {
         const updated = await tx.outletStock.updateMany({
           where: {
-            outletId,
+            outletId: activeOutletId,
             productId: item.productId,
             stock: { gte: item.quantity },
           },
@@ -239,7 +255,9 @@ export async function POST(req: NextRequest) {
 
         // Get updated stock for mutation log
         const updatedStock = await tx.outletStock.findUnique({
-          where: { outletId_productId: { outletId, productId: item.productId } },
+          where: {
+            outletId_productId: { outletId: activeOutletId, productId: item.productId },
+          },
           select: { stock: true },
         });
         const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
@@ -254,7 +272,7 @@ export async function POST(req: NextRequest) {
             note: `Penjualan - ${invoiceNumber}`,
             tenantId,
             productId: item.productId,
-            outletId,
+            outletId: activeOutletId,
           },
         });
       }
@@ -277,8 +295,26 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return newTransaction;
-    });
+        return newTransaction;
+      });
+    }
+
+    let transaction = null;
+    for (let attempt = 0; attempt < MAX_INVOICE_ATTEMPTS; attempt++) {
+      const invoiceNumber = generateInvoiceNumber(tenantConfig.invoicePrefix || "INV");
+      try {
+        transaction = await createCompletedTransaction(invoiceNumber);
+        break;
+      } catch (error) {
+        if (!isInvoiceNumberConflict(error) || attempt === MAX_INVOICE_ATTEMPTS - 1) {
+          throw error;
+        }
+      }
+    }
+
+    if (!transaction) {
+      throw new Error("Gagal membuat nomor invoice transaksi.");
+    }
 
     return NextResponse.json(
       { success: true, transaction, earnedPoints },

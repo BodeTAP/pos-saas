@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { toast } from "@/components/ui/toaster";
-import { formatCurrency, generateInvoiceNumber } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { X, Loader2, CheckCircle, Banknote, QrCode, CreditCard, Printer, Download } from "lucide-react";
 import { Receipt, type ReceiptData } from "./receipt";
 import { printReceipt, downloadReceiptHTML } from "@/lib/print-receipt";
@@ -24,7 +24,6 @@ interface PaymentModalProps {
     receiptWidth: number;
     receiptNote: string | null;
     receiptHeader?: string | null;
-    invoicePrefix?: string | null;
     activePaymentMethods?: string | null;
   } | null;
   customerId?: string;
@@ -113,13 +112,11 @@ export function PaymentModal({
     if (paymentMethod === "CASH" && paid < total) return;
 
     setIsLoading(true);
-    const invoice = generateInvoiceNumber(tenant?.invoicePrefix || "INV");
     try {
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          invoiceNumber: invoice,
           items: items.map((i) => ({
             productId: i.productId,
             productName: i.name,

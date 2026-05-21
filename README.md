@@ -116,7 +116,7 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Middleware edge-safe (tanpa Prisma di edge runtime)
 - Tenant isolation di semua query
 - **Zod validation** di semua API endpoint (runtime type safety)
-- Server menghitung ulang harga, total, pajak, kembalian, dan metode bayar transaksi POS dari data produk/toko
+- Server membuat nomor invoice dan menghitung ulang harga, total, pajak, kembalian, dan metode bayar transaksi POS dari data produk/toko
 - Atomic stock deduction untuk transaksi dan transfer stok (mencegah oversell saat transaksi bersamaan)
 - Retur diproses satu kali secara atomik dan membalik poin dari snapshot transaksi
 - Idempotent webhook (mencegah duplikasi aktivasi paket)

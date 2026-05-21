@@ -73,7 +73,8 @@ const transactionItemSchema = z.object({
 });
 
 export const createTransactionSchema = z.object({
-  invoiceNumber: z.string().min(1, "Nomor invoice wajib diisi."),
+  // Invoice ditentukan server; field lama tetap diterima agar client lama tidak patah.
+  invoiceNumber: z.string().min(1).optional(),
   items: z
     .array(transactionItemSchema)
     .min(1, "Transaksi harus memiliki minimal 1 item."),
