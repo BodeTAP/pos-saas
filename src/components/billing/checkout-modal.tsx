@@ -77,6 +77,8 @@ export function CheckoutModal({ plan, mode, tenant, onClose, onSuccess }: Checko
   const [isPolling, setIsPolling] = useState(false);
   const [manualChecking, setManualChecking] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // FIX 14: Track whether Tripay tab has already been opened to prevent duplicate opens on re-render
+  const tripayOpenedRef = useRef(false);
 
   const amount = planInfo
     ? period === "YEARLY"
@@ -131,12 +133,20 @@ export function CheckoutModal({ plan, mode, tenant, onClose, onSuccess }: Checko
     loadChannels();
   }, [step]);
 
+  // FIX 14: Reset tripayOpenedRef when leaving the waiting step
+  useEffect(() => {
+    if (step !== "waiting") {
+      tripayOpenedRef.current = false;
+    }
+  }, [step]);
+
   // Auto-polling saat step "waiting"
   useEffect(() => {
     if (step !== "waiting" || !result) return;
 
-    // Auto-redirect ke Tripay saat pertama masuk step waiting
-    if (result.checkoutUrl) {
+    // Auto-redirect ke Tripay saat pertama masuk step waiting (only once)
+    if (result.checkoutUrl && !tripayOpenedRef.current) {
+      tripayOpenedRef.current = true;
       window.open(result.checkoutUrl, "_blank");
     }
 

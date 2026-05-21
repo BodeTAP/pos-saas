@@ -57,7 +57,7 @@ export function PaymentModal({
   onClose,
   onSuccess,
 }: PaymentModalProps) {
-  const { items, discountPct, note } = useCartStore();
+  const { items, discountPct, discountNominal, note } = useCartStore();
 
   // Parse metode pembayaran aktif dari tenant config
   const activeMethods = (() => {
@@ -110,7 +110,9 @@ export function PaymentModal({
           })),
           subtotal,
           discount: discountAmount,
-          discountPct,
+          // FIX 15: Send both pct and nominal so server always has correct discount info
+          discountPct: discountNominal > 0 ? 0 : discountPct,
+          discountNominal,
           tax: taxAmount,
           taxPct,
           total,
@@ -125,7 +127,8 @@ export function PaymentModal({
         }),
       });
 
-      if (!res.ok) throw new Error("Transaksi gagal");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Transaksi gagal");
 
       const receipt: ReceiptData = {
         invoiceNumber: invoice,

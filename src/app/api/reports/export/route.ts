@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
         items: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 10000, // Safety limit to prevent memory exhaustion
     });
+
+    const isTruncated = transactions.length === 10000;
 
     const paymentLabel: Record<string, string> = {
       CASH: "Tunai",
@@ -107,6 +110,9 @@ export async function GET(req: NextRequest) {
         Metrik: "Rata-rata per Transaksi",
         Nilai: transactions.length > 0 ? totalRevenue / transactions.length : 0,
       },
+      ...(isTruncated
+        ? [{ Metrik: "PERINGATAN", Nilai: "Data dibatasi 10.000 transaksi. Perkecil rentang tanggal untuk data lengkap." }]
+        : []),
     ];
 
     const fileName = `laporan-${new Date().toISOString().slice(0, 10)}`;
@@ -120,6 +126,7 @@ export async function GET(req: NextRequest) {
         headers: {
           "Content-Type": "text/csv; charset=utf-8",
           "Content-Disposition": `attachment; filename="${fileName}.csv"`,
+          ...(isTruncated && { "X-Data-Truncated": "true" }),
         },
       });
     }

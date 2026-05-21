@@ -28,6 +28,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paket tidak valid." }, { status: 400 });
     }
 
+    // FIX 9: Validate period parameter
+    if (!period || (period !== "MONTHLY" && period !== "YEARLY")) {
+      return NextResponse.json(
+        { error: "Periode tidak valid. Pilih MONTHLY atau YEARLY." },
+        { status: 400 }
+      );
+    }
+
     if (!paymentMethod) {
       return NextResponse.json({ error: "Pilih metode pembayaran." }, { status: 400 });
     }
@@ -83,6 +91,15 @@ export async function POST(req: NextRequest) {
 
     const amount = period === "YEARLY" ? planInfo.yearlyPrice : planInfo.monthlyPrice;
     const invoiceNumber = generateInvoiceNumber("UPG");
+
+    // FIX 6: Cancel any existing PENDING invoices to prevent plan regression
+    await prisma.billingInvoice.updateMany({
+      where: {
+        tenantId: session.user.tenantId,
+        status: "PENDING",
+      },
+      data: { status: "FAILED" },
+    });
 
     // Hitung period end baru (mulai dari sekarang)
     const periodStart = new Date();

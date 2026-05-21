@@ -30,6 +30,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // FIX 9: Validate period parameter
+    if (!period || (period !== "MONTHLY" && period !== "YEARLY")) {
+      return NextResponse.json(
+        { error: "Periode tidak valid. Pilih MONTHLY atau YEARLY." },
+        { status: 400 }
+      );
+    }
+
     if (!paymentMethod) {
       return NextResponse.json(
         { error: "Pilih metode pembayaran terlebih dahulu." },
@@ -88,19 +96,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Cek invoice PENDING yang belum dibayar untuk paket berbeda
-    const pendingDifferentPlan = await prisma.billingInvoice.findFirst({
+    // FIX 7: Cek invoice PENDING yang belum dibayar (untuk plan apapun)
+    const existingPending = await prisma.billingInvoice.findFirst({
       where: {
         tenantId: session.user.tenantId,
         status: "PENDING",
-        plan: { not: plan },
       },
     });
 
-    if (pendingDifferentPlan) {
+    if (existingPending) {
       return NextResponse.json(
         {
-          error: `Anda masih memiliki tagihan ${pendingDifferentPlan.plan} yang belum dibayar (${pendingDifferentPlan.invoiceNumber}). Selesaikan atau biarkan tagihan tersebut kedaluwarsa terlebih dahulu.`,
+          error: `Anda masih memiliki tagihan ${existingPending.plan} yang belum dibayar (${existingPending.invoiceNumber}). Selesaikan atau tunggu tagihan tersebut kedaluwarsa.`,
         },
         { status: 400 }
       );

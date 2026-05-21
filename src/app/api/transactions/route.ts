@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       subtotal,
       discount,
       discountPct,
+      discountNominal,
       tax,
       taxPct,
       total,
@@ -27,11 +28,18 @@ export async function POST(req: NextRequest) {
       change,
       paymentMethod,
       note,
-      cashierId,
-      tenantId,
       customerId,
       pointsRedeemed,
+      // tenantId from body only used for Super Admin cross-tenant check
+      tenantId: bodyTenantId,
     } = body;
+
+    // FIX 3: Derive tenantId and cashierId from session (not from body)
+    const tenantId =
+      session.user.role === "SUPER_ADMIN" && bodyTenantId
+        ? bodyTenantId
+        : session.user.tenantId!;
+    const cashierId = session.user.id;
 
     if (session.user.tenantId !== tenantId && session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -66,29 +74,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Validasi stok per outlet sebelum transaksi
-    for (const item of items) {
-      const outletStock = await prisma.outletStock.findUnique({
-        where: {
-          outletId_productId: { outletId, productId: item.productId },
-        },
-      });
-      if (!outletStock || outletStock.stock < item.quantity) {
+    // Ambil konfigurasi poin dari tenant (FIX 4: also fetch pointValue)
+    const tenantConfig = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { pointsPerAmount: true, pointValue: true },
+    });
+    const pointsPerAmount = tenantConfig?.pointsPerAmount || POINT_PER_AMOUNT;
+
+    // FIX 4: Validate points redemption server-side
+    if (pointsRedeemed && pointsRedeemed > 0) {
+      const tenantPointValue = tenantConfig?.pointValue || POINT_VALUE;
+      const pointsDiscountAmount = pointsRedeemed * tenantPointValue;
+      if (pointsDiscountAmount > total) {
         return NextResponse.json(
-          {
-            error: `Stok ${item.productName} di cabang ini tidak cukup (tersedia: ${outletStock?.stock || 0}).`,
-          },
+          { error: "Jumlah poin yang ditukar melebihi total transaksi." },
           { status: 400 }
         );
       }
     }
 
-    // Ambil konfigurasi poin dari tenant
-    const tenantConfig = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { pointsPerAmount: true },
+    // Validasi produk milik tenant ini (simplified ownership check)
+    const productIds = items.map((item: { productId: string }) => item.productId);
+    const ownedProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, tenantId },
+      select: { id: true },
     });
-    const pointsPerAmount = tenantConfig?.pointsPerAmount || POINT_PER_AMOUNT;
+    if (ownedProducts.length !== productIds.length) {
+      return NextResponse.json(
+        { error: "Satu atau lebih produk tidak valid." },
+        { status: 400 }
+      );
+    }
 
     // Hitung poin yang didapat dari transaksi ini (berdasarkan total final)
     const earnedPoints = Math.floor(total / pointsPerAmount);
@@ -137,28 +153,35 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Deduct dari OutletStock & catat mutasi per outlet
+      // FIX 1: Atomic stock deduction — fails if stock insufficient
       for (const item of items) {
-        const outletStock = await tx.outletStock.findUnique({
+        const updated = await tx.outletStock.updateMany({
           where: {
-            outletId_productId: { outletId, productId: item.productId },
+            outletId,
+            productId: item.productId,
+            stock: { gte: item.quantity },
           },
+          data: { stock: { decrement: item.quantity } },
         });
-        if (!outletStock) continue;
 
-        const newStock = Math.max(0, outletStock.stock - item.quantity);
+        if (updated.count === 0) {
+          throw new Error(`Stok ${item.productName} tidak cukup saat transaksi diproses.`);
+        }
 
-        await tx.outletStock.update({
-          where: { id: outletStock.id },
-          data: { stock: newStock },
+        // Get updated stock for mutation log
+        const updatedStock = await tx.outletStock.findUnique({
+          where: { outletId_productId: { outletId, productId: item.productId } },
+          select: { stock: true },
         });
+        const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
+        const stockAfter = updatedStock?.stock ?? 0;
 
         await tx.stockMutation.create({
           data: {
             type: "SALE",
             quantity: -item.quantity,
-            stockBefore: outletStock.stock,
-            stockAfter: newStock,
+            stockBefore,
+            stockAfter,
             note: `Penjualan - ${invoiceNumber}`,
             tenantId,
             productId: item.productId,
@@ -187,10 +210,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error("Transaction error:", error);
-    return NextResponse.json(
-      { error: "Gagal memproses transaksi." },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error ? error.message : "Gagal memproses transaksi.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

@@ -366,6 +366,7 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([phone, tenantId]) // Satu nomor HP hanya bisa terdaftar sekali per tenant
   @@map("customers")
 }
 
@@ -375,7 +376,7 @@ model Customer {
 
 model Transaction {
   id            String            @id @default(cuid())
-  invoiceNumber String            // Nomor struk, misal: INV-20260520-001
+  invoiceNumber String            @unique // Nomor struk, misal: INV-20260520-001
   status        TransactionStatus @default(PENDING)
   paymentMethod PaymentMethod     @default(CASH)
 
@@ -470,7 +471,7 @@ model BillingInvoice {
   periodEnd       DateTime
 
   // Tripay fields
-  tripayReference  String?  // Merchant ref dari Tripay
+  tripayReference  String?  @unique // Merchant ref dari Tripay (unique untuk idempotency)
   tripayPaymentUrl String?  // URL pembayaran
   tripayChannel    String?  // Metode pembayaran (BRIVA, MANDIRIVA, dll)
   paidAt           DateTime?

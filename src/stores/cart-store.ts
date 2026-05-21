@@ -124,6 +124,7 @@ export const useCartStore = create<CartState>((set) => ({
       items: [],
       discountPct: 0,
       discountNominal: 0,
+      taxPct: 0,
       note: "",
       isHeld: false,
       customer: null,

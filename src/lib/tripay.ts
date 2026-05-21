@@ -5,6 +5,11 @@ const TRIPAY_PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY!;
 const TRIPAY_MERCHANT_CODE = process.env.TRIPAY_MERCHANT_CODE!;
 const TRIPAY_BASE_URL = process.env.TRIPAY_BASE_URL || "https://tripay.co.id/api-sandbox";
 
+// FIX 11: Validate required env vars at module load time
+if (!process.env.TRIPAY_API_KEY || !process.env.TRIPAY_PRIVATE_KEY || !process.env.TRIPAY_MERCHANT_CODE) {
+  console.error("WARNING: Tripay environment variables are not fully configured. Payment features will not work.");
+}
+
 export interface TripayChannel {
   group: string;
   code: string;

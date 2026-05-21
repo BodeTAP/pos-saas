@@ -14,7 +14,12 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const folder = (formData.get("folder") as string) || "products";
+    // FIX 8: Whitelist upload folder to prevent path traversal
+    const rawFolder = formData.get("folder") as string;
+    const ALLOWED_FOLDERS = ["products", "logos", "avatars"] as const;
+    const folder = ALLOWED_FOLDERS.includes(rawFolder as typeof ALLOWED_FOLDERS[number])
+      ? rawFolder
+      : "products";
 
     if (!file) {
       return NextResponse.json({ error: "File tidak ditemukan." }, { status: 400 });
