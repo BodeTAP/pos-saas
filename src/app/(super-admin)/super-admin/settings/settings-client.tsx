@@ -17,6 +17,9 @@ import {
   Globe,
   ToggleLeft,
   ToggleRight,
+  Mail,
+  Send,
+  CheckCircle,
 } from "lucide-react";
 import type { PlatformConfigKey } from "@/lib/platform-config";
 
@@ -112,6 +115,53 @@ export function SettingsClient({ currentUserId, superAdmins, platformConfigs }: 
 
   const isMaintenanceOn = config.maintenance_mode === "true";
   const isRegistrationOn = config.registration_enabled === "true";
+
+  // Email notification state
+  const [isSendingLowStock, setIsSendingLowStock] = useState(false);
+  const [isSendingTrialReminder, setIsSendingTrialReminder] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<string | null>(null);
+
+  async function handleSendLowStock() {
+    setIsSendingLowStock(true);
+    setEmailTestResult(null);
+    try {
+      const res = await fetch("/api/notifications/low-stock", {
+        method: "POST",
+        headers: { "x-cron-secret": "manual-trigger" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailTestResult(`Error: ${data.error}`);
+        return;
+      }
+      setEmailTestResult(`✓ Low stock: ${data.sent} email terkirim dari ${data.total} grup.`);
+    } catch {
+      setEmailTestResult("Gagal mengirim. Cek RESEND_API_KEY di .env");
+    } finally {
+      setIsSendingLowStock(false);
+    }
+  }
+
+  async function handleSendTrialReminder() {
+    setIsSendingTrialReminder(true);
+    setEmailTestResult(null);
+    try {
+      const res = await fetch("/api/notifications/trial-reminder", {
+        method: "POST",
+        headers: { "x-cron-secret": "manual-trigger" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailTestResult(`Error: ${data.error}`);
+        return;
+      }
+      setEmailTestResult(`✓ Trial reminder: ${data.sent} email terkirim.`);
+    } catch {
+      setEmailTestResult("Gagal mengirim. Cek RESEND_API_KEY di .env");
+    } finally {
+      setIsSendingTrialReminder(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -260,6 +310,67 @@ export function SettingsClient({ currentUserId, superAdmins, platformConfigs }: 
             <><Save className="w-4 h-4" /> Simpan Konfigurasi</>
           )}
         </button>
+      </div>
+
+      {/* Email Notifications */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+            <Mail className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900">Notifikasi Email</h2>
+            <p className="text-sm text-gray-500">Kirim email notifikasi ke tenant secara manual atau via cron job</p>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+          Email dikirim via <strong>Resend</strong>. Pastikan <code className="bg-blue-100 px-1 rounded">RESEND_API_KEY</code> sudah diisi di <code className="bg-blue-100 px-1 rounded">.env</code>.
+          Email otomatis terkirim saat: registrasi baru, pembayaran berhasil.
+        </div>
+
+        {emailTestResult && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${emailTestResult.startsWith("✓") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+            {emailTestResult.startsWith("✓") ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            {emailTestResult}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="border border-gray-200 rounded-xl p-4">
+            <p className="font-medium text-gray-900 text-sm mb-1">⚠️ Low Stock Alert</p>
+            <p className="text-xs text-gray-500 mb-3">Kirim email ke semua Owner yang punya produk stok di bawah minimum.</p>
+            <button
+              onClick={handleSendLowStock}
+              disabled={isSendingLowStock}
+              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white px-3 py-2 rounded-lg text-sm font-medium w-full justify-center"
+            >
+              {isSendingLowStock ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Kirim Sekarang
+            </button>
+          </div>
+
+          <div className="border border-gray-200 rounded-xl p-4">
+            <p className="font-medium text-gray-900 text-sm mb-1">⏰ Trial Reminder</p>
+            <p className="text-xs text-gray-500 mb-3">Kirim reminder ke tenant yang trial berakhir dalam 1 atau 3 hari.</p>
+            <button
+              onClick={handleSendTrialReminder}
+              disabled={isSendingTrialReminder}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-2 rounded-lg text-sm font-medium w-full justify-center"
+            >
+              {isSendingTrialReminder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Kirim Sekarang
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+          <strong>Untuk produksi:</strong> Jadwalkan endpoint berikut via cron job harian dengan header <code>x-cron-secret: {"{CRON_SECRET}"}</code>
+          <ul className="mt-1.5 space-y-0.5 list-disc list-inside">
+            <li><code>POST /api/notifications/low-stock</code></li>
+            <li><code>POST /api/notifications/trial-reminder</code></li>
+          </ul>
+        </div>
       </div>
 
       {/* Super Admin Management */}

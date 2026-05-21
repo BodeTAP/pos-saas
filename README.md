@@ -20,6 +20,7 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 | File Storage | Vercel Blob |
 | Toast | Sonner |
 | Validation | Zod |
+| Email | Resend |
 
 ---
 
@@ -69,7 +70,13 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Manajemen kategori (CRUD)
 - Pagination halaman produk
 
-### 🔄 Retur Transaksi
+### � Notifikasi Email (Resend)
+- **Selamat datang** — dikirim otomatis saat tenant baru registrasi
+- **Invoice paid** — konfirmasi pembayaran berhasil dengan detail paket & masa aktif
+- **Trial akan berakhir** — reminder H-3 dan H-1 sebelum trial habis
+- **Low stock alert** — daftar produk stok menipis per cabang
+- Super Admin bisa trigger email manual dari halaman Konfigurasi Sistem
+- Endpoint cron-ready: `POST /api/notifications/low-stock` dan `POST /api/notifications/trial-reminder`
 - Owner dapat meretur transaksi yang sudah selesai
 - Input alasan retur wajib diisi
 - Opsi kembalikan stok — stok semua item dikembalikan ke cabang asal
@@ -379,6 +386,16 @@ TRIPAY_MERCHANT_CODE="..."
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 NEXT_PUBLIC_APP_URL="https://yourdomain.com"
 ```
+
+### Resend (Email)
+
+```env
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="noreply@yourdomain.com"
+RESEND_FROM_NAME="POS SaaS"
+```
+
+> Untuk dev/testing tanpa domain: gunakan `RESEND_FROM_EMAIL="onboarding@resend.dev"` (bawaan Resend, tidak perlu verifikasi domain).
 
 ### VPS / Server
 

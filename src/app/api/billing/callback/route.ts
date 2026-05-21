@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyCallbackSignature } from "@/lib/tripay";
 import { applyBillingStatusUpdate, type TripayStatus } from "@/lib/billing-actions";
+import { sendInvoicePaidEmail } from "@/lib/email";
 
 /**
  * Webhook callback dari Tripay
@@ -46,6 +47,27 @@ export async function POST(req: NextRequest) {
       payload.status,
       payload.paid_at ? new Date(payload.paid_at * 1000) : null
     );
+
+    // Kirim email konfirmasi pembayaran jika PAID dan baru diupdate
+    if (result.updated && result.status === "PAID") {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: invoice.tenantId },
+        select: { name: true, email: true, plan: true, subscriptionEndsAt: true },
+      });
+      if (tenant) {
+        const { getPlan } = await import("@/lib/plans");
+        const planInfo = await getPlan(invoice.plan);
+        sendInvoicePaidEmail({
+          to: tenant.email,
+          ownerName: tenant.name,
+          storeName: tenant.name,
+          invoiceNumber: invoice.invoiceNumber,
+          planName: planInfo.name,
+          amount: invoice.amount,
+          periodEnd: invoice.periodEnd,
+        }).catch((err) => console.error("Invoice paid email error:", err));
+      }
+    }
 
     return NextResponse.json({ success: true, ...result });
   } catch (error) {

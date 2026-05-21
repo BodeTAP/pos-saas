@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { generateSlug } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
 import { getPlatformConfig, PLATFORM_CONFIG_KEYS } from "@/lib/platform-config";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -102,6 +103,14 @@ export async function POST(req: NextRequest) {
 
       return { tenant, user, outlet: mainOutlet };
     });
+
+    // Kirim email selamat datang (fire-and-forget, tidak blokir response)
+    sendWelcomeEmail({
+      to: email,
+      ownerName,
+      storeName,
+      trialDays,
+    }).catch((err) => console.error("Welcome email error:", err));
 
     return NextResponse.json(
       {
