@@ -5,6 +5,11 @@ import { createTransaction } from "@/lib/tripay";
 import { getPlan, type UpgradablePlan } from "@/lib/plans";
 import { generateInvoiceNumber } from "@/lib/utils";
 
+/**
+ * Upgrade paket langsung (misal Pro → Enterprise).
+ * Paket lama langsung berakhir, paket baru mulai dari sekarang.
+ * User membayar harga penuh paket baru.
+ */
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -13,41 +18,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const {
-      plan,
-      period, // "MONTHLY" | "YEARLY"
-      paymentMethod, // kode channel Tripay: BRIVA, QRIS, dll
-    } = body as {
+    const { plan, period, paymentMethod } = body as {
       plan: UpgradablePlan;
       period: "MONTHLY" | "YEARLY";
       paymentMethod: string;
     };
 
     if (!plan || (plan !== "PRO" && plan !== "ENTERPRISE")) {
-      return NextResponse.json(
-        { error: "Paket tidak valid." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Paket tidak valid." }, { status: 400 });
     }
 
     if (!paymentMethod) {
-      return NextResponse.json(
-        { error: "Pilih metode pembayaran terlebih dahulu." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Pilih metode pembayaran." }, { status: 400 });
     }
 
-    const planInfo = await getPlan(plan);
-    if (!planInfo.isActive) {
-      return NextResponse.json(
-        { error: `Paket ${planInfo.name} sedang tidak tersedia.` },
-        { status: 400 }
-      );
-    }
-    const amount =
-      period === "YEARLY" ? planInfo.yearlyPrice : planInfo.monthlyPrice;
-
-    // Tenant info untuk customer detail Tripay
     const tenant = await prisma.tenant.findUnique({
       where: { id: session.user.tenantId },
       select: {
@@ -64,61 +48,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tenant tidak ditemukan." }, { status: 404 });
     }
 
-    // Validasi: blokir beli paket berbeda saat masih ada langganan aktif
+    // Validasi: hanya boleh upgrade ke paket yang lebih tinggi
+    const planOrder = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
+    const currentOrder = planOrder[tenant.plan as keyof typeof planOrder] ?? 0;
+    const targetOrder = planOrder[plan] ?? 0;
+
+    if (targetOrder <= currentOrder) {
+      return NextResponse.json(
+        { error: "Gunakan fitur downgrade untuk pindah ke paket lebih rendah." },
+        { status: 400 }
+      );
+    }
+
+    // Harus ada langganan aktif untuk upgrade
     const isActive =
       tenant.subscriptionStatus === "ACTIVE" &&
       tenant.subscriptionEndsAt &&
       tenant.subscriptionEndsAt > new Date();
 
-    if (isActive && tenant.plan !== plan) {
-      const planOrder = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
-      const currentOrder = planOrder[tenant.plan as keyof typeof planOrder] ?? 0;
-      const targetOrder = planOrder[plan] ?? 0;
-
-      if (targetOrder > currentOrder) {
-        return NextResponse.json(
-          { error: "Gunakan fitur upgrade untuk pindah ke paket lebih tinggi." },
-          { status: 400 }
-        );
-      } else {
-        return NextResponse.json(
-          { error: "Gunakan fitur downgrade untuk pindah ke paket lebih rendah." },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Cek invoice PENDING yang belum dibayar untuk paket berbeda
-    const pendingDifferentPlan = await prisma.billingInvoice.findFirst({
-      where: {
-        tenantId: session.user.tenantId,
-        status: "PENDING",
-        plan: { not: plan },
-      },
-    });
-
-    if (pendingDifferentPlan) {
+    if (!isActive) {
       return NextResponse.json(
-        {
-          error: `Anda masih memiliki tagihan ${pendingDifferentPlan.plan} yang belum dibayar (${pendingDifferentPlan.invoiceNumber}). Selesaikan atau biarkan tagihan tersebut kedaluwarsa terlebih dahulu.`,
-        },
+        { error: "Tidak ada langganan aktif. Gunakan checkout biasa." },
         { status: 400 }
       );
     }
 
-    // Generate invoice number unik
-    const invoiceNumber = generateInvoiceNumber("BIL");
-
-    // Hitung period start & end
-    const periodStart = new Date();
-    const periodEnd = new Date();
-    if (period === "YEARLY") {
-      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-    } else {
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const planInfo = await getPlan(plan);
+    if (!planInfo.isActive) {
+      return NextResponse.json(
+        { error: `Paket ${planInfo.name} sedang tidak tersedia.` },
+        { status: 400 }
+      );
     }
 
-    // Buat invoice di database dulu (status PENDING)
+    const amount = period === "YEARLY" ? planInfo.yearlyPrice : planInfo.monthlyPrice;
+    const invoiceNumber = generateInvoiceNumber("UPG");
+
+    // Hitung period end baru (mulai dari sekarang)
+    const periodStart = new Date();
+    const periodEnd = new Date();
+    if (period === "YEARLY") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    else periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    // Buat invoice
     const invoice = await prisma.billingInvoice.create({
       data: {
         invoiceNumber,
@@ -131,7 +103,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Buat transaksi di Tripay
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const periodLabel = period === "YEARLY" ? "Tahunan" : "Bulanan";
 
@@ -145,8 +116,8 @@ export async function POST(req: NextRequest) {
         customerPhone: tenant.phone || undefined,
         orderItems: [
           {
-            sku: `${plan}-${period}`,
-            name: `${planInfo.name} (${periodLabel})`,
+            sku: `UPGRADE-${plan}-${period}`,
+            name: `Upgrade ke ${planInfo.name} (${periodLabel})`,
             price: amount,
             quantity: 1,
           },
@@ -156,8 +127,7 @@ export async function POST(req: NextRequest) {
         expiredHours: 24,
       });
 
-      // Update invoice dengan data Tripay
-      const updatedInvoice = await prisma.billingInvoice.update({
+      await prisma.billingInvoice.update({
         where: { id: invoice.id },
         data: {
           tripayReference: tripayTx.reference,
@@ -167,14 +137,15 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({
-        invoice: updatedInvoice,
+        invoice: { ...invoice, id: invoice.id },
         checkoutUrl: tripayTx.checkout_url,
         payCode: tripayTx.pay_code,
         qrUrl: tripayTx.qr_url,
         reference: tripayTx.reference,
+        // Flag untuk billing-actions: ini adalah upgrade, paket lama langsung berakhir
+        isUpgrade: true,
       });
     } catch (tripayError) {
-      // Rollback invoice jika gagal di Tripay
       await prisma.billingInvoice.update({
         where: { id: invoice.id },
         data: { status: "FAILED" },
@@ -182,14 +153,9 @@ export async function POST(req: NextRequest) {
       throw tripayError;
     }
   } catch (error) {
-    console.error("Checkout error:", error);
+    console.error("Upgrade error:", error);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Gagal memproses pembayaran.",
-      },
+      { error: error instanceof Error ? error.message : "Gagal memproses upgrade." },
       { status: 500 }
     );
   }

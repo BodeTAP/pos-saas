@@ -143,6 +143,9 @@ model Tenant {
   maxCashiers   Int @default(1)    // FREE: 1, PRO: 5, ENTERPRISE: unlimited
   maxOutlets    Int @default(1)    // FREE/PRO: 1, ENTERPRISE: unlimited
 
+  // Downgrade terjadwal — efektif saat subscriptionEndsAt
+  scheduledDowngradePlan SubscriptionPlan?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

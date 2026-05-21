@@ -11,6 +11,9 @@ import {
   ExternalLink,
   RefreshCw,
   Loader2,
+  ArrowUp,
+  ArrowDown,
+  X,
 } from "lucide-react";
 import { CheckoutModal } from "@/components/billing/checkout-modal";
 import type { SubscriptionPlan, SubscriptionStatus, BillingStatus } from "@prisma/client";
@@ -31,6 +34,7 @@ interface TenantData {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: Date | null;
   subscriptionEndsAt: Date | null;
+  scheduledDowngradePlan: SubscriptionPlan | null;
 }
 
 interface BillingClientProps {
@@ -46,30 +50,35 @@ const statusColor: Record<string, string> = {
   EXPIRED: "bg-gray-100 text-gray-500",
 };
 
+const planOrder: Record<string, number> = { FREE: 0, PRO: 1, ENTERPRISE: 2 };
+
 export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<"PRO" | "ENTERPRISE" | null>(null);
+  const [checkoutMode, setCheckoutMode] = useState<"normal" | "upgrade">("normal");
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [showDowngradeModal, setShowDowngradeModal] = useState<"PRO" | "FREE" | null>(null);
+  const [isDowngrading, setIsDowngrading] = useState(false);
+  const [isCancellingDowngrade, setIsCancellingDowngrade] = useState(false);
 
   const planByTier = Object.fromEntries(plans.map((p) => [p.tier, p])) as Record<
     SubscriptionPlan,
     PlanInfo
   >;
   const currentPlan = planByTier[tenant.plan];
+  const currentOrder = planOrder[tenant.plan] ?? 0;
+
+  const isActive =
+    tenant.subscriptionStatus === "ACTIVE" &&
+    tenant.subscriptionEndsAt &&
+    tenant.subscriptionEndsAt > new Date();
 
   async function handleCheckStatus(invoiceId: string) {
     setCheckingId(invoiceId);
     try {
-      const res = await fetch(`/api/billing/check-status/${invoiceId}`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/billing/check-status/${invoiceId}`, { method: "POST" });
       const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error || "Gagal mengecek status.");
-        return;
-      }
-
+      if (!res.ok) { toast.error(data.error || "Gagal mengecek status."); return; }
       if (data.status === "PAID") {
         toast.success("Pembayaran berhasil! Paket langganan telah diaktifkan.");
         router.refresh();
@@ -86,6 +95,47 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
     }
   }
 
+  async function handleDowngrade(targetPlan: "PRO" | "FREE") {
+    setIsDowngrading(true);
+    try {
+      const res = await fetch("/api/billing/downgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Gagal menjadwalkan downgrade."); return; }
+
+      const planName = planByTier[targetPlan]?.name || targetPlan;
+      toast.success(
+        `Downgrade ke ${planName} dijadwalkan. Efektif ${formatDate(data.effectiveDate)}.`
+      );
+      if (data.warnings?.length > 0) {
+        data.warnings.forEach((w: string) => toast.info(w, { duration: 8000 }));
+      }
+      setShowDowngradeModal(null);
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan koneksi.");
+    } finally {
+      setIsDowngrading(false);
+    }
+  }
+
+  async function handleCancelDowngrade() {
+    setIsCancellingDowngrade(true);
+    try {
+      const res = await fetch("/api/billing/downgrade", { method: "DELETE" });
+      if (!res.ok) { toast.error("Gagal membatalkan downgrade."); return; }
+      toast.success("Jadwal downgrade berhasil dibatalkan.");
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan koneksi.");
+    } finally {
+      setIsCancellingDowngrade(false);
+    }
+  }
+
   return (
     <div className="max-w-4xl space-y-6">
       <div>
@@ -98,7 +148,7 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-gray-500 mb-1">Paket Aktif</p>
-            <h2 className="text-xl font-bold text-gray-900">{currentPlan.name}</h2>
+            <h2 className="text-xl font-bold text-gray-900">{currentPlan?.name}</h2>
             {tenant.subscriptionStatus === "TRIAL" && tenant.trialEndsAt && (
               <div className="flex items-center gap-1.5 mt-2 text-orange-600 text-sm">
                 <Clock className="w-4 h-4" />
@@ -124,7 +174,7 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
         </div>
 
         <ul className="mt-4 space-y-1.5">
-          {currentPlan.features.map((f) => (
+          {currentPlan?.features.map((f) => (
             <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
               <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
               {f}
@@ -133,66 +183,103 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
         </ul>
       </div>
 
-      {/* Upgrade Plans */}
-      <div>
-        <h2 className="font-semibold text-gray-900 mb-3">
-          {tenant.plan === "FREE" || tenant.plan === "PRO" ? "Upgrade Paket" : "Paket Tersedia"}
-        </h2>
-
-        {/* Warning kalau ada langganan aktif */}
-        {tenant.subscriptionStatus === "ACTIVE" && tenant.subscriptionEndsAt && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 flex gap-2.5">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+      {/* Downgrade terjadwal */}
+      {tenant.scheduledDowngradePlan && tenant.subscriptionEndsAt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <ArrowDown className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium">
-                Langganan {tenant.plan} aktif hingga {formatDate(tenant.subscriptionEndsAt)}.
+              <p className="text-sm font-medium text-amber-900">
+                Downgrade terjadwal ke{" "}
+                <strong>{planByTier[tenant.scheduledDowngradePlan]?.name || tenant.scheduledDowngradePlan}</strong>
               </p>
-              <p className="mt-0.5">
-                Anda hanya bisa <strong>perpanjang paket {tenant.plan}</strong> saat ini. Untuk pindah ke paket lain, tunggu hingga masa aktif berakhir.
+              <p className="text-xs text-amber-700 mt-0.5">
+                Efektif {formatDate(tenant.subscriptionEndsAt)} — paket saat ini tetap aktif hingga tanggal tersebut.
               </p>
             </div>
           </div>
-        )}
+          <button
+            onClick={handleCancelDowngrade}
+            disabled={isCancellingDowngrade}
+            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-medium flex-shrink-0"
+          >
+            {isCancellingDowngrade ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <X className="w-3.5 h-3.5" />
+            )}
+            Batalkan
+          </button>
+        </div>
+      )}
 
+      {/* Plan Cards */}
+      <div>
+        <h2 className="font-semibold text-gray-900 mb-3">Paket Tersedia</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {(["PRO", "ENTERPRISE"] as const).map((planKey) => {
             const plan = planByTier[planKey];
             if (!plan || !plan.isActive) return null;
-            const isCurrent = tenant.plan === planKey && tenant.subscriptionStatus === "ACTIVE";
-            // Tombol di-disable kalau ada langganan aktif untuk plan BERBEDA
-            const hasActiveOtherPlan = Boolean(
-              tenant.subscriptionStatus === "ACTIVE" &&
-                tenant.subscriptionEndsAt &&
-                tenant.subscriptionEndsAt > new Date() &&
-                tenant.plan !== planKey
-            );
 
-            // Label tombol kontekstual
-            const buttonLabel = isCurrent
-              ? `Perpanjang ${plan.name}`
-              : hasActiveOtherPlan
-              ? "Tidak Tersedia"
-              : `Pilih ${plan.name}`;
+            const targetOrder = planOrder[planKey] ?? 0;
+            const isCurrent = tenant.plan === planKey && tenant.subscriptionStatus === "ACTIVE";
+            const isUpgrade = isActive && targetOrder > currentOrder;
+            const isDowngrade = isActive && targetOrder < currentOrder;
+            const isScheduledDowngrade = tenant.scheduledDowngradePlan === planKey;
+
+            // Tentukan label & aksi tombol
+            let primaryLabel = `Pilih ${plan.name}`;
+            let primaryAction = () => { setCheckoutMode("normal"); setSelectedPlan(planKey); };
+            let primaryDisabled = false;
+            let primaryClass = "bg-blue-600 hover:bg-blue-700 text-white";
+
+            if (isCurrent) {
+              primaryLabel = `Perpanjang ${plan.name}`;
+              primaryAction = () => { setCheckoutMode("normal"); setSelectedPlan(planKey); };
+            } else if (isUpgrade) {
+              primaryLabel = `Upgrade ke ${plan.name}`;
+              primaryAction = () => { setCheckoutMode("upgrade"); setSelectedPlan(planKey); };
+              primaryClass = "bg-green-600 hover:bg-green-700 text-white";
+            } else if (isDowngrade) {
+              if (isScheduledDowngrade) {
+                primaryLabel = "Downgrade Dijadwalkan";
+                primaryDisabled = true;
+                primaryClass = "bg-gray-200 text-gray-500 cursor-not-allowed";
+              } else {
+                primaryLabel = `Jadwalkan Downgrade`;
+                primaryAction = () => setShowDowngradeModal(planKey as "PRO" | "FREE");
+                primaryClass = "bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300";
+              }
+            }
 
             return (
               <div
                 key={planKey}
                 className={`bg-white rounded-xl border-2 p-5 transition-colors ${
-                  isCurrent
-                    ? "border-blue-500"
-                    : hasActiveOtherPlan
-                    ? "border-gray-200 opacity-60"
-                    : "border-gray-200 hover:border-blue-400"
+                  isCurrent ? "border-blue-500" : "border-gray-200 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-bold text-gray-900">{plan.name}</h3>
-                  {isCurrent && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                      Aktif
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {isCurrent && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                        Aktif
+                      </span>
+                    )}
+                    {isUpgrade && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                        <ArrowUp className="w-3 h-3" /> Upgrade
+                      </span>
+                    )}
+                    {isDowngrade && !isScheduledDowngrade && (
+                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                        <ArrowDown className="w-3 h-3" /> Downgrade
+                      </span>
+                    )}
+                  </div>
                 </div>
+
                 <p className="text-2xl font-bold text-blue-600 mt-1">
                   {formatCurrency(plan.monthlyPrice)}
                   <span className="text-sm font-normal text-gray-500">/bulan</span>
@@ -200,6 +287,7 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
                 <p className="text-xs text-gray-400 mt-0.5">
                   atau {formatCurrency(plan.yearlyPrice)}/tahun (hemat 17%)
                 </p>
+
                 <ul className="mt-3 space-y-1.5 mb-4">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
@@ -208,17 +296,24 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
                     </li>
                   ))}
                 </ul>
+
+                {isUpgrade && (
+                  <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-3">
+                    Paket saat ini langsung berakhir. Paket baru mulai dari sekarang.
+                  </p>
+                )}
+                {isDowngrade && !isScheduledDowngrade && (
+                  <p className="text-xs text-orange-700 bg-orange-50 rounded-lg px-3 py-2 mb-3">
+                    Paket saat ini tetap aktif hingga {formatDate(tenant.subscriptionEndsAt!)}. Downgrade efektif setelah itu.
+                  </p>
+                )}
+
                 <button
-                  onClick={() => setSelectedPlan(planKey)}
-                  disabled={hasActiveOtherPlan}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg text-sm transition-colors"
-                  title={
-                    hasActiveOtherPlan
-                      ? `Tunggu langganan ${tenant.plan} berakhir untuk pindah paket`
-                      : ""
-                  }
+                  onClick={primaryAction}
+                  disabled={primaryDisabled}
+                  className={`w-full font-medium py-2 rounded-lg text-sm transition-colors ${primaryClass}`}
                 >
-                  {buttonLabel}
+                  {primaryLabel}
                 </button>
               </div>
             );
@@ -232,25 +327,14 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
           <h2 className="font-semibold text-gray-900 mb-4">Riwayat Pembayaran</h2>
           <div className="space-y-2">
             {invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0"
-              >
+              <div key={inv.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{inv.invoiceNumber}</p>
-                  <p className="text-xs text-gray-500">
-                    {inv.plan} · {formatDate(inv.createdAt)}
-                  </p>
+                  <p className="text-xs text-gray-500">{inv.plan} · {formatDate(inv.createdAt)}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {formatCurrency(inv.amount)}
-                  </p>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      statusColor[inv.status] || "bg-gray-100 text-gray-500"
-                    }`}
-                  >
+                  <p className="text-sm font-semibold text-gray-900">{formatCurrency(inv.amount)}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[inv.status] || "bg-gray-100 text-gray-500"}`}>
                     {inv.status}
                   </span>
                   {inv.status === "PENDING" && (
@@ -259,23 +343,12 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
                         onClick={() => handleCheckStatus(inv.id)}
                         disabled={checkingId === inv.id}
                         className="flex items-center gap-1 text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors disabled:opacity-50"
-                        title="Cek status pembayaran ke Tripay"
                       >
-                        {checkingId === inv.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        )}
+                        {checkingId === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                         Cek
                       </button>
                       {inv.tripayPaymentUrl && (
-                        <a
-                          href={inv.tripayPaymentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-700"
-                          title="Lanjutkan pembayaran"
-                        >
+                        <a href={inv.tripayPaymentUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700">
                           <ExternalLink className="w-4 h-4" />
                         </a>
                       )}
@@ -292,17 +365,92 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
       {selectedPlan && (
         <CheckoutModal
           plan={selectedPlan}
-          tenant={{
-            plan: tenant.plan,
-            subscriptionEndsAt: tenant.subscriptionEndsAt,
-          }}
+          mode={checkoutMode}
+          tenant={{ plan: tenant.plan, subscriptionEndsAt: tenant.subscriptionEndsAt }}
           onClose={() => setSelectedPlan(null)}
-          onSuccess={() => {
-            setSelectedPlan(null);
-            router.refresh();
-          }}
+          onSuccess={() => { setSelectedPlan(null); router.refresh(); }}
         />
       )}
+
+      {/* Downgrade Confirmation Modal */}
+      {showDowngradeModal && (
+        <DowngradeConfirmModal
+          targetPlan={showDowngradeModal}
+          targetPlanName={planByTier[showDowngradeModal]?.name || showDowngradeModal}
+          effectiveDate={tenant.subscriptionEndsAt}
+          isLoading={isDowngrading}
+          onConfirm={() => handleDowngrade(showDowngradeModal)}
+          onClose={() => setShowDowngradeModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DowngradeConfirmModal({
+  targetPlan,
+  targetPlanName,
+  effectiveDate,
+  isLoading,
+  onConfirm,
+  onClose,
+}: {
+  targetPlan: string;
+  targetPlanName: string;
+  effectiveDate: Date | null;
+  isLoading: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+            <ArrowDown className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900">Jadwalkan Downgrade</h2>
+            <p className="text-sm text-gray-500">ke {targetPlanName}</p>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 space-y-2 text-sm text-amber-800">
+          <p>
+            <strong>Paket saat ini tetap aktif</strong> hingga{" "}
+            {effectiveDate ? formatDate(effectiveDate) : "masa berakhir"}.
+          </p>
+          <p>
+            Setelah tanggal tersebut, paket akan otomatis turun ke{" "}
+            <strong>{targetPlanName}</strong>. Kamu perlu membeli paket baru untuk melanjutkan.
+          </p>
+          {targetPlan === "PRO" && (
+            <p className="text-orange-700">
+              ⚠️ Fitur multi-cabang tidak tersedia di Paket Pro. Pastikan kamu sudah menyesuaikan penggunaan cabang sebelum downgrade efektif.
+            </p>
+          )}
+        </div>
+
+        <p className="text-sm text-gray-600 mb-5">
+          Kamu bisa membatalkan jadwal downgrade ini kapan saja sebelum tanggal efektif.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2"
+          >
+            {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Menjadwalkan...</> : "Jadwalkan Downgrade"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

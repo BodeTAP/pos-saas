@@ -41,9 +41,10 @@ interface TenantInfo {
 
 interface CheckoutModalProps {
   plan: "PRO" | "ENTERPRISE";
+  mode: "normal" | "upgrade"; // upgrade = pakai /api/billing/upgrade
   tenant: TenantInfo;
   onClose: () => void;
-  onSuccess: () => void; // dipanggil saat paket berhasil diaktifkan
+  onSuccess: () => void;
 }
 
 interface CheckoutResult {
@@ -62,7 +63,7 @@ type Step = "confirm" | "payment" | "waiting" | "success";
 const AUTO_POLL_INTERVAL = 5000; // 5 detik
 const AUTO_POLL_MAX = 60; // max 5 menit (60 × 5 detik)
 
-export function CheckoutModal({ plan, tenant, onClose, onSuccess }: CheckoutModalProps) {
+export function CheckoutModal({ plan, mode, tenant, onClose, onSuccess }: CheckoutModalProps) {
   const [step, setStep] = useState<Step>("confirm");
   const [period, setPeriod] = useState<"MONTHLY" | "YEARLY">("MONTHLY");
   const [planInfo, setPlanInfo] = useState<PlanSummary | null>(null);
@@ -214,7 +215,8 @@ export function CheckoutModal({ plan, tenant, onClose, onSuccess }: CheckoutModa
     setIsProcessing(true);
     setError("");
     try {
-      const res = await fetch("/api/billing/checkout", {
+      const endpoint = mode === "upgrade" ? "/api/billing/upgrade" : "/api/billing/checkout";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, period, paymentMethod: selectedChannel }),
@@ -321,6 +323,11 @@ export function CheckoutModal({ plan, tenant, onClose, onSuccess }: CheckoutModa
               {isRenewal && tenant.subscriptionEndsAt && (
                 <div className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mt-1">
                   Sisa masa aktif saat ini akan ditambahkan ke periode baru.
+                </div>
+              )}
+              {mode === "upgrade" && (
+                <div className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 mt-1">
+                  Paket saat ini langsung berakhir. Paket baru mulai dari sekarang.
                 </div>
               )}
               <div className="border-t border-gray-200 pt-2 flex justify-between font-bold">

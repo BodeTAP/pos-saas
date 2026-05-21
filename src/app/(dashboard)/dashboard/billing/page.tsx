@@ -16,6 +16,7 @@ export default async function BillingPage() {
         subscriptionStatus: true,
         trialEndsAt: true,
         subscriptionEndsAt: true,
+        scheduledDowngradePlan: true,
       },
     }),
     prisma.billingInvoice.findMany({
