@@ -34,25 +34,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Buat nama file unik: tenantId/folder/timestamp-originalname
     const ext = file.name.split(".").pop() || "jpg";
     const filename = `${session.user.tenantId}/${folder}/${Date.now()}.${ext}`;
 
-    const blob = await put(filename, file, {
-      access: "public",
-      contentType: file.type,
-    });
+    // Coba public dulu, fallback ke error yang jelas kalau store adalah private
+    let blob;
+    try {
+      blob = await put(filename, file, {
+        access: "public",
+        contentType: file.type,
+      });
+    } catch (publicError) {
+      if (
+        publicError instanceof Error &&
+        publicError.message.includes("private store")
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Blob Store dikonfigurasi sebagai Private. Buat Blob Store baru dengan akses Public di Vercel Dashboard.",
+          },
+          { status: 503 }
+        );
+      }
+      throw publicError;
+    }
 
     return NextResponse.json({ url: blob.url });
   } catch (error) {
     console.error("Upload error:", error);
-    // Kalau BLOB_READ_WRITE_TOKEN belum diset, berikan pesan yang jelas
-    if (error instanceof Error && error.message.includes("BLOB_READ_WRITE_TOKEN")) {
-      return NextResponse.json(
-        { error: "Upload gambar belum dikonfigurasi. Set BLOB_READ_WRITE_TOKEN di .env" },
-        { status: 503 }
-      );
+
+    if (error instanceof Error) {
+      if (error.message.includes("BLOB_READ_WRITE_TOKEN")) {
+        return NextResponse.json(
+          { error: "Upload gambar belum dikonfigurasi. Set BLOB_READ_WRITE_TOKEN di .env" },
+          { status: 503 }
+        );
+      }
+      if (error.message.includes("private store")) {
+        return NextResponse.json(
+          {
+            error:
+              "Blob Store dikonfigurasi sebagai Private. Buat Blob Store baru dengan akses Public di Vercel Dashboard untuk upload gambar.",
+          },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
     return NextResponse.json({ error: "Gagal mengupload gambar." }, { status: 500 });
   }
 }

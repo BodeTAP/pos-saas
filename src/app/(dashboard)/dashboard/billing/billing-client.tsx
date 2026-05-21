@@ -292,7 +292,15 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
       {selectedPlan && (
         <CheckoutModal
           plan={selectedPlan}
+          tenant={{
+            plan: tenant.plan,
+            subscriptionEndsAt: tenant.subscriptionEndsAt,
+          }}
           onClose={() => setSelectedPlan(null)}
+          onSuccess={() => {
+            setSelectedPlan(null);
+            router.refresh();
+          }}
         />
       )}
     </div>
