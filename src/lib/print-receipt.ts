@@ -109,6 +109,7 @@ function generateReceiptHTML(data: ReceiptData): string {
 <body>
   <div class="center">
     <div class="store-name">${data.storeName}</div>
+    ${data.receiptHeader ? `<div class="italic" style="font-size:${fontSizePx - 1}px">${data.receiptHeader}</div>` : ""}
     ${data.storeAddress ? `<div>${data.storeAddress}</div>` : ""}
     ${data.storePhone ? `<div>Telp: ${data.storePhone}</div>` : ""}
   </div>

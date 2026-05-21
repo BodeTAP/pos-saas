@@ -9,6 +9,7 @@ export interface ReceiptData {
   storeAddress?: string | null;
   storePhone?: string | null;
   receiptNote?: string | null;
+  receiptHeader?: string | null;
   receiptWidth: number; // 58 atau 80 mm
   cashierName: string;
   items: {
@@ -62,6 +63,9 @@ export const Receipt = forwardRef<HTMLDivElement, { data: ReceiptData }>(
         {/* Header Toko */}
         <div className="text-center mb-2">
           <p className="font-bold text-sm uppercase">{data.storeName}</p>
+          {data.receiptHeader && (
+            <p className="text-xs italic">{data.receiptHeader}</p>
+          )}
           {data.storeAddress && (
             <p className="text-xs">{data.storeAddress}</p>
           )}

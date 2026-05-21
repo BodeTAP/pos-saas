@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/toaster";
 import { formatDate } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 import {
   Settings,
   Plus,
@@ -13,7 +13,12 @@ import {
   EyeOff,
   X,
   AlertCircle,
+  Save,
+  Globe,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
+import type { PlatformConfigKey } from "@/lib/platform-config";
 
 interface SuperAdmin {
   id: string;
@@ -26,21 +31,56 @@ interface SuperAdmin {
 interface SettingsClientProps {
   currentUserId: string;
   superAdmins: SuperAdmin[];
+  platformConfigs: Record<PlatformConfigKey, string>;
 }
 
-export function SettingsClient({ currentUserId, superAdmins }: SettingsClientProps) {
+export function SettingsClient({ currentUserId, superAdmins, platformConfigs }: SettingsClientProps) {
   const router = useRouter();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
 
-  const platformInfo = [
-    { label: "Nama Platform", value: process.env.NEXT_PUBLIC_APP_NAME || "POS SaaS" },
-    { label: "Versi", value: "1.0.0" },
-    { label: "Database", value: "PostgreSQL (Neon)" },
-    {
-      label: "Payment Gateway",
-      value: process.env.NEXT_PUBLIC_TRIPAY_MODE === "production" ? "Tripay (Live)" : "Tripay (Sandbox)",
-    },
-  ];
+  const [config, setConfig] = useState({
+    platform_name: platformConfigs.platform_name,
+    support_email: platformConfigs.support_email,
+    registration_enabled: platformConfigs.registration_enabled,
+    trial_days: platformConfigs.trial_days,
+    maintenance_mode: platformConfigs.maintenance_mode,
+    maintenance_message: platformConfigs.maintenance_message,
+    suspended_message: platformConfigs.suspended_message,
+  });
+
+  function handleConfigChange(key: string, value: string) {
+    setConfig((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleBool(key: string) {
+    setConfig((prev) => ({
+      ...prev,
+      [key]: prev[key as keyof typeof prev] === "true" ? "false" : "true",
+    }));
+  }
+
+  async function handleSaveConfig() {
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch("/api/super-admin/platform-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal menyimpan konfigurasi.");
+        return;
+      }
+      toast.success("Konfigurasi platform berhasil disimpan.");
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan koneksi.");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  }
 
   async function handleToggleActive(id: string, isActive: boolean) {
     if (id === currentUserId && !isActive) {
@@ -62,12 +102,16 @@ export function SettingsClient({ currentUserId, superAdmins }: SettingsClientPro
       body: JSON.stringify({ isActive }),
     });
     if (res.ok) {
+      toast.success(isActive ? "Super Admin diaktifkan." : "Super Admin dinonaktifkan.");
       router.refresh();
     } else {
       const data = await res.json();
       toast.error(data.error || "Gagal mengubah status.");
     }
   }
+
+  const isMaintenanceOn = config.maintenance_mode === "true";
+  const isRegistrationOn = config.registration_enabled === "true";
 
   return (
     <div className="space-y-6">
@@ -76,29 +120,146 @@ export function SettingsClient({ currentUserId, superAdmins }: SettingsClientPro
         <p className="text-gray-500 mt-1">Pengaturan global platform & manajemen Super Admin</p>
       </div>
 
-      {/* Platform Info */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <Settings className="w-5 h-5 text-gray-600" />
+      {/* Platform Config */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+            <Globe className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h2 className="font-semibold text-gray-900">Informasi Platform</h2>
-            <p className="text-sm text-gray-500">Konfigurasi sistem read-only</p>
+            <h2 className="font-semibold text-gray-900">Konfigurasi Platform</h2>
+            <p className="text-sm text-gray-500">Pengaturan global yang berlaku untuk seluruh platform</p>
           </div>
         </div>
 
-        <div className="space-y-1">
-          {platformInfo.map((item) => (
-            <div
-              key={item.label}
-              className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0"
-            >
-              <span className="text-sm text-gray-500">{item.label}</span>
-              <span className="text-sm font-medium text-gray-900">{item.value}</span>
-            </div>
-          ))}
+        {/* Branding */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Platform</label>
+            <input
+              value={config.platform_name}
+              onChange={(e) => handleConfigChange("platform_name", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              placeholder="POS SaaS"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Support</label>
+            <input
+              type="email"
+              value={config.support_email}
+              onChange={(e) => handleConfigChange("support_email", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              placeholder="support@pos-saas.com"
+            />
+          </div>
         </div>
+
+        {/* Trial & Registration */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Durasi Trial (hari)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={config.trial_days}
+              onChange={(e) => handleConfigChange("trial_days", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-1">0 = tidak ada trial, langsung aktif</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Registrasi Tenant Baru
+            </label>
+            <button
+              type="button"
+              onClick={() => toggleBool("registration_enabled")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isRegistrationOn
+                  ? "bg-green-100 text-green-700 hover:bg-green-200"
+                  : "bg-red-100 text-red-700 hover:bg-red-200"
+              }`}
+            >
+              {isRegistrationOn ? (
+                <><ToggleRight className="w-5 h-5" /> Registrasi Aktif</>
+              ) : (
+                <><ToggleLeft className="w-5 h-5" /> Registrasi Dinonaktifkan</>
+              )}
+            </button>
+            <p className="text-xs text-gray-400 mt-1">
+              {isRegistrationOn
+                ? "Tenant baru bisa mendaftar mandiri"
+                : "Halaman register akan menampilkan pesan tidak tersedia"}
+            </p>
+          </div>
+        </div>
+
+        {/* Maintenance Mode */}
+        <div className="border border-orange-200 bg-orange-50 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-orange-900">Mode Maintenance</p>
+              <p className="text-xs text-orange-700 mt-0.5">
+                Saat aktif, semua tenant (kecuali Super Admin) tidak bisa login
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => toggleBool("maintenance_mode")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isMaintenanceOn
+                  ? "bg-orange-600 text-white hover:bg-orange-700"
+                  : "bg-white text-orange-700 border border-orange-300 hover:bg-orange-50"
+              }`}
+            >
+              {isMaintenanceOn ? (
+                <><ToggleRight className="w-5 h-5" /> Aktif</>
+              ) : (
+                <><ToggleLeft className="w-5 h-5" /> Nonaktif</>
+              )}
+            </button>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-orange-800 mb-1">
+              Pesan Maintenance
+            </label>
+            <textarea
+              value={config.maintenance_message}
+              onChange={(e) => handleConfigChange("maintenance_message", e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-orange-300 rounded-lg text-sm bg-white"
+            />
+          </div>
+        </div>
+
+        {/* Suspended Message */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Pesan untuk Tenant Suspended
+          </label>
+          <textarea
+            value={config.suspended_message}
+            onChange={(e) => handleConfigChange("suspended_message", e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+        </div>
+
+        <button
+          onClick={handleSaveConfig}
+          disabled={isSavingConfig}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-5 py-2.5 rounded-xl text-sm font-medium"
+        >
+          {isSavingConfig ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...</>
+          ) : (
+            <><Save className="w-4 h-4" /> Simpan Konfigurasi</>
+          )}
+        </button>
       </div>
 
       {/* Super Admin Management */}
@@ -172,7 +333,6 @@ export function SettingsClient({ currentUserId, superAdmins }: SettingsClientPro
         </table>
       </div>
 
-      {/* Modal Tambah Super Admin */}
       {showAddModal && <AddSuperAdminModal onClose={() => setShowAddModal(false)} />}
     </div>
   );
@@ -191,7 +351,6 @@ function AddSuperAdminModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
     try {
       const res = await fetch("/api/super-admin/admins", {
         method: "POST",
@@ -203,6 +362,7 @@ function AddSuperAdminModal({ onClose }: { onClose: () => void }) {
         setError(data.error || "Gagal membuat akun.");
         return;
       }
+      toast.success("Super Admin berhasil ditambahkan.");
       router.refresh();
       onClose();
     } catch {
@@ -221,7 +381,6 @@ function AddSuperAdminModal({ onClose }: { onClose: () => void }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm flex items-start gap-2">
@@ -229,36 +388,16 @@ function AddSuperAdminModal({ onClose }: { onClose: () => void }) {
               {error}
             </div>
           )}
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nama Lengkap <span className="text-red-500">*</span>
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -269,42 +408,18 @@ function AddSuperAdminModal({ onClose }: { onClose: () => void }) {
                 placeholder="Minimal 8 karakter"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm pr-10"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
-
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-            <strong>Hati-hati:</strong> Super Admin punya akses penuh ke seluruh tenant di
-            platform. Berikan hanya kepada anggota tim internal yang terpercaya.
+            <strong>Hati-hati:</strong> Super Admin punya akses penuh ke seluruh platform.
           </div>
-
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Menambah...
-                </>
-              ) : (
-                "Tambah"
-              )}
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50">Batal</button>
+            <button type="submit" disabled={isLoading} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2">
+              {isLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Menambah...</> : "Tambah"}
             </button>
           </div>
         </form>

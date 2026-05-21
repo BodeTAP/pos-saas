@@ -23,6 +23,11 @@ interface POSInterfaceProps {
     phone?: string | null;
     receiptWidth: number;
     receiptNote: string | null;
+    receiptHeader?: string | null;
+    invoicePrefix?: string | null;
+    pointsPerAmount?: number;
+    pointValue?: number;
+    activePaymentMethods?: string | null;
   } | null;
   cashierId: string;
   cashierName: string;
@@ -53,6 +58,8 @@ export function POSInterface({
 
   const cart = useCartStore();
   const taxPct = tenant?.taxRate ?? 0;
+  const pointValue = tenant?.pointValue || 100;
+  const pointsPerAmount = tenant?.pointsPerAmount || 10000;
 
   const filteredProducts = products.filter((p) => {
     const matchSearch =
@@ -85,7 +92,7 @@ export function POSInterface({
     cart.discountNominal > 0
       ? cart.discountNominal
       : subtotal * (cart.discountPct / 100);
-  const pointsDiscount = cart.pointsToRedeem * POINT_VALUE;
+  const pointsDiscount = cart.pointsToRedeem * pointValue;
   const afterDiscounts = Math.max(0, subtotal - discountAmount - pointsDiscount);
   const taxAmount = afterDiscounts * (taxPct / 100);
   const total = afterDiscounts + taxAmount;
@@ -190,6 +197,7 @@ export function POSInterface({
           pointsDiscount={pointsDiscount}
           taxAmount={taxAmount}
           total={total}
+          pointValue={tenant?.pointValue || 100}
           onCheckout={() => setShowPayment(true)}
           onHold={handleHold}
         />

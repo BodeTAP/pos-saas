@@ -23,6 +23,9 @@ interface PaymentModalProps {
     phone?: string | null;
     receiptWidth: number;
     receiptNote: string | null;
+    receiptHeader?: string | null;
+    invoicePrefix?: string | null;
+    activePaymentMethods?: string | null;
   } | null;
   customerId?: string;
   pointsRedeemed?: number;
@@ -32,10 +35,11 @@ interface PaymentModalProps {
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "CARD";
 
-const paymentMethods = [
+const ALL_PAYMENT_METHODS = [
   { value: "CASH" as PaymentMethod, label: "Tunai", icon: Banknote },
   { value: "QRIS" as PaymentMethod, label: "QRIS", icon: QrCode },
   { value: "TRANSFER" as PaymentMethod, label: "Transfer", icon: CreditCard },
+  { value: "CARD" as PaymentMethod, label: "Kartu", icon: CreditCard },
 ];
 
 export function PaymentModal({
@@ -54,6 +58,17 @@ export function PaymentModal({
   onSuccess,
 }: PaymentModalProps) {
   const { items, discountPct, note } = useCartStore();
+
+  // Parse metode pembayaran aktif dari tenant config
+  const activeMethods = (() => {
+    try {
+      const parsed = JSON.parse(tenant?.activePaymentMethods || '["CASH","QRIS","TRANSFER"]') as string[];
+      return ALL_PAYMENT_METHODS.filter((m) => parsed.includes(m.value));
+    } catch {
+      return ALL_PAYMENT_METHODS.slice(0, 3);
+    }
+  })();
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [amountPaid, setAmountPaid] = useState<string>(total.toString());
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +90,7 @@ export function PaymentModal({
     if (paymentMethod === "CASH" && paid < total) return;
 
     setIsLoading(true);
-    const invoice = generateInvoiceNumber("INV");
+    const invoice = generateInvoiceNumber(tenant?.invoicePrefix || "INV");
     const now = new Date();
 
     try {
@@ -118,6 +133,7 @@ export function PaymentModal({
         storeAddress: tenant?.address,
         storePhone: tenant?.phone,
         receiptNote: tenant?.receiptNote,
+        receiptHeader: tenant?.receiptHeader,
         receiptWidth: tenant?.receiptWidth || 80,
         cashierName,
         items: items.map((i) => ({
@@ -246,7 +262,7 @@ export function PaymentModal({
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">Metode Pembayaran</p>
             <div className="grid grid-cols-3 gap-2">
-              {paymentMethods.map((method) => {
+              {activeMethods.map((method) => {
                 const Icon = method.icon;
                 return (
                   <button

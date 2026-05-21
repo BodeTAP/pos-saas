@@ -3,11 +3,21 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { generateSlug } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
+import { getPlatformConfig, PLATFORM_CONFIG_KEYS } from "@/lib/platform-config";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { ownerName, email, password, storeName, phone } = body;
+
+    // Cek apakah registrasi diaktifkan
+    const registrationEnabled = await getPlatformConfig(PLATFORM_CONFIG_KEYS.REGISTRATION_ENABLED);
+    if (registrationEnabled !== "true") {
+      return NextResponse.json(
+        { error: "Pendaftaran tenant baru sedang tidak tersedia. Silakan hubungi administrator." },
+        { status: 403 }
+      );
+    }
 
     // Validasi input
     if (!ownerName || !email || !password || !storeName) {
@@ -51,8 +61,10 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Buat tenant dan user dalam satu transaksi
+    const trialDaysStr = await getPlatformConfig(PLATFORM_CONFIG_KEYS.TRIAL_DAYS);
+    const trialDays = parseInt(trialDaysStr) || 14;
     const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14 hari trial
+    trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
     const result = await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({

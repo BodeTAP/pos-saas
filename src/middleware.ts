@@ -6,6 +6,7 @@ import { authConfig } from "@/lib/auth-config";
 const { auth } = NextAuth(authConfig);
 
 const publicRoutes = ["/login", "/register", "/api/auth"];
+const superAdminRoutes = ["/super-admin"];
 
 // Route yang HANYA boleh diakses Owner (Kasir diblokir)
 const ownerOnlyRoutes = [
@@ -29,6 +30,10 @@ const suspendedAllowedRoutes = [
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
+
+  // Maintenance mode — cek header yang di-set oleh server (tidak bisa akses DB di edge)
+  // Maintenance mode di-enforce di level API, bukan middleware
+  // Karena middleware jalan di edge runtime tanpa akses DB
 
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
     return NextResponse.next();

@@ -10,7 +10,35 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, phone, address, city, taxRate, receiptNote, receiptWidth } = body;
+    const {
+      name,
+      phone,
+      address,
+      city,
+      taxRate,
+      receiptNote,
+      receiptHeader,
+      receiptWidth,
+      invoicePrefix,
+      pointsPerAmount,
+      pointValue,
+      activePaymentMethods,
+    } = body;
+
+    // Validasi metode pembayaran
+    const validMethods = ["CASH", "QRIS", "TRANSFER", "CARD", "OTHER"];
+    let parsedMethods: string[] = ["CASH", "QRIS", "TRANSFER"];
+    if (activePaymentMethods) {
+      try {
+        const methods = typeof activePaymentMethods === "string"
+          ? JSON.parse(activePaymentMethods)
+          : activePaymentMethods;
+        parsedMethods = (methods as string[]).filter((m) => validMethods.includes(m));
+        if (parsedMethods.length === 0) parsedMethods = ["CASH"];
+      } catch {
+        parsedMethods = ["CASH", "QRIS", "TRANSFER"];
+      }
+    }
 
     const tenant = await prisma.tenant.update({
       where: { id: session.user.tenantId },
@@ -19,9 +47,20 @@ export async function PUT(req: NextRequest) {
         phone: phone || null,
         address: address || null,
         city: city || null,
-        taxRate: taxRate !== undefined ? taxRate : undefined,
+        taxRate: taxRate !== undefined ? parseFloat(taxRate) || 0 : undefined,
         receiptNote: receiptNote || null,
-        receiptWidth: receiptWidth || undefined,
+        receiptHeader: receiptHeader || null,
+        receiptWidth: receiptWidth !== undefined ? parseInt(receiptWidth) || 80 : undefined,
+        invoicePrefix: invoicePrefix
+          ? invoicePrefix.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) || "INV"
+          : undefined,
+        pointsPerAmount: pointsPerAmount !== undefined
+          ? Math.max(1, parseInt(pointsPerAmount) || 10000)
+          : undefined,
+        pointValue: pointValue !== undefined
+          ? Math.max(1, parseInt(pointValue) || 100)
+          : undefined,
+        activePaymentMethods: JSON.stringify(parsedMethods),
       },
     });
 

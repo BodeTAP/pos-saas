@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getActiveOutletId } from "@/lib/active-outlet";
 
-export const POINT_VALUE = 100; // 1 poin = Rp 100
-export const POINT_PER_AMOUNT = 10000; // Rp 10.000 = 1 poin
+export const POINT_VALUE = 100; // default
+export const POINT_PER_AMOUNT = 10000; // default
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,7 +83,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const earnedPoints = Math.floor(total / POINT_PER_AMOUNT);
+    // Ambil konfigurasi poin dari tenant
+    const tenantConfig = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { pointsPerAmount: true },
+    });
+    const pointsPerAmount = tenantConfig?.pointsPerAmount || POINT_PER_AMOUNT;
+
+    // Hitung poin yang didapat dari transaksi ini (berdasarkan total final)
+    const earnedPoints = Math.floor(total / pointsPerAmount);
 
     const transaction = await prisma.$transaction(async (tx) => {
       // Buat transaksi utama (dengan outletId)

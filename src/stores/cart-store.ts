@@ -44,8 +44,8 @@ interface CartState {
   loadHeld: (state: Partial<CartState>) => void;
 }
 
-export const POINT_VALUE = 100; // 1 poin = Rp 100
-export const POINT_PER_AMOUNT = 10000; // Rp 10.000 belanja = 1 poin
+export const POINT_VALUE = 100; // default, override dari tenant settings
+export const POINT_PER_AMOUNT = 10000; // default, override dari tenant settings
 
 export const useCartStore = create<CartState>((set) => ({
   items: [],

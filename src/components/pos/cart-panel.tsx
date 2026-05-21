@@ -12,6 +12,7 @@ interface CartPanelProps {
   pointsDiscount: number;
   taxAmount: number;
   total: number;
+  pointValue?: number;
   onCheckout: () => void;
   onHold: () => void;
 }
@@ -23,6 +24,7 @@ export function CartPanel({
   pointsDiscount,
   taxAmount,
   total,
+  pointValue = POINT_VALUE,
   onCheckout,
   onHold,
 }: CartPanelProps) {
@@ -43,7 +45,7 @@ export function CartPanel({
   const maxRedeemable = customer
     ? Math.min(
         customer.points,
-        Math.floor((subtotal - discountAmount) / POINT_VALUE)
+        Math.floor((subtotal - discountAmount) / pointValue)
       )
     : 0;
 
@@ -147,7 +149,7 @@ export function CartPanel({
               <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
               <span className="font-medium">Tukar Poin</span>
               <span className="text-amber-600">
-                ({customer.points} tersedia · 1 poin = {formatCurrency(POINT_VALUE)})
+                ({customer.points} tersedia · 1 poin = {formatCurrency(pointValue)})
               </span>
             </div>
             <div className="flex items-center gap-2">

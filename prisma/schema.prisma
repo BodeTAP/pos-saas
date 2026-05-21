@@ -65,6 +65,20 @@ enum BillingStatus {
 }
 
 // ─────────────────────────────────────────────
+// PLATFORM CONFIG (dikelola Super Admin)
+// ─────────────────────────────────────────────
+
+model PlatformConfig {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @db.Text
+
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_configs")
+}
+
+// ─────────────────────────────────────────────
 // PRICING PLAN (dikelola Super Admin)
 // ─────────────────────────────────────────────
 
@@ -106,6 +120,17 @@ model Tenant {
   taxRate     Float    @default(0) // PPN dalam persen, misal 11
   receiptNote String?  // Catatan di bawah struk
   receiptWidth Int     @default(80) // 58 atau 80 mm
+  receiptHeader String? // Tagline/slogan di atas struk
+
+  // Konfigurasi invoice
+  invoicePrefix String @default("INV") // Prefix nomor invoice
+
+  // Konfigurasi loyalitas
+  pointsPerAmount  Int @default(10000) // Rp X belanja = 1 poin
+  pointValue       Int @default(100)   // 1 poin = Rp X diskon
+
+  // Metode pembayaran yang aktif (JSON array: ["CASH","QRIS","TRANSFER","CARD"])
+  activePaymentMethods String @default("[\"CASH\",\"QRIS\",\"TRANSFER\"]")
 
   // Subscription
   plan              SubscriptionPlan   @default(FREE)
