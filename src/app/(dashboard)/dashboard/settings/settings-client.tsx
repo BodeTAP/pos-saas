@@ -88,7 +88,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
           invoicePrefix: form.invoicePrefix.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) || "INV",
           pointsPerAmount: parseInt(form.pointsPerAmount) || 10000,
           pointValue: parseInt(form.pointValue) || 100,
-          activePaymentMethods: JSON.stringify(form.activePaymentMethods),
+          activePaymentMethods: form.activePaymentMethods,
         }),
       });
 
