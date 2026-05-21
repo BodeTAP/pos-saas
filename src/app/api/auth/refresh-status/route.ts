@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { applyScheduledDowngradeIfDue } from "@/lib/billing-actions";
 
 /**
- * Endpoint refresh status — dipanggil dari client setiap N menit
- * untuk cek apakah tenant masih aktif. Kalau status berubah, client
- * harus call session.update() untuk refresh JWT token.
+ * Endpoint refresh status — dipanggil dari client setiap 5 menit.
+ * Juga menerapkan downgrade terjadwal jika sudah waktunya.
  */
 export async function GET() {
   try {
@@ -18,6 +18,9 @@ export async function GET() {
       return NextResponse.json({ subscriptionStatus: null });
     }
 
+    // Terapkan downgrade terjadwal jika sudah waktunya
+    await applyScheduledDowngradeIfDue(session.user.tenantId);
+
     const tenant = await prisma.tenant.findUnique({
       where: { id: session.user.tenantId },
       select: { subscriptionStatus: true },
@@ -29,6 +32,9 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Refresh status error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({
+      subscriptionStatus: null,
+      changed: false,
+    });
   }
 }
