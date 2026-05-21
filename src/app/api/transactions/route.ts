@@ -199,6 +199,8 @@ export async function POST(req: NextRequest) {
           total,
           amountPaid: finalAmountPaid,
           change,
+          pointsEarned: earnedPoints,
+          pointsRedeemed: redeemedPoints,
           note: note || null,
           tenantId,
           cashierId,
@@ -257,14 +259,21 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Update poin pelanggan
+      // Update poin pelanggan dan cek redeem secara atomik.
       if (customerId) {
         const pointsDelta = earnedPoints - redeemedPoints;
-        if (pointsDelta !== 0) {
-          await tx.customer.update({
-            where: { id: customerId },
+        if (pointsDelta !== 0 || redeemedPoints > 0) {
+          const pointsUpdate = await tx.customer.updateMany({
+            where: {
+              id: customerId,
+              tenantId,
+              ...(redeemedPoints > 0 && { points: { gte: redeemedPoints } }),
+            },
             data: { points: { increment: pointsDelta } },
           });
+          if (pointsUpdate.count === 0) {
+            throw new Error("INSUFFICIENT_POINTS");
+          }
         }
       }
 
@@ -277,6 +286,12 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error("Transaction error:", error);
+    if (error instanceof Error && error.message === "INSUFFICIENT_POINTS") {
+      return NextResponse.json(
+        { error: "Saldo poin pelanggan berubah. Periksa ulang poin yang ditukar." },
+        { status: 400 }
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Gagal memproses transaksi.";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -391,6 +391,8 @@ model Transaction {
   total       Float // Total akhir = (subtotal - discount) * (1 + taxPct/100)
   amountPaid  Float @default(0) // Uang yang dibayar
   change      Float @default(0) // Kembalian
+  pointsEarned   Int @default(0) // Snapshot poin yang diberikan saat transaksi
+  pointsRedeemed Int @default(0) // Snapshot poin yang ditukar saat transaksi
 
   note     String?
   isHeld   Boolean @default(false) // Hold transaction

@@ -9,6 +9,8 @@ const refundSchema = z.object({
   restoreStock: z.boolean().default(true),
 });
 
+const REFUND_ALREADY_PROCESSED = "REFUND_ALREADY_PROCESSED";
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,9 +43,13 @@ export async function POST(
     const { reason, restoreStock } = parsed.data;
 
     await prisma.$transaction(async (tx) => {
-      // Mark transaction as CANCELLED
-      await tx.transaction.update({
-        where: { id },
+      // Claim the refund before touching stock or points.
+      const refundClaim = await tx.transaction.updateMany({
+        where: {
+          id,
+          tenantId: session.user.tenantId!,
+          status: "COMPLETED",
+        },
         data: {
           status: "CANCELLED",
           note: transaction.note
@@ -51,54 +57,53 @@ export async function POST(
             : `RETUR: ${reason}`,
         },
       });
+      if (refundClaim.count === 0) {
+        throw new Error(REFUND_ALREADY_PROCESSED);
+      }
 
       // Restore stock if requested
       if (restoreStock) {
         for (const item of transaction.items) {
-          const outletStock = await tx.outletStock.findUnique({
+          const restoredStock = await tx.outletStock.upsert({
             where: {
               outletId_productId: {
                 outletId: transaction.outletId,
                 productId: item.productId,
               },
             },
+            update: { stock: { increment: item.quantity } },
+            create: {
+              stock: item.quantity,
+              outletId: transaction.outletId,
+              productId: item.productId,
+              tenantId: session.user.tenantId!,
+            },
+            select: { stock: true },
           });
 
-          if (outletStock) {
-            await tx.outletStock.update({
-              where: { id: outletStock.id },
-              data: { stock: { increment: item.quantity } },
-            });
-
-            await tx.stockMutation.create({
-              data: {
-                type: "RETURN",
-                quantity: item.quantity,
-                stockBefore: outletStock.stock,
-                stockAfter: outletStock.stock + item.quantity,
-                note: `Retur - ${transaction.invoiceNumber}: ${reason}`,
-                tenantId: session.user.tenantId!,
-                productId: item.productId,
-                outletId: transaction.outletId,
-              },
-            });
-          }
+          await tx.stockMutation.create({
+            data: {
+              type: "RETURN",
+              quantity: item.quantity,
+              stockBefore: restoredStock.stock - item.quantity,
+              stockAfter: restoredStock.stock,
+              note: `Retur - ${transaction.invoiceNumber}: ${reason}`,
+              tenantId: session.user.tenantId!,
+              productId: item.productId,
+              outletId: transaction.outletId,
+            },
+          });
         }
       }
 
-      // Reverse customer points if any
+      // Reverse exactly the loyalty delta applied when the transaction was saved.
       if (transaction.customerId) {
-        const tenantConfig = await tx.tenant.findUnique({
-          where: { id: session.user.tenantId! },
-          select: { pointsPerAmount: true },
-        });
-        const pointsPerAmount = tenantConfig?.pointsPerAmount || 10000;
-        const earnedPoints = Math.floor(transaction.total / pointsPerAmount);
-
-        if (earnedPoints > 0) {
+        const refundedPointsDelta =
+          transaction.pointsRedeemed - transaction.pointsEarned;
+        if (refundedPointsDelta !== 0) {
           await tx.customer.update({
             where: { id: transaction.customerId },
-            data: { points: { decrement: earnedPoints } },
+            data: { points: { increment: refundedPointsDelta } },
           });
         }
       }
@@ -107,6 +112,12 @@ export async function POST(
     return NextResponse.json({ success: true, message: "Transaksi berhasil diretur." });
   } catch (error) {
     console.error("Refund error:", error);
+    if (error instanceof Error && error.message === REFUND_ALREADY_PROCESSED) {
+      return NextResponse.json(
+        { error: "Retur transaksi sudah diproses." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Gagal memproses retur." },
       { status: 500 }
