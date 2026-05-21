@@ -58,10 +58,10 @@ export function StaffClient({ initialStaff, maxCashiers, plan, outlets }: StaffC
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manajemen Karyawan</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Manajemen Karyawan</h1>
+          <p className="text-gray-500 mt-1 text-sm">
             {staff.length} pengguna · {cashierCount}/{maxCashiers} kasir aktif (Paket {plan})
           </p>
         </div>
@@ -71,7 +71,7 @@ export function StaffClient({ initialStaff, maxCashiers, plan, outlets }: StaffC
             setShowModal(true);
           }}
           disabled={!canAddMore}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl font-medium transition-colors self-start sm:self-auto"
           title={!canAddMore ? `Batas kasir paket ${plan} tercapai` : ""}
         >
           <Plus className="w-4 h-4" />
@@ -86,7 +86,78 @@ export function StaffClient({ initialStaff, maxCashiers, plan, outlets }: StaffC
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Mobile: Card list */}
+      <div className="md:hidden space-y-3">
+        {staff.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+            <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p>Belum ada karyawan</p>
+          </div>
+        ) : (
+          staff.map((user) => (
+            <div key={user.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {user.role === "OWNER" && (
+                      <Shield className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
+                    )}
+                    <p className="font-medium text-gray-900">{user.name}</p>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{user.email}</p>
+                </div>
+                {user.role !== "OWNER" && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => { setEditStaff(user); setShowModal(true); }}
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    {user.isActive && (
+                      <button
+                        onClick={() => handleDeactivate(user.id)}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      user.role === "OWNER"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {roleLabel[user.role] || user.role}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      user.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {user.isActive ? "Aktif" : "Nonaktif"}
+                  </span>
+                </div>
+                {user.outlet?.name && (
+                  <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                    <Store className="w-3 h-3 text-gray-400" />
+                    {user.outlet.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: Table */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">

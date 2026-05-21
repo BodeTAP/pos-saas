@@ -69,14 +69,14 @@ export function ProductsClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Produk</h1>
-          <p className="text-gray-500 mt-1">{products.length} produk terdaftar</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Produk</h1>
+          <p className="text-gray-500 mt-1 text-sm">{products.length} produk terdaftar</p>
         </div>
         <button
           onClick={() => { setEditProduct(null); setShowModal(true); }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           Tambah Produk
@@ -118,8 +118,74 @@ export function ProductsClient({
         />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Mobile: Card list */}
+      <div className="md:hidden space-y-3">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+            <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p>Belum ada produk</p>
+          </div>
+        ) : (
+          filtered.map((product) => (
+            <div key={product.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900">{product.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {product.sku || "Tanpa SKU"} · {product.category?.name || "Tanpa Kategori"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => { setEditProduct(product); setShowModal(true); }}
+                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(product.id)}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-1.5">
+                  {product.stock <= product.minStock && product.stock > 0 && (
+                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                  )}
+                  <span
+                    className={`text-sm font-semibold ${
+                      product.stock === 0
+                        ? "text-red-600"
+                        : product.stock <= product.minStock
+                        ? "text-orange-600"
+                        : "text-gray-700"
+                    }`}
+                  >
+                    {product.stock} {product.unit}
+                  </span>
+                  <span className="text-xs text-gray-400">stok</span>
+                </div>
+                <span className="font-bold text-gray-900">{formatCurrency(product.sellPrice)}</span>
+              </div>
+              <div className="mt-2">
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    product.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {product.isActive ? "Aktif" : "Nonaktif"}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: Table */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

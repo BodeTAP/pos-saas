@@ -116,10 +116,10 @@ export function TransactionsClient({
   return (
     <>
       <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Riwayat Transaksi</h1>
-          <p className="text-gray-500 mt-1">{filtered.length} transaksi</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Riwayat Transaksi</h1>
+          <p className="text-gray-500 mt-1 text-sm">{filtered.length} transaksi</p>
         </div>
 
         {/* Filter Cabang */}
@@ -142,7 +142,70 @@ export function TransactionsClient({
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Mobile: Card list */}
+      <div className="md:hidden space-y-3">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+            <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p>Belum ada transaksi</p>
+          </div>
+        ) : (
+          filtered.map((tx) => (
+            <div key={tx.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-blue-600 text-sm">{tx.invoiceNumber}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatDateTime(tx.createdAt)}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs flex-shrink-0">
+                  {paymentLabel[tx.paymentMethod] || tx.paymentMethod}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                <span>{tx.cashier.name}</span>
+                {outlets.length > 1 && tx.outlet && (
+                  <>
+                    <span>·</span>
+                    <span>{tx.outlet.name}</span>
+                  </>
+                )}
+                {tx.customer && (
+                  <>
+                    <span>·</span>
+                    <span>{tx.customer.name}</span>
+                  </>
+                )}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    {tx.items.reduce((s, i) => s + i.quantity, 0)} item
+                  </span>
+                  <ReprintButton data={buildReceiptData(tx)} />
+                  {isOwner && tx.status === "COMPLETED" && (
+                    <button
+                      onClick={() => setRefundTarget(tx)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Retur
+                    </button>
+                  )}
+                  {isOwner && tx.status === "CANCELLED" && (
+                    <span className="text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded-lg">
+                      Diretur
+                    </span>
+                  )}
+                </div>
+                <span className="font-bold text-gray-900 text-sm">{formatCurrency(tx.total)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: Table */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

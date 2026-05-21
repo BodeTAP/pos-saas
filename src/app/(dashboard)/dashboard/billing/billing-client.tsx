@@ -139,8 +139,8 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Langganan & Billing</h1>
-        <p className="text-gray-500 mt-1">Kelola paket langganan toko Anda</p>
+        <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Langganan & Billing</h1>
+        <p className="text-gray-500 mt-1 text-sm">Kelola paket langganan toko Anda</p>
       </div>
 
       {/* Current Plan */}
@@ -327,12 +327,12 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
           <h2 className="font-semibold text-gray-900 mb-4">Riwayat Pembayaran</h2>
           <div className="space-y-2">
             {invoices.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+              <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 border-b border-gray-50 last:border-0 gap-2">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{inv.invoiceNumber}</p>
                   <p className="text-xs text-gray-500">{inv.plan} · {formatDate(inv.createdAt)}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <p className="text-sm font-semibold text-gray-900">{formatCurrency(inv.amount)}</p>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[inv.status] || "bg-gray-100 text-gray-500"}`}>
                     {inv.status}

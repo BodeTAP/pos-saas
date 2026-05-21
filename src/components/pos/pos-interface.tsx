@@ -9,7 +9,7 @@ import { HeldTransactionsModal } from "./held-transactions-modal";
 import { ShiftModal } from "./shift-modal";
 import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
-import { PauseCircle, Clock } from "lucide-react";
+import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -54,6 +54,7 @@ export function POSInterface({
   const [showPayment, setShowPayment] = useState(false);
   const [showHeld, setShowHeld] = useState(false);
   const [showShift, setShowShift] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false);
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
@@ -119,7 +120,7 @@ export function POSInterface({
   }
 
   return (
-    <div className="flex h-full gap-4 -m-6 p-0">
+    <div className="flex h-full gap-4 -m-6 p-0 relative">
       {/* Left: Product Grid */}
       <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
         {/* Outlet Indicator */}
@@ -193,13 +194,14 @@ export function POSInterface({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Product grid — add bottom padding on mobile to avoid FAB overlap */}
+        <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
           <ProductGrid products={filteredProducts} onAddProduct={handleAddProduct} />
         </div>
       </div>
 
-      {/* Right: Cart Panel */}
-      <div className="w-80 xl:w-96 bg-white border-l border-gray-200 flex flex-col">
+      {/* Desktop: Right Cart Panel */}
+      <div className="hidden lg:flex w-80 xl:w-96 bg-white border-l border-gray-200 flex-col">
         <CartPanel
           taxPct={taxPct}
           subtotal={subtotal}
@@ -212,6 +214,54 @@ export function POSInterface({
           onHold={handleHold}
         />
       </div>
+
+      {/* Mobile: Floating Cart Button */}
+      <button
+        onClick={() => setShowMobileCart(true)}
+        className="lg:hidden fixed bottom-5 right-5 z-30 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-2xl shadow-lg font-medium text-sm transition-colors"
+      >
+        <ShoppingCart className="w-5 h-5" />
+        <span>Keranjang</span>
+        {cart.items.length > 0 && (
+          <span className="bg-white text-blue-600 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+            {cart.items.reduce((s, i) => s + i.quantity, 0)}
+          </span>
+        )}
+      </button>
+
+      {/* Mobile: Cart Bottom Sheet */}
+      {showMobileCart && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            onClick={() => setShowMobileCart(false)}
+          />
+          <div className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+              <h2 className="font-semibold text-gray-900">Keranjang Belanja</h2>
+              <button
+                onClick={() => setShowMobileCart(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <CartPanel
+                taxPct={taxPct}
+                subtotal={subtotal}
+                discountAmount={discountAmount}
+                pointsDiscount={pointsDiscount}
+                taxAmount={taxAmount}
+                total={total}
+                pointValue={tenant?.pointValue || 100}
+                onCheckout={() => { setShowMobileCart(false); setShowPayment(true); }}
+                onHold={() => { handleHold(); setShowMobileCart(false); }}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modals */}
       {showPayment && (

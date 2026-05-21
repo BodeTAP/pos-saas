@@ -142,7 +142,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
               <input name="phone" value={form.phone} onChange={handleChange}
@@ -166,7 +166,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="font-semibold text-gray-900">Pengaturan Transaksi</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">PPN (%)</label>
               <input name="taxRate" type="number" min={0} max={100} step={0.1}
@@ -217,7 +217,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="font-semibold text-gray-900">Sistem Poin Loyalitas</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Belanja per Poin (Rp)

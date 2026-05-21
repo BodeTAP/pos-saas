@@ -119,10 +119,10 @@ export function ReportsClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Laporan Penjualan</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900">Laporan Penjualan</h1>
+          <p className="text-gray-500 mt-1 text-sm">
             {new Date(startDate).toLocaleDateString("id-ID", {
               day: "2-digit",
               month: "long",
@@ -136,7 +136,7 @@ export function ReportsClient({
             })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={() => handleExport("excel")}
             disabled={isExporting !== null}
@@ -177,7 +177,7 @@ export function ReportsClient({
               type="date"
               value={start}
               onChange={(e) => setStart(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
             />
           </div>
           <div>
@@ -186,7 +186,7 @@ export function ReportsClient({
               type="date"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
             />
           </div>
           <button
@@ -195,7 +195,7 @@ export function ReportsClient({
           >
             Terapkan
           </button>
-          <div className="flex gap-1.5 ml-auto">
+          <div className="flex gap-1.5 sm:ml-auto">
             <button
               onClick={() => quickRange(7)}
               className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -339,28 +339,30 @@ export function ReportsClient({
           <div className="px-5 py-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900">Detail Produk Terlaris</h2>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Produk</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Terjual</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Pendapatan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {topProducts.map((p, i) => (
-                <tr key={p.name} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">{p.quantity}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                    {formatCurrency(p.revenue)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Produk</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Terjual</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Pendapatan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {topProducts.map((p, i) => (
+                  <tr key={p.name} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{p.quantity}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      {formatCurrency(p.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -371,32 +373,34 @@ export function ReportsClient({
             <Users className="w-5 h-5 text-gray-600" />
             <h2 className="font-semibold text-gray-900">Performa per Kasir</h2>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Kasir</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Transaksi</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Rata-rata</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Total Pendapatan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {cashierData.map((c, i) => (
-                <tr key={c.cashierId} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{c.cashierName}</td>
-                  <td className="px-4 py-3 text-center text-gray-700">{c.totalTransactions}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">
-                    {formatCurrency(c.avgTransaction)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                    {formatCurrency(c.totalRevenue)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Kasir</th>
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Transaksi</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Rata-rata</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Total Pendapatan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {cashierData.map((c, i) => (
+                  <tr key={c.cashierId} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{c.cashierName}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{c.totalTransactions}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {formatCurrency(c.avgTransaction)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      {formatCurrency(c.totalRevenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
