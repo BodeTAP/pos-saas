@@ -285,7 +285,8 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
                   <span className="text-sm font-normal text-gray-500">/bulan</span>
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  atau {formatCurrency(plan.yearlyPrice)}/tahun (hemat 17%)
+                  atau {formatCurrency(plan.yearlyPrice)}/tahun
+                  {plan.yearlyDiscountPct > 0 && ` (hemat ${Math.round(plan.yearlyDiscountPct)}%)`}
                 </p>
 
                 <ul className="mt-3 space-y-1.5 mb-4">

@@ -9,6 +9,7 @@ export interface PlanInfo {
   description: string | null;
   monthlyPrice: number;
   yearlyPrice: number;
+  yearlyDiscountPct: number;
   maxProducts: number;
   maxCashiers: number;
   maxOutlets: number;
@@ -26,6 +27,7 @@ export const DEFAULT_PLANS: Record<SubscriptionPlan, Omit<PlanInfo, "tier">> = {
     description: "Cocok untuk toko kecil yang baru memulai",
     monthlyPrice: 0,
     yearlyPrice: 0,
+    yearlyDiscountPct: 0,
     maxProducts: 50,
     maxCashiers: 1,
     maxOutlets: 1,
@@ -37,6 +39,7 @@ export const DEFAULT_PLANS: Record<SubscriptionPlan, Omit<PlanInfo, "tier">> = {
     description: "Untuk UMKM yang ingin berkembang",
     monthlyPrice: 149000,
     yearlyPrice: 1490000,
+    yearlyDiscountPct: 17,
     maxProducts: 9999,
     maxCashiers: 5,
     maxOutlets: 1,
@@ -54,6 +57,7 @@ export const DEFAULT_PLANS: Record<SubscriptionPlan, Omit<PlanInfo, "tier">> = {
     description: "Solusi lengkap untuk bisnis dengan multi-cabang",
     monthlyPrice: 499000,
     yearlyPrice: 4990000,
+    yearlyDiscountPct: 17,
     maxProducts: 99999,
     maxCashiers: 99,
     maxOutlets: 99,
@@ -81,6 +85,7 @@ export async function getPlan(tier: SubscriptionPlan): Promise<PlanInfo> {
     description: plan.description,
     monthlyPrice: plan.monthlyPrice,
     yearlyPrice: plan.yearlyPrice,
+    yearlyDiscountPct: plan.yearlyDiscountPct,
     maxProducts: plan.maxProducts,
     maxCashiers: plan.maxCashiers,
     maxOutlets: plan.maxOutlets,
@@ -111,6 +116,7 @@ export async function getAllPlans(): Promise<PlanInfo[]> {
       description: plan.description,
       monthlyPrice: plan.monthlyPrice,
       yearlyPrice: plan.yearlyPrice,
+      yearlyDiscountPct: plan.yearlyDiscountPct,
       maxProducts: plan.maxProducts,
       maxCashiers: plan.maxCashiers,
       maxOutlets: plan.maxOutlets,

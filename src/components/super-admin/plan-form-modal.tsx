@@ -19,6 +19,7 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
     description: plan.description || "",
     monthlyPrice: plan.monthlyPrice.toString(),
     yearlyPrice: plan.yearlyPrice.toString(),
+    yearlyDiscountPct: plan.yearlyDiscountPct.toString(),
     maxProducts: plan.maxProducts.toString(),
     maxCashiers: plan.maxCashiers.toString(),
     maxOutlets: plan.maxOutlets.toString(),
@@ -65,6 +66,7 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
           description: form.description,
           monthlyPrice: parseFloat(form.monthlyPrice) || 0,
           yearlyPrice: parseFloat(form.yearlyPrice) || 0,
+          yearlyDiscountPct: parseFloat(form.yearlyDiscountPct) || 0,
           maxProducts: parseInt(form.maxProducts) || 0,
           maxCashiers: parseInt(form.maxCashiers) || 0,
           maxOutlets: parseInt(form.maxOutlets) || 0,
@@ -159,6 +161,37 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
+            </div>
+
+            {/* Diskon tahunan */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Label Diskon Tahunan (%)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  name="yearlyDiscountPct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={form.yearlyDiscountPct}
+                  onChange={handleChange}
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                {parseFloat(form.yearlyDiscountPct) > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    Preview: Hemat {Math.round(parseFloat(form.yearlyDiscountPct))}%
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">
+                    0 = tidak tampilkan label diskon
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Label ini ditampilkan di tombol pilih periode tahunan saat checkout. Isi 0 untuk menyembunyikan label.
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

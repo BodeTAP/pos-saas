@@ -74,8 +74,13 @@ export function PlansClient({ initialPlans }: PlansClientProps) {
                 )}
               </p>
               {plan.yearlyPrice > 0 && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 flex items-center gap-1.5">
                   Tahunan: {formatCurrency(plan.yearlyPrice)}
+                  {plan.yearlyDiscountPct > 0 && (
+                    <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
+                      Hemat {Math.round(plan.yearlyDiscountPct)}%
+                    </span>
+                  )}
                 </p>
               )}
             </div>

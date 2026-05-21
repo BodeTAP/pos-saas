@@ -89,6 +89,7 @@ model PricingPlan {
   description  String?          // Deskripsi singkat
   monthlyPrice Float            @default(0)
   yearlyPrice  Float            @default(0)
+  yearlyDiscountPct Float       @default(0) // Persentase hemat tahunan vs bulanan (tampilan saja)
 
   maxProducts  Int @default(50)
   maxCashiers  Int @default(1)
