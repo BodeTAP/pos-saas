@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
+import { parseBody, downgradeSchema } from "@/lib/schemas";
 
 /**
  * Jadwalkan downgrade paket (misal Enterprise → Pro).
@@ -17,12 +18,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { plan } = body as { plan: string };
-
-    if (!plan || (plan !== "PRO" && plan !== "FREE")) {
-      return NextResponse.json({ error: "Paket downgrade tidak valid." }, { status: 400 });
+    const parsed = await parseBody(req, downgradeSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
     }
+    const { plan } = parsed.data;
 
     const tenant = await prisma.tenant.findUnique({
       where: { id: session.user.tenantId },

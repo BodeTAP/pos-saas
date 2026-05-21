@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createTransaction } from "@/lib/tripay";
-import { getPlan, type UpgradablePlan } from "@/lib/plans";
+import { getPlan } from "@/lib/plans";
 import { generateInvoiceNumber } from "@/lib/utils";
+import { parseBody, checkoutSchema } from "@/lib/schemas";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,38 +13,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const {
-      plan,
-      period, // "MONTHLY" | "YEARLY"
-      paymentMethod, // kode channel Tripay: BRIVA, QRIS, dll
-    } = body as {
-      plan: UpgradablePlan;
-      period: "MONTHLY" | "YEARLY";
-      paymentMethod: string;
-    };
-
-    if (!plan || (plan !== "PRO" && plan !== "ENTERPRISE")) {
-      return NextResponse.json(
-        { error: "Paket tidak valid." },
-        { status: 400 }
-      );
+    const parsed = await parseBody(req, checkoutSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
     }
-
-    // FIX 9: Validate period parameter
-    if (!period || (period !== "MONTHLY" && period !== "YEARLY")) {
-      return NextResponse.json(
-        { error: "Periode tidak valid. Pilih MONTHLY atau YEARLY." },
-        { status: 400 }
-      );
-    }
-
-    if (!paymentMethod) {
-      return NextResponse.json(
-        { error: "Pilih metode pembayaran terlebih dahulu." },
-        { status: 400 }
-      );
-    }
+    const { plan, period, paymentMethod } = parsed.data;
 
     const planInfo = await getPlan(plan);
     if (!planInfo.isActive) {

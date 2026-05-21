@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseBody, createCustomerSchema } from "@/lib/schemas";
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,8 +51,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { name, phone, email } = body;
+    const parsed = await parseBody(req, createCustomerSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+
+    const { name, phone, email } = parsed.data;
 
     if (!name?.trim()) {
       return NextResponse.json(

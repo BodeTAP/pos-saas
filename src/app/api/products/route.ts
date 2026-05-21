@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generateSKUPrefix, formatSKUNumber } from "@/lib/utils";
-import { validateProductInput } from "@/lib/validation";
+import { parseBody, createProductSchema } from "@/lib/schemas";
 
 /**
  * Generate SKU otomatis berdasarkan nama produk dan urutan per prefix.
@@ -114,23 +114,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const parsed = await parseBody(req, createProductSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+
     const {
       name, sku, barcode, description, buyPrice, sellPrice,
       stock, minStock, unit, categoryId, isActive,
-    } = body;
-
-    if (!name || sellPrice === undefined) {
-      return NextResponse.json(
-        { error: "Nama dan harga jual wajib diisi." },
-        { status: 400 }
-      );
-    }
-
-    const validationError = validateProductInput(body);
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 });
-    }
+    } = parsed.data;
 
     // Cek limit produk berdasarkan plan
     const tenant = await prisma.tenant.findUnique({

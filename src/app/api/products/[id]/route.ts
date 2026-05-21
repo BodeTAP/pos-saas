@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getActiveOutletId } from "@/lib/active-outlet";
+import { parseBody, updateProductSchema } from "@/lib/schemas";
 
 export async function PUT(
   req: NextRequest,
@@ -22,11 +23,16 @@ export async function PUT(
       return NextResponse.json({ error: "Produk tidak ditemukan." }, { status: 404 });
     }
 
-    const body = await req.json();
+    const parsed = await parseBody(req, updateProductSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+
     const {
       name, sku, barcode, description, buyPrice, sellPrice,
-      stock, minStock, unit, categoryId, isActive, imageUrl,
-    } = body;
+      stock, minStock, unit, categoryId, isActive,
+      imageUrl,
+    } = parsed.data;
 
     // Validasi SKU unik per tenant jika berubah
     if (sku !== undefined) {

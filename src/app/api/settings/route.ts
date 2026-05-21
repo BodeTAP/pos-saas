@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseBody, settingsSchema } from "@/lib/schemas";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -9,12 +10,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const parsed = await parseBody(req, settingsSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+
     const {
       name,
       phone,
       address,
       city,
+      logoUrl,
       taxRate,
       receiptNote,
       receiptHeader,
@@ -23,46 +29,28 @@ export async function PUT(req: NextRequest) {
       pointsPerAmount,
       pointValue,
       activePaymentMethods,
-      logoUrl,
-    } = body;
-
-    // Validasi metode pembayaran
-    const validMethods = ["CASH", "QRIS", "TRANSFER", "CARD", "OTHER"];
-    let parsedMethods: string[] = ["CASH", "QRIS", "TRANSFER"];
-    if (activePaymentMethods) {
-      try {
-        const methods = typeof activePaymentMethods === "string"
-          ? JSON.parse(activePaymentMethods)
-          : activePaymentMethods;
-        parsedMethods = (methods as string[]).filter((m) => validMethods.includes(m));
-        if (parsedMethods.length === 0) parsedMethods = ["CASH"];
-      } catch {
-        parsedMethods = ["CASH", "QRIS", "TRANSFER"];
-      }
-    }
+    } = parsed.data;
 
     const tenant = await prisma.tenant.update({
       where: { id: session.user.tenantId },
       data: {
-        name: name || undefined,
-        phone: phone || null,
-        address: address || null,
-        city: city || null,
+        name: name ?? undefined,
+        phone: phone ?? null,
+        address: address ?? null,
+        city: city ?? null,
         logoUrl: logoUrl !== undefined ? logoUrl : undefined,
-        taxRate: taxRate !== undefined ? parseFloat(taxRate) || 0 : undefined,
-        receiptNote: receiptNote || null,
-        receiptHeader: receiptHeader || null,
-        receiptWidth: receiptWidth !== undefined ? parseInt(receiptWidth) || 80 : undefined,
+        taxRate: taxRate !== undefined ? taxRate : undefined,
+        receiptNote: receiptNote ?? null,
+        receiptHeader: receiptHeader ?? null,
+        receiptWidth: receiptWidth ?? undefined,
         invoicePrefix: invoicePrefix
           ? invoicePrefix.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) || "INV"
           : undefined,
-        pointsPerAmount: pointsPerAmount !== undefined
-          ? Math.max(1, parseInt(pointsPerAmount) || 10000)
+        pointsPerAmount: pointsPerAmount ?? undefined,
+        pointValue: pointValue ?? undefined,
+        activePaymentMethods: activePaymentMethods
+          ? JSON.stringify(activePaymentMethods)
           : undefined,
-        pointValue: pointValue !== undefined
-          ? Math.max(1, parseInt(pointValue) || 100)
-          : undefined,
-        activePaymentMethods: JSON.stringify(parsedMethods),
       },
     });
 

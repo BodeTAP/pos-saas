@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getActiveOutletId } from "@/lib/active-outlet";
+import { parseBody, createTransactionSchema } from "@/lib/schemas";
 
 export const POINT_VALUE = 100; // default
 export const POINT_PER_AMOUNT = 10000; // default
@@ -13,7 +14,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
+    const parsed = await parseBody(req, createTransactionSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+
     const {
       invoiceNumber,
       items,
@@ -30,9 +35,8 @@ export async function POST(req: NextRequest) {
       note,
       customerId,
       pointsRedeemed,
-      // tenantId from body only used for Super Admin cross-tenant check
       tenantId: bodyTenantId,
-    } = body;
+    } = parsed.data;
 
     // FIX 3: Derive tenantId and cashierId from session (not from body)
     const tenantId =
@@ -130,22 +134,13 @@ export async function POST(req: NextRequest) {
           customerId: customerId || null,
           outletId,
           items: {
-            create: items.map(
-              (item: {
-                productId: string;
-                productName: string;
-                productSku?: string;
-                quantity: number;
-                unitPrice: number;
-                discount: number;
-                subtotal: number;
-              }) => ({
+            create: items.map((item) => ({
                 productId: item.productId,
                 productName: item.productName,
                 productSku: item.productSku || null,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
-                discount: item.discount,
+                discount: item.discount ?? 0,
                 subtotal: item.subtotal,
               })
             ),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { parseBody, updateCustomerSchema, updateCustomerWithPointsSchema } from "@/lib/schemas";
 
 export async function GET(
   req: NextRequest,
@@ -59,8 +60,11 @@ export async function PUT(
       return NextResponse.json({ error: "Pelanggan tidak ditemukan." }, { status: 404 });
     }
 
-    const body = await req.json();
-    const { name, phone, email, points } = body;
+    const parsed = await parseBody(req, updateCustomerWithPointsSchema);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+    }
+    const { name, phone, email, points } = parsed.data;
 
     // Validasi phone unik kalau berubah
     if (phone && phone !== existing.phone) {
