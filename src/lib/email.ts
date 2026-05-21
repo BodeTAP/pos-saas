@@ -34,10 +34,19 @@ async function sendEmail(options: {
 }): Promise<boolean> {
   try {
     const resend = getResend();
+
+    // Dev mode: redirect semua email ke RESEND_DEV_TO jika diisi
+    // Berguna saat belum punya domain terverifikasi di Resend
+    const devTo = process.env.RESEND_DEV_TO;
+    const recipient = devTo || options.to;
+    const subject = devTo
+      ? `[DEV → ${options.to}] ${options.subject}`
+      : options.subject;
+
     const { error } = await resend.emails.send({
       from: FROM,
-      to: options.to,
-      subject: options.subject,
+      to: recipient,
+      subject,
       html: options.html,
     });
     if (error) {
