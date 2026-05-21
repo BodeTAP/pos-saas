@@ -108,6 +108,7 @@ export const createProductSchema = z.object({
   sku: z.string().max(50).optional().nullable(),
   barcode: z.string().max(100).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
+  imageUrl: z.string().url("URL gambar tidak valid.").optional().nullable(),
   buyPrice: z.number().nonnegative("Harga beli tidak boleh negatif.").default(0),
   sellPrice: z.number().positive("Harga jual harus lebih dari 0."),
   stock: z.number().int().nonnegative("Stok tidak boleh negatif.").default(0),
@@ -119,7 +120,6 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = createProductSchema.partial().extend({
   isActive: z.boolean().optional(),
-  imageUrl: z.string().url("URL gambar tidak valid.").optional().nullable(),
 });
 
 // ─────────────────────────────────────────────

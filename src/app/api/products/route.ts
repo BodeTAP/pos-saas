@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     }
 
     const {
-      name, sku, barcode, description, buyPrice, sellPrice,
+      name, sku, barcode, description, imageUrl, buyPrice, sellPrice,
       stock, minStock, unit, categoryId, isActive,
     } = parsed.data;
 
@@ -200,6 +200,7 @@ export async function POST(req: NextRequest) {
           sku: finalSku,
           barcode: barcode || null,
           description: description || null,
+          imageUrl: imageUrl || null,
           buyPrice: buyPrice || 0,
           sellPrice,
           stock: stock || 0, // baseline default

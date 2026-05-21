@@ -4,6 +4,19 @@ import { auth } from "@/lib/auth";
 
 const MAX_SIZE_MB = 2;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ALLOWED_FOLDERS = ["products", "logos", "avatars"] as const;
+const FILE_EXTENSIONS: Record<(typeof ALLOWED_TYPES)[number], string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+type UploadFolder = (typeof ALLOWED_FOLDERS)[number];
+
+function isUploadFolder(value: FormDataEntryValue | null): value is UploadFolder {
+  return typeof value === "string" && ALLOWED_FOLDERS.includes(value as UploadFolder);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,16 +26,22 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    // FIX 8: Whitelist upload folder to prevent path traversal
-    const rawFolder = formData.get("folder") as string;
-    const ALLOWED_FOLDERS = ["products", "logos", "avatars"] as const;
-    const folder = ALLOWED_FOLDERS.includes(rawFolder as typeof ALLOWED_FOLDERS[number])
-      ? rawFolder
-      : "products";
+    const file = formData.get("file");
+    const rawFolder = formData.get("folder");
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: "File tidak ditemukan." }, { status: 400 });
+    }
+
+    if (!isUploadFolder(rawFolder)) {
+      return NextResponse.json({ error: "Folder upload tidak valid." }, { status: 400 });
+    }
+
+    if (
+      session.user.role === "KASIR" &&
+      (rawFolder === "products" || rawFolder === "logos")
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -39,8 +58,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ext = file.name.split(".").pop() || "jpg";
-    const filename = `${session.user.tenantId}/${folder}/${Date.now()}.${ext}`;
+    const ext = FILE_EXTENSIONS[file.type];
+    const filename =
+      `${session.user.tenantId}/${rawFolder}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
     // Coba public dulu, fallback ke error yang jelas kalau store adalah private
     let blob;

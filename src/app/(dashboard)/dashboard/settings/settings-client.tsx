@@ -179,7 +179,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
               <input name="invoicePrefix" value={form.invoicePrefix} onChange={handleChange}
                 placeholder="INV" maxLength={10}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm uppercase" />
-              <p className="text-xs text-gray-400 mt-1">Contoh: INV → INV-20260521-0001</p>
+              <p className="text-xs text-gray-400 mt-1">Contoh prefix: INV</p>
             </div>
           </div>
 
