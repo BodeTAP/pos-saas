@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Category, Product } from "@prisma/client";
 import { X, Loader2 } from "lucide-react";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -24,6 +25,7 @@ export function ProductFormModal({
   const isEdit = !!product;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(product?.imageUrl || null);
 
   const [form, setForm] = useState({
     name: product?.name || "",
@@ -57,6 +59,7 @@ export function ProductFormModal({
     try {
       const payload = {
         ...form,
+        imageUrl: imageUrl || null,
         buyPrice: parseFloat(form.buyPrice) || 0,
         sellPrice: parseFloat(form.sellPrice),
         stock: parseInt(form.stock) || 0,
@@ -107,6 +110,17 @@ export function ProductFormModal({
               {error}
             </div>
           )}
+
+          {/* Gambar Produk */}
+          <div className="flex justify-center">
+            <ImageUpload
+              value={imageUrl}
+              onChange={setImageUrl}
+              folder="products"
+              label="Foto Produk"
+              size="md"
+            />
+          </div>
 
           {/* Nama */}
           <div>

@@ -12,6 +12,7 @@ import {
   Download,
   Loader2,
   Calendar,
+  Users,
 } from "lucide-react";
 import {
   LineChart,
@@ -46,14 +47,24 @@ interface ReportsClientProps {
   };
   dailyData: DailyDataPoint[];
   topProducts: TopProduct[];
+  cashierData: CashierStat[];
   startDate: string;
   endDate: string;
+}
+
+interface CashierStat {
+  cashierId: string;
+  cashierName: string;
+  totalRevenue: number;
+  totalTransactions: number;
+  avgTransaction: number;
 }
 
 export function ReportsClient({
   summary,
   dailyData,
   topProducts,
+  cashierData,
   startDate,
   endDate,
 }: ReportsClientProps) {
@@ -345,6 +356,42 @@ export function ReportsClient({
                   <td className="px-4 py-3 text-right text-gray-700">{p.quantity}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900">
                     {formatCurrency(p.revenue)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Laporan per Kasir */}
+      {cashierData.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Users className="w-5 h-5 text-gray-600" />
+            <h2 className="font-semibold text-gray-900">Performa per Kasir</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Kasir</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600">Transaksi</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Rata-rata</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Total Pendapatan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {cashierData.map((c, i) => (
+                <tr key={c.cashierId} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.cashierName}</td>
+                  <td className="px-4 py-3 text-center text-gray-700">{c.totalTransactions}</td>
+                  <td className="px-4 py-3 text-right text-gray-700">
+                    {formatCurrency(c.avgTransaction)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                    {formatCurrency(c.totalRevenue)}
                   </td>
                 </tr>
               ))}

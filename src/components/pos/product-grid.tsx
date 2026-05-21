@@ -29,9 +29,17 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
           onClick={() => onAddProduct(product)}
           className="bg-white rounded-xl border border-gray-200 p-3 text-left hover:border-blue-400 hover:shadow-md transition-all group active:scale-95"
         >
-          {/* Product Image Placeholder */}
-          <div className="w-full aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-            <Package className="w-8 h-8 text-gray-300 group-hover:text-blue-300" />
+          {/* Product Image */}
+          <div className="w-full aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-50 transition-colors overflow-hidden">
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Package className="w-8 h-8 text-gray-300 group-hover:text-blue-300" />
+            )}
           </div>
 
           <p className="text-xs font-medium text-gray-900 line-clamp-2 leading-tight mb-1">

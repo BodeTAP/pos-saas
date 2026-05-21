@@ -23,6 +23,7 @@ export async function PUT(req: NextRequest) {
       pointsPerAmount,
       pointValue,
       activePaymentMethods,
+      logoUrl,
     } = body;
 
     // Validasi metode pembayaran
@@ -47,6 +48,7 @@ export async function PUT(req: NextRequest) {
         phone: phone || null,
         address: address || null,
         city: city || null,
+        logoUrl: logoUrl !== undefined ? logoUrl : undefined,
         taxRate: taxRate !== undefined ? parseFloat(taxRate) || 0 : undefined,
         receiptNote: receiptNote || null,
         receiptHeader: receiptHeader || null,

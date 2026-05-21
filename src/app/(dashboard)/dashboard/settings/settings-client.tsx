@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Tenant } from "@prisma/client";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 interface SettingsClientProps {
   tenant: Tenant;
@@ -18,6 +19,7 @@ const PAYMENT_METHODS = [
 
 export function SettingsClient({ tenant }: SettingsClientProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(tenant.logoUrl || null);
 
   // Parse activePaymentMethods dari JSON string
   const parsedMethods = (() => {
@@ -34,13 +36,13 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
     address: tenant.address || "",
     city: tenant.city || "",
     currency: tenant.currency,
-    taxRate: tenant.taxRate.toString(),
+    taxRate: (tenant.taxRate ?? 0).toString(),
     receiptNote: tenant.receiptNote || "",
     receiptHeader: tenant.receiptHeader || "",
-    receiptWidth: tenant.receiptWidth.toString(),
+    receiptWidth: (tenant.receiptWidth ?? 80).toString(),
     invoicePrefix: tenant.invoicePrefix || "INV",
-    pointsPerAmount: tenant.pointsPerAmount.toString(),
-    pointValue: tenant.pointValue.toString(),
+    pointsPerAmount: (tenant.pointsPerAmount ?? 10000).toString(),
+    pointValue: (tenant.pointValue ?? 100).toString(),
     activePaymentMethods: parsedMethods,
   });
 
@@ -78,6 +80,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
           address: form.address,
           city: form.city,
           currency: form.currency,
+          logoUrl: logoUrl,
           taxRate: parseFloat(form.taxRate) || 0,
           receiptNote: form.receiptNote,
           receiptHeader: form.receiptHeader,
@@ -114,6 +117,24 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
         {/* Informasi Toko */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="font-semibold text-gray-900">Informasi Toko</h2>
+
+          {/* Logo Toko */}
+          <div className="flex items-start gap-4">
+            <ImageUpload
+              value={logoUrl}
+              onChange={setLogoUrl}
+              folder="logos"
+              label="Logo Toko"
+              size="md"
+              shape="square"
+            />
+            <div className="flex-1 pt-2">
+              <p className="text-sm font-medium text-gray-700">Logo Toko</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Ditampilkan di struk dan halaman toko. Ukuran ideal: 200×200px.
+              </p>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Toko</label>
@@ -212,7 +233,7 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Nilai per Poin (Rp)
               </label>
-              <input name="pointValue" type="number" min={1} step={100}
+              <input name="pointValue" type="number" min={1} step={1}
                 value={form.pointValue} onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               <p className="text-xs text-gray-400 mt-1">

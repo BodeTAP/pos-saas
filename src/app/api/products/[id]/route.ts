@@ -25,7 +25,7 @@ export async function PUT(
     const body = await req.json();
     const {
       name, sku, barcode, description, buyPrice, sellPrice,
-      stock, minStock, unit, categoryId, isActive,
+      stock, minStock, unit, categoryId, isActive, imageUrl,
     } = body;
 
     // Validasi SKU unik per tenant jika berubah
@@ -100,6 +100,7 @@ export async function PUT(
         sku: sku !== undefined ? sku : existing.sku,
         barcode: barcode !== undefined ? barcode : existing.barcode,
         description: description !== undefined ? description : existing.description,
+        imageUrl: imageUrl !== undefined ? imageUrl : existing.imageUrl,
         buyPrice: buyPrice !== undefined ? buyPrice : existing.buyPrice,
         sellPrice: sellPrice !== undefined ? sellPrice : existing.sellPrice,
         minStock: minStock !== undefined ? minStock : existing.minStock,

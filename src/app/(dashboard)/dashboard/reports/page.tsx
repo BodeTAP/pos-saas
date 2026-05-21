@@ -38,7 +38,7 @@ export default async function ReportsPage({
     ...(outletId && { outletId }),
   };
 
-  const [summary, topProducts, dailyTransactions] = await Promise.all([
+  const [summary, topProducts, dailyTransactions, cashierStats] = await Promise.all([
     prisma.transaction.aggregate({
       where: baseTxWhere,
       _sum: { total: true },
@@ -47,9 +47,7 @@ export default async function ReportsPage({
     }),
     prisma.transactionItem.groupBy({
       by: ["productId", "productName"],
-      where: {
-        transaction: baseTxWhere,
-      },
+      where: { transaction: baseTxWhere },
       _sum: { quantity: true, subtotal: true },
       orderBy: { _sum: { quantity: "desc" } },
       take: 10,
@@ -59,9 +57,34 @@ export default async function ReportsPage({
       select: { total: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.transaction.groupBy({
+      by: ["cashierId"],
+      where: baseTxWhere,
+      _sum: { total: true },
+      _count: true,
+      _avg: { total: true },
+    }),
   ]);
 
-  // Group transaksi per hari dalam range
+  // Ambil nama kasir
+  const cashierIds = cashierStats.map((c) => c.cashierId);
+  const cashiers = await prisma.user.findMany({
+    where: { id: { in: cashierIds } },
+    select: { id: true, name: true },
+  });
+  const cashierMap = Object.fromEntries(cashiers.map((c) => [c.id, c.name]));
+
+  const cashierData = cashierStats
+    .map((c) => ({
+      cashierId: c.cashierId,
+      cashierName: cashierMap[c.cashierId] || "Unknown",
+      totalRevenue: c._sum.total || 0,
+      totalTransactions: c._count,
+      avgTransaction: c._avg.total || 0,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  // Group transaksi per hari
   const dayCount =
     Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   const dailyMap = new Map<string, { revenue: number; count: number }>();
@@ -81,10 +104,7 @@ export default async function ReportsPage({
   }
   const dailyData = Array.from(dailyMap.entries()).map(([date, val]) => ({
     date,
-    label: new Date(date).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-    }),
+    label: new Date(date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
     revenue: val.revenue,
     count: val.count,
   }));
@@ -104,6 +124,7 @@ export default async function ReportsPage({
       }}
       dailyData={dailyData}
       topProducts={topProductsData}
+      cashierData={cashierData}
       startDate={startDate.toISOString().slice(0, 10)}
       endDate={endDate.toISOString().slice(0, 10)}
     />
