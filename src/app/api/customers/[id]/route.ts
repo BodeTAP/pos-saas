@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { parseBody, updateCustomerSchema, updateCustomerWithPointsSchema } from "@/lib/schemas";
+import { parseBody, updateCustomerWithPointsSchema } from "@/lib/schemas";
 
 export async function GET(
   req: NextRequest,

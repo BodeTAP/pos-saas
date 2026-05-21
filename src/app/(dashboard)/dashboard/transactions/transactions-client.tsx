@@ -56,7 +56,6 @@ interface TransactionsClientProps {
   initialTransactions: TransactionData[];
   outlets: OutletSummary[];
   tenant: TenantInfo | null;
-  cashierName: string;
   isOwner?: boolean;
 }
 
@@ -72,7 +71,6 @@ export function TransactionsClient({
   initialTransactions,
   outlets,
   tenant,
-  cashierName,
   isOwner = false,
 }: TransactionsClientProps) {
   const [selectedOutlet, setSelectedOutlet] = useState<string>("ALL");

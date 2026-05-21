@@ -20,7 +20,6 @@ interface OutletInfo {
 interface ProductsClientProps {
   initialProducts: ProductWithCategory[];
   categories: Category[];
-  tenantId: string;
   outlet: OutletInfo | null;
   totalCount: number;
   currentPage: number;
@@ -30,7 +29,6 @@ interface ProductsClientProps {
 export function ProductsClient({
   initialProducts,
   categories,
-  tenantId,
   outlet,
   totalCount,
   currentPage,
@@ -281,7 +279,6 @@ export function ProductsClient({
         <ProductFormModal
           product={editProduct}
           categories={categories}
-          tenantId={tenantId}
           onClose={() => { setShowModal(false); setEditProduct(null); }}
           onSaved={handleSaved}
         />

@@ -10,7 +10,7 @@ const openShiftSchema = z.object({
   note: z.string().max(300).optional(),
 });
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   // Get current open shift for the cashier
   try {
     const session = await auth();

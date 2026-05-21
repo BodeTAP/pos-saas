@@ -35,6 +35,27 @@ interface PaymentModalProps {
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "CARD";
 
+interface SavedTransaction {
+  invoiceNumber: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  taxPct: number;
+  total: number;
+  amountPaid: number;
+  change: number;
+  paymentMethod: string;
+  note: string | null;
+  createdAt: string | Date;
+  items: Array<{
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+  }>;
+}
+
 const ALL_PAYMENT_METHODS = [
   { value: "CASH" as PaymentMethod, label: "Tunai", icon: Banknote },
   { value: "QRIS" as PaymentMethod, label: "QRIS", icon: QrCode },
@@ -69,7 +90,9 @@ export function PaymentModal({
     }
   })();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    () => activeMethods[0]?.value || "CASH"
+  );
   const [amountPaid, setAmountPaid] = useState<string>(total.toString());
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -91,8 +114,6 @@ export function PaymentModal({
 
     setIsLoading(true);
     const invoice = generateInvoiceNumber(tenant?.invoicePrefix || "INV");
-    const now = new Date();
-
     try {
       const res = await fetch("/api/transactions", {
         method: "POST",
@@ -129,9 +150,10 @@ export function PaymentModal({
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Transaksi gagal");
+      const savedTransaction = data.transaction as SavedTransaction;
 
       const receipt: ReceiptData = {
-        invoiceNumber: invoice,
+        invoiceNumber: savedTransaction.invoiceNumber,
         storeName: tenant?.name || "Toko",
         storeAddress: tenant?.address,
         storePhone: tenant?.phone,
@@ -139,23 +161,23 @@ export function PaymentModal({
         receiptHeader: tenant?.receiptHeader,
         receiptWidth: tenant?.receiptWidth || 80,
         cashierName,
-        items: items.map((i) => ({
-          name: i.name,
+        items: savedTransaction.items.map((i) => ({
+          name: i.productName,
           quantity: i.quantity,
-          unitPrice: i.price,
+          unitPrice: i.unitPrice,
           discount: i.discount,
           subtotal: i.subtotal,
         })),
-        subtotal,
-        discountAmount,
-        taxAmount,
-        taxPct,
-        total,
-        amountPaid: paid,
-        change,
-        paymentMethod,
-        note,
-        createdAt: now,
+        subtotal: savedTransaction.subtotal,
+        discountAmount: savedTransaction.discount,
+        taxAmount: savedTransaction.tax,
+        taxPct: savedTransaction.taxPct,
+        total: savedTransaction.total,
+        amountPaid: savedTransaction.amountPaid,
+        change: savedTransaction.change,
+        paymentMethod: savedTransaction.paymentMethod,
+        note: savedTransaction.note,
+        createdAt: new Date(savedTransaction.createdAt),
       };
 
       setReceiptData(receipt);
@@ -186,16 +208,16 @@ export function PaymentModal({
           <div className="px-6 py-4 space-y-2 border-b border-gray-100">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Total</span>
-              <span className="font-semibold text-gray-900">{formatCurrency(total)}</span>
+              <span className="font-semibold text-gray-900">{formatCurrency(receiptData.total)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Dibayar</span>
-              <span className="font-semibold text-gray-900">{formatCurrency(paid)}</span>
+              <span className="font-semibold text-gray-900">{formatCurrency(receiptData.amountPaid)}</span>
             </div>
-            {change > 0 && (
+            {receiptData.change > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Kembalian</span>
-                <span className="font-bold text-green-600 text-base">{formatCurrency(change)}</span>
+                <span className="font-bold text-green-600 text-base">{formatCurrency(receiptData.change)}</span>
               </div>
             )}
           </div>

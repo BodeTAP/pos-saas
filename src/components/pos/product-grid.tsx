@@ -3,6 +3,7 @@
 import { Category, Product } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Package } from "lucide-react";
+import Image from "next/image";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -30,12 +31,14 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
           className="bg-white rounded-xl border border-gray-200 p-3 text-left hover:border-blue-400 hover:shadow-md transition-all group active:scale-95"
         >
           {/* Product Image */}
-          <div className="w-full aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-50 transition-colors overflow-hidden">
+          <div className="relative w-full aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center group-hover:bg-blue-50 transition-colors overflow-hidden">
             {product.imageUrl ? (
-              <img
+              <Image
                 src={product.imageUrl}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                fill
+                sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                className="object-cover"
               />
             ) : (
               <Package className="w-8 h-8 text-gray-300 group-hover:text-blue-300" />

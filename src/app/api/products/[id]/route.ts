@@ -34,6 +34,16 @@ export async function PUT(
       imageUrl,
     } = parsed.data;
 
+    if (categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: categoryId, tenantId: session.user.tenantId },
+        select: { id: true },
+      });
+      if (!category) {
+        return NextResponse.json({ error: "Kategori tidak valid." }, { status: 400 });
+      }
+    }
+
     // Validasi SKU unik per tenant jika berubah
     if (sku !== undefined) {
       const trimmedSku = sku?.trim() || null;
@@ -59,18 +69,21 @@ export async function PUT(
     const activeOutletId = await getActiveOutletId();
 
     // Stock adjustment — hanya untuk outlet aktif user
-    if (stock !== undefined && activeOutletId) {
+    if (activeOutletId && (stock !== undefined || minStock !== undefined)) {
       const outletStock = await prisma.outletStock.findUnique({
         where: {
           outletId_productId: { outletId: activeOutletId, productId: id },
         },
       });
 
-      if (outletStock && stock !== outletStock.stock) {
+      if (outletStock && stock !== undefined && stock !== outletStock.stock) {
         await prisma.$transaction([
           prisma.outletStock.update({
             where: { id: outletStock.id },
-            data: { stock },
+            data: {
+              stock,
+              ...(minStock !== undefined && { minStock }),
+            },
           }),
           prisma.stockMutation.create({
             data: {
@@ -85,6 +98,11 @@ export async function PUT(
             },
           }),
         ]);
+      } else if (outletStock && minStock !== undefined && minStock !== outletStock.minStock) {
+        await prisma.outletStock.update({
+          where: { id: outletStock.id },
+          data: { minStock },
+        });
       } else if (!outletStock) {
         // Belum ada stok di outlet ini — buat record baru
         await prisma.outletStock.create({
@@ -92,8 +110,8 @@ export async function PUT(
             outletId: activeOutletId,
             productId: id,
             tenantId: session.user.tenantId,
-            stock,
-            minStock: minStock || existing.minStock,
+            stock: stock ?? existing.stock,
+            minStock: minStock ?? existing.minStock,
           },
         });
       }

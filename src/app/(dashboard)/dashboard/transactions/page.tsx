@@ -38,7 +38,6 @@ export default async function TransactionsPage() {
       initialTransactions={transactions}
       outlets={outlets}
       tenant={tenant}
-      cashierName={session.user.name}
       isOwner={session.user.role === "OWNER"}
     />
   );

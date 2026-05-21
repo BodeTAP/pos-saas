@@ -35,13 +35,13 @@ export async function PUT(req: NextRequest) {
       where: { id: session.user.tenantId },
       data: {
         name: name ?? undefined,
-        phone: phone ?? null,
-        address: address ?? null,
-        city: city ?? null,
+        phone: phone !== undefined ? phone : undefined,
+        address: address !== undefined ? address : undefined,
+        city: city !== undefined ? city : undefined,
         logoUrl: logoUrl !== undefined ? logoUrl : undefined,
         taxRate: taxRate !== undefined ? taxRate : undefined,
-        receiptNote: receiptNote ?? null,
-        receiptHeader: receiptHeader ?? null,
+        receiptNote: receiptNote !== undefined ? receiptNote : undefined,
+        receiptHeader: receiptHeader !== undefined ? receiptHeader : undefined,
         receiptWidth: receiptWidth ?? undefined,
         invoicePrefix: invoicePrefix
           ? invoicePrefix.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10) || "INV"

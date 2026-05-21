@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "@/components/ui/toaster";
-import { useRouter } from "next/navigation";
 import { Store, ChevronDown, Check, Loader2 } from "lucide-react";
 
 interface OutletData {
@@ -15,7 +14,6 @@ interface OutletData {
 
 export function OutletSwitcher() {
   const { data: session, update } = useSession();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [outlets, setOutlets] = useState<OutletData[]>([]);
   const [isSwitching, setIsSwitching] = useState<string | null>(null);

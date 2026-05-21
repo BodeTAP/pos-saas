@@ -10,7 +10,6 @@ type ProductWithCategory = Product & { category: Category | null };
 interface ProductFormModalProps {
   product: ProductWithCategory | null;
   categories: Category[];
-  tenantId: string;
   onClose: () => void;
   onSaved: (product: ProductWithCategory) => void;
 }
@@ -18,7 +17,6 @@ interface ProductFormModalProps {
 export function ProductFormModal({
   product,
   categories,
-  tenantId,
   onClose,
   onSaved,
 }: ProductFormModalProps) {

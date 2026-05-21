@@ -116,7 +116,8 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Middleware edge-safe (tanpa Prisma di edge runtime)
 - Tenant isolation di semua query
 - **Zod validation** di semua API endpoint (runtime type safety)
-- Atomic stock deduction (mencegah oversell saat transaksi bersamaan)
+- Server menghitung ulang harga, total, pajak, kembalian, dan metode bayar transaksi POS dari data produk/toko
+- Atomic stock deduction untuk transaksi dan transfer stok (mencegah oversell saat transaksi bersamaan)
 - Idempotent webhook (mencegah duplikasi aktivasi paket)
 
 ### ⚙️ Konfigurasi Admin
@@ -242,6 +243,9 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 # App
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NEXT_PUBLIC_APP_NAME="POS SaaS"
+
+# Cron notification endpoints
+CRON_SECRET="random-secret-for-cron-requests"
 ```
 
 > **Rekomendasi database gratis untuk dev:** [Neon](https://neon.tech) — PostgreSQL serverless, free tier 0.5 GB.
@@ -397,6 +401,10 @@ RESEND_FROM_NAME="POS SaaS"
 
 > Untuk dev/testing tanpa domain: gunakan `RESEND_FROM_EMAIL="onboarding@resend.dev"` (bawaan Resend, tidak perlu verifikasi domain).
 
+### Cron Notifikasi
+
+Endpoint `POST /api/notifications/low-stock` dan `POST /api/notifications/trial-reminder` menerima request cron dengan header `x-cron-secret` yang harus sama dengan `CRON_SECRET`. Trigger manual dari panel Super Admin memakai sesi Super Admin, bukan secret yang dikirim dari browser.
+
 ### VPS / Server
 
 ```bash
@@ -462,7 +470,6 @@ Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan s
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
 - Reset password (butuh email service)
-- Notifikasi low stock via email
 - Rate limiting endpoint
 - Audit log aktivitas
 - Offline mode / PWA

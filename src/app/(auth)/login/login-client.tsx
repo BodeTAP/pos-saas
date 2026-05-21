@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, ShoppingCart, Loader2, AlertTriangle, Wrench } from "lucide-react";
 
@@ -29,14 +29,41 @@ interface LoginClientProps {
   maintenanceMode: boolean;
   maintenanceMessage: string;
   platformName: string;
+  callbackUrl: string;
+  errorParam?: string;
+  reason?: string;
 }
 
-export function LoginClient({ maintenanceMode, maintenanceMessage, platformName }: LoginClientProps) {
+function getRouteError(
+  reason?: string,
+  errorParam?: string
+): { message: string; type: "error" | "warning" } | null {
+  if (reason === "suspended") {
+    return {
+      message: "Akun Anda telah disuspend. Hubungi support untuk informasi lebih lanjut.",
+      type: "warning",
+    };
+  }
+  if (reason === "expired") {
+    return {
+      message: "Masa aktif langganan Anda telah berakhir. Silakan perbarui paket.",
+      type: "warning",
+    };
+  }
+  if (errorParam) return ERROR_MESSAGES[errorParam] || ERROR_MESSAGES.default;
+  return null;
+}
+
+export function LoginClient({
+  maintenanceMode,
+  maintenanceMessage,
+  platformName,
+  callbackUrl,
+  errorParam,
+  reason,
+}: LoginClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
-  const errorParam = searchParams.get("error");
-  const reason = searchParams.get("reason");
+  const routeError = getRouteError(reason, errorParam);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,20 +71,8 @@ export function LoginClient({ maintenanceMode, maintenanceMessage, platformName 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [errorType, setErrorType] = useState<"error" | "warning">("error");
-
-  useEffect(() => {
-    if (reason === "suspended") {
-      setError("Akun Anda telah disuspend. Hubungi support untuk informasi lebih lanjut.");
-      setErrorType("warning");
-    } else if (reason === "expired") {
-      setError("Masa aktif langganan Anda telah berakhir. Silakan perbarui paket.");
-      setErrorType("warning");
-    } else if (errorParam) {
-      const mapped = ERROR_MESSAGES[errorParam] || ERROR_MESSAGES.default;
-      setError(mapped.message);
-      setErrorType(mapped.type);
-    }
-  }, [errorParam, reason]);
+  const displayError = error || routeError?.message || "";
+  const displayErrorType = error ? errorType : routeError?.type || "error";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,16 +128,16 @@ export function LoginClient({ maintenanceMode, maintenanceMessage, platformName 
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-6">Masuk ke Akun</h2>
 
-          {error && (
+          {displayError && (
             <div
               className={`flex items-start gap-3 px-4 py-3 rounded-lg mb-4 text-sm ${
-                errorType === "warning"
+                displayErrorType === "warning"
                   ? "bg-orange-50 border border-orange-200 text-orange-800"
                   : "bg-red-50 border border-red-200 text-red-700"
               }`}
             >
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span>{displayError}</span>
             </div>
           )}
 

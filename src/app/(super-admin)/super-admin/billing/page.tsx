@@ -18,9 +18,9 @@ export default async function GlobalBillingPage({
 
   // Default 30 hari
   const endDate = params.end ? new Date(params.end) : new Date();
-  const startDate = params.start
-    ? new Date(params.start)
-    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const defaultStartDate = new Date();
+  defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+  const startDate = params.start ? new Date(params.start) : defaultStartDate;
   startDate.setHours(0, 0, 0, 0);
   endDate.setHours(23, 59, 59, 999);
 

@@ -30,31 +30,26 @@ export function TransferStockModal({
   onSuccess,
 }: TransferStockModalProps) {
   const [fromOutletId, setFromOutletId] = useState(defaultFromOutletId || outlets[0]?.id || "");
-  const [toOutletId, setToOutletId] = useState("");
+  const [toOutletId, setToOutletId] = useState(
+    outlets.find((outlet) => outlet.id !== (defaultFromOutletId || outlets[0]?.id))?.id || ""
+  );
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
   const [products, setProducts] = useState<ProductOption[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(!!fromOutletId);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Set toOutletId ke outlet lain saat fromOutletId berubah
-  useEffect(() => {
-    const other = outlets.find((o) => o.id !== fromOutletId);
-    setToOutletId(other?.id || "");
-    setProductId("");
-    setQuantity("");
-  }, [fromOutletId, outlets]);
 
   // Load produk dengan stok di fromOutlet
   useEffect(() => {
     if (!fromOutletId) return;
-    setIsLoadingProducts(true);
-    setProductId("");
+    let cancelled = false;
+
     fetch(`/api/products?outletId=${fromOutletId}&limit=200`)
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         setProducts(
           (data.products || [])
             .filter((p: ProductOption) => p.stock > 0)
@@ -66,8 +61,16 @@ export function TransferStockModal({
             }))
         );
       })
-      .catch(() => setProducts([]))
-      .finally(() => setIsLoadingProducts(false));
+      .catch(() => {
+        if (!cancelled) setProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingProducts(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [fromOutletId]);
 
   const selectedProduct = products.find((p) => p.id === productId);
@@ -103,6 +106,16 @@ export function TransferStockModal({
     }
   }
 
+  function handleFromOutletChange(nextFromOutletId: string) {
+    const nextDestination = outlets.find((outlet) => outlet.id !== nextFromOutletId);
+    setFromOutletId(nextFromOutletId);
+    setToOutletId(nextDestination?.id || "");
+    setProductId("");
+    setQuantity("");
+    setProducts([]);
+    setIsLoadingProducts(!!nextFromOutletId);
+  }
+
   const toOutlets = outlets.filter((o) => o.id !== fromOutletId);
 
   return (
@@ -128,7 +141,7 @@ export function TransferStockModal({
               <label className="block text-xs text-gray-500 mb-1">Dari Cabang</label>
               <select
                 value={fromOutletId}
-                onChange={(e) => setFromOutletId(e.target.value)}
+                onChange={(e) => handleFromOutletChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
                 {outlets.map((o) => (

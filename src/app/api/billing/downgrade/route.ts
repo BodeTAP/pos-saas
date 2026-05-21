@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 /**
  * Batalkan downgrade yang sudah dijadwalkan
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE() {
   try {
     const session = await auth();
     if (!session?.user.tenantId || session.user.role !== "OWNER") {

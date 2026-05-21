@@ -76,35 +76,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Jalankan transfer dalam satu transaksi DB
+    // Jalankan transfer dalam satu transaksi DB.
     await prisma.$transaction(async (tx) => {
-      // Kurangi stok di outlet asal
-      await tx.outletStock.update({
+      const sourceUpdate = await tx.outletStock.updateMany({
+        where: {
+          id: fromStock.id,
+          stock: { gte: qty },
+        },
+        data: { stock: { decrement: qty } },
+      });
+      if (sourceUpdate.count === 0) throw new Error("INSUFFICIENT_STOCK");
+
+      const sourceStockAfter = await tx.outletStock.findUnique({
         where: { id: fromStock.id },
-        data: { stock: fromStock.stock - qty },
+        select: { stock: true },
       });
+      const sourceAfter = sourceStockAfter?.stock ?? 0;
+      const sourceBefore = sourceAfter + qty;
 
-      // Tambah stok di outlet tujuan (upsert)
-      const toStock = await tx.outletStock.findUnique({
+      const destinationStock = await tx.outletStock.upsert({
         where: { outletId_productId: { outletId: toOutletId, productId } },
+        update: { stock: { increment: qty } },
+        create: {
+          outletId: toOutletId,
+          productId,
+          tenantId,
+          stock: qty,
+          minStock: fromStock.minStock,
+        },
+        select: { stock: true },
       });
-
-      if (toStock) {
-        await tx.outletStock.update({
-          where: { id: toStock.id },
-          data: { stock: toStock.stock + qty },
-        });
-      } else {
-        await tx.outletStock.create({
-          data: {
-            outletId: toOutletId,
-            productId,
-            tenantId,
-            stock: qty,
-            minStock: fromStock.minStock,
-          },
-        });
-      }
 
       const transferNote = note || `Transfer ke ${toOutlet.name}`;
       const receiveNote = note || `Transfer dari ${fromOutlet.name}`;
@@ -114,8 +115,8 @@ export async function POST(req: NextRequest) {
         data: {
           type: "OUT",
           quantity: -qty,
-          stockBefore: fromStock.stock,
-          stockAfter: fromStock.stock - qty,
+          stockBefore: sourceBefore,
+          stockAfter: sourceAfter,
           note: transferNote,
           tenantId,
           productId,
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Catat mutasi IN di outlet tujuan
-      const toStockBefore = toStock?.stock || 0;
+      const toStockBefore = destinationStock.stock - qty;
       await tx.stockMutation.create({
         data: {
           type: "IN",
@@ -145,6 +146,12 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Transfer stock error:", error);
+    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+      return NextResponse.json(
+        { error: "Stok cabang asal berubah dan tidak lagi mencukupi." },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

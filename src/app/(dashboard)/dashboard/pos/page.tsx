@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { POSInterface } from "@/components/pos/pos-interface";
 import { NoTenant } from "@/components/ui/no-tenant";
 import { getActiveOutletId } from "@/lib/active-outlet";
-import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 
 export default async function POSPage() {

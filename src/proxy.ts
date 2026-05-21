@@ -6,7 +6,6 @@ import { authConfig } from "@/lib/auth-config";
 const { auth } = NextAuth(authConfig);
 
 const publicRoutes = ["/login", "/register", "/api/auth"];
-const superAdminRoutes = ["/super-admin"];
 
 // Route yang HANYA boleh diakses Owner (Kasir diblokir)
 const ownerOnlyRoutes = [
@@ -27,7 +26,7 @@ const suspendedAllowedRoutes = [
   "/api/billing",
 ];
 
-export default auth((req) => {
+export const proxy = auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 

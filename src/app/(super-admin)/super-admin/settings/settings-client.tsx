@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 import {
-  Settings,
   Plus,
   Loader2,
   Shield,
@@ -127,7 +126,6 @@ export function SettingsClient({ currentUserId, superAdmins, platformConfigs }: 
     try {
       const res = await fetch("/api/notifications/low-stock", {
         method: "POST",
-        headers: { "x-cron-secret": "manual-trigger" },
       });
       const data = await res.json();
       if (!res.ok) {
@@ -148,7 +146,6 @@ export function SettingsClient({ currentUserId, superAdmins, platformConfigs }: 
     try {
       const res = await fetch("/api/notifications/trial-reminder", {
         method: "POST",
-        headers: { "x-cron-secret": "manual-trigger" },
       });
       const data = await res.json();
       if (!res.ok) {

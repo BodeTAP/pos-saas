@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { X, PauseCircle, Trash2, ShoppingCart } from "lucide-react";
@@ -17,11 +17,9 @@ interface HeldTransactionsModalProps {
 
 export function HeldTransactionsModal({ cashierId, onClose }: HeldTransactionsModalProps) {
   const { loadHeld } = useCartStore();
-  const [held, setHeld] = useState<HeldTransaction[]>([]);
-
-  useEffect(() => {
-    setHeld(getHeldTransactions(cashierId));
-  }, [cashierId]);
+  const [held, setHeld] = useState<HeldTransaction[]>(() =>
+    getHeldTransactions(cashierId)
+  );
 
   function handleRestore(tx: HeldTransaction) {
     loadHeld({

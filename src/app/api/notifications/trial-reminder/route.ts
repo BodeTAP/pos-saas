@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTrialEndingEmail } from "@/lib/email";
+import { auth } from "@/lib/auth";
 
 /**
  * Kirim email reminder trial akan berakhir ke tenant yang trialEndsAt-nya
@@ -10,12 +11,24 @@ import { sendTrialEndingEmail } from "@/lib/email";
  * Proteksi: CRON_SECRET header wajib cocok dengan env var.
  */
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (session?.user.role === "SUPER_ADMIN") {
+    return sendTrialReminders();
+  }
+
   const secret = req.headers.get("x-cron-secret");
-  const validSecret = process.env.CRON_SECRET || "manual-trigger";
-  if (secret !== validSecret && secret !== "manual-trigger") {
+  const validSecret = process.env.CRON_SECRET;
+  if (!validSecret) {
+    return NextResponse.json({ error: "CRON_SECRET belum dikonfigurasi." }, { status: 503 });
+  }
+  if (secret !== validSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  return sendTrialReminders();
+}
+
+async function sendTrialReminders() {
   try {
     const now = new Date();
 

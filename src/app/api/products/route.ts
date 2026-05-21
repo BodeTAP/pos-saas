@@ -53,13 +53,32 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId");
+    const requestedOutletId = searchParams.get("outletId");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
-    // Resolve outlet aktif sekali saja
+    // Owner can inspect stock for a source outlet during stock transfer.
     const { getActiveOutletId } = await import("@/lib/active-outlet");
-    const activeOutletId = await getActiveOutletId();
+    let activeOutletId = await getActiveOutletId();
+    if (requestedOutletId) {
+      if (session.user.role !== "OWNER") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      const requestedOutlet = await prisma.outlet.findFirst({
+        where: {
+          id: requestedOutletId,
+          tenantId: session.user.tenantId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!requestedOutlet) {
+        return NextResponse.json({ error: "Cabang tidak valid." }, { status: 400 });
+      }
+      activeOutletId = requestedOutlet.id;
+    }
 
     const where = {
       tenantId: session.user.tenantId,
@@ -123,6 +142,16 @@ export async function POST(req: NextRequest) {
       name, sku, barcode, description, buyPrice, sellPrice,
       stock, minStock, unit, categoryId, isActive,
     } = parsed.data;
+
+    if (categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { id: categoryId, tenantId: session.user.tenantId },
+        select: { id: true },
+      });
+      if (!category) {
+        return NextResponse.json({ error: "Kategori tidak valid." }, { status: 400 });
+      }
+    }
 
     // Cek limit produk berdasarkan plan
     const tenant = await prisma.tenant.findUnique({

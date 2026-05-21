@@ -22,21 +22,18 @@ export async function POST(req: NextRequest) {
     const {
       invoiceNumber,
       items,
-      subtotal,
-      discount,
       discountPct,
       discountNominal,
-      tax,
-      taxPct,
-      total,
       amountPaid,
-      change,
       paymentMethod,
       note,
       customerId,
       pointsRedeemed,
       tenantId: bodyTenantId,
     } = parsed.data;
+    const nominalDiscount = discountNominal ?? 0;
+    const percentageDiscount = discountPct ?? 0;
+    const redeemedPoints = pointsRedeemed ?? 0;
 
     // FIX 3: Derive tenantId and cashierId from session (not from body)
     const tenantId =
@@ -58,50 +55,67 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validasi customer milik tenant ini (jika ada)
-    if (customerId) {
-      const customer = await prisma.customer.findFirst({
-        where: { id: customerId, tenantId },
-        select: { id: true, points: true },
-      });
-      if (!customer) {
-        return NextResponse.json(
-          { error: "Pelanggan tidak valid." },
-          { status: 400 }
-        );
-      }
-      if (pointsRedeemed && pointsRedeemed > customer.points) {
-        return NextResponse.json(
-          { error: "Jumlah poin yang ditukar melebihi saldo pelanggan." },
-          { status: 400 }
-        );
-      }
+    if (redeemedPoints > 0 && !customerId) {
+      return NextResponse.json(
+        { error: "Pelanggan wajib dipilih untuk menukar poin." },
+        { status: 400 }
+      );
     }
 
-    // Ambil konfigurasi poin dari tenant (FIX 4: also fetch pointValue)
+    // Harga, pajak, poin, dan metode pembayaran adalah otoritas server.
     const tenantConfig = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { pointsPerAmount: true, pointValue: true },
+      select: {
+        pointsPerAmount: true,
+        pointValue: true,
+        taxRate: true,
+        activePaymentMethods: true,
+      },
     });
-    const pointsPerAmount = tenantConfig?.pointsPerAmount || POINT_PER_AMOUNT;
-
-    // FIX 4: Validate points redemption server-side
-    if (pointsRedeemed && pointsRedeemed > 0) {
-      const tenantPointValue = tenantConfig?.pointValue || POINT_VALUE;
-      const pointsDiscountAmount = pointsRedeemed * tenantPointValue;
-      if (pointsDiscountAmount > total) {
-        return NextResponse.json(
-          { error: "Jumlah poin yang ditukar melebihi total transaksi." },
-          { status: 400 }
-        );
-      }
+    if (!tenantConfig) {
+      return NextResponse.json({ error: "Tenant tidak ditemukan." }, { status: 404 });
     }
 
-    // Validasi produk milik tenant ini (simplified ownership check)
-    const productIds = items.map((item: { productId: string }) => item.productId);
+    const activePaymentMethods = (() => {
+      try {
+        const parsed = JSON.parse(tenantConfig.activePaymentMethods) as string[];
+        return new Set(parsed);
+      } catch {
+        return new Set(["CASH", "QRIS", "TRANSFER"]);
+      }
+    })();
+    if (!activePaymentMethods.has(paymentMethod)) {
+      return NextResponse.json(
+        { error: "Metode pembayaran tidak aktif untuk toko ini." },
+        { status: 400 }
+      );
+    }
+
+    // Validasi customer milik tenant ini (jika ada).
+    const customer = customerId
+      ? await prisma.customer.findFirst({
+          where: { id: customerId, tenantId },
+          select: { id: true, points: true },
+        })
+      : null;
+    if (customerId && !customer) {
+      return NextResponse.json({ error: "Pelanggan tidak valid." }, { status: 400 });
+    }
+    if (customer && redeemedPoints > customer.points) {
+      return NextResponse.json(
+        { error: "Jumlah poin yang ditukar melebihi saldo pelanggan." },
+        { status: 400 }
+      );
+    }
+
+    const pointsPerAmount = tenantConfig?.pointsPerAmount || POINT_PER_AMOUNT;
+    const pointValue = tenantConfig?.pointValue || POINT_VALUE;
+
+    // Validasi produk milik tenant dan ambil harga terbaru dari server.
+    const productIds = [...new Set(items.map((item) => item.productId))];
     const ownedProducts = await prisma.product.findMany({
-      where: { id: { in: productIds }, tenantId },
-      select: { id: true },
+      where: { id: { in: productIds }, tenantId, isActive: true },
+      select: { id: true, name: true, sku: true, sellPrice: true },
     });
     if (ownedProducts.length !== productIds.length) {
       return NextResponse.json(
@@ -109,6 +123,63 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const productsById = new Map(ownedProducts.map((product) => [product.id, product]));
+    const invalidDiscountItem = items.find((item) => {
+      const product = productsById.get(item.productId)!;
+      return (item.discount ?? 0) > product.sellPrice * item.quantity;
+    });
+    if (invalidDiscountItem) {
+      const product = productsById.get(invalidDiscountItem.productId)!;
+      return NextResponse.json(
+        { error: `Diskon item ${product.name} melebihi subtotal item.` },
+        { status: 400 }
+      );
+    }
+
+    const transactionItems = items.map((item) => {
+      const product = productsById.get(item.productId)!;
+      const itemGross = product.sellPrice * item.quantity;
+      const itemDiscount = item.discount ?? 0;
+
+      return {
+        productId: product.id,
+        productName: product.name,
+        productSku: product.sku,
+        quantity: item.quantity,
+        unitPrice: product.sellPrice,
+        discount: itemDiscount,
+        subtotal: itemGross - itemDiscount,
+      };
+    });
+
+    const subtotal = transactionItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const transactionDiscount =
+      nominalDiscount > 0
+        ? Math.min(nominalDiscount, subtotal)
+        : subtotal * (percentageDiscount / 100);
+    const pointsDiscount = redeemedPoints * pointValue;
+    const maxPointsDiscount = Math.max(0, subtotal - transactionDiscount);
+    if (pointsDiscount > maxPointsDiscount) {
+      return NextResponse.json(
+        { error: "Jumlah poin yang ditukar melebihi total setelah diskon." },
+        { status: 400 }
+      );
+    }
+
+    const discountedSubtotal = Math.max(0, subtotal - transactionDiscount - pointsDiscount);
+    const taxPct = tenantConfig.taxRate;
+    const tax = discountedSubtotal * (taxPct / 100);
+    const total = discountedSubtotal + tax;
+    const finalAmountPaid = paymentMethod === "CASH" ? amountPaid : total;
+    if (paymentMethod === "CASH" && finalAmountPaid < total) {
+      return NextResponse.json(
+        { error: "Uang diterima kurang dari total transaksi." },
+        { status: 400 }
+      );
+    }
+    const change = paymentMethod === "CASH" ? Math.max(0, finalAmountPaid - total) : 0;
+    const discount = transactionDiscount + pointsDiscount;
 
     // Hitung poin yang didapat dari transaksi ini (berdasarkan total final)
     const earnedPoints = Math.floor(total / pointsPerAmount);
@@ -122,11 +193,11 @@ export async function POST(req: NextRequest) {
           paymentMethod,
           subtotal,
           discount,
-          discountPct,
+          discountPct: percentageDiscount,
           tax,
           taxPct,
           total,
-          amountPaid,
+          amountPaid: finalAmountPaid,
           change,
           note: note || null,
           tenantId,
@@ -134,7 +205,7 @@ export async function POST(req: NextRequest) {
           customerId: customerId || null,
           outletId,
           items: {
-            create: items.map((item) => ({
+            create: transactionItems.map((item) => ({
                 productId: item.productId,
                 productName: item.productName,
                 productSku: item.productSku || null,
@@ -146,10 +217,11 @@ export async function POST(req: NextRequest) {
             ),
           },
         },
+        include: { items: true },
       });
 
       // FIX 1: Atomic stock deduction — fails if stock insufficient
-      for (const item of items) {
+      for (const item of transactionItems) {
         const updated = await tx.outletStock.updateMany({
           where: {
             outletId,
@@ -187,7 +259,7 @@ export async function POST(req: NextRequest) {
 
       // Update poin pelanggan
       if (customerId) {
-        const pointsDelta = earnedPoints - (pointsRedeemed || 0);
+        const pointsDelta = earnedPoints - redeemedPoints;
         if (pointsDelta !== 0) {
           await tx.customer.update({
             where: { id: customerId },
@@ -214,8 +286,8 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user.tenantId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user.tenantId || session.user.role !== "OWNER") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);

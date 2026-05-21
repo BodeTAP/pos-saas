@@ -55,7 +55,6 @@ export default async function ProductsPage({
     <ProductsClient
       initialProducts={products}
       categories={categories}
-      tenantId={session.user.tenantId}
       outlet={outlet}
       totalCount={totalCount}
       currentPage={page}

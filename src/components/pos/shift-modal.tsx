@@ -41,24 +41,33 @@ export function ShiftModal({ onClose, onShiftChange }: ShiftModalProps) {
   const [view, setView] = useState<"main" | "close-confirm">("main");
 
   useEffect(() => {
-    fetchCurrentShift();
-  }, []);
+    let isMounted = true;
 
-  async function fetchCurrentShift() {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/shifts");
-      const data = await res.json();
-      setCurrentShift(data.shift || null);
-      if (data.shift) {
-        setClosingCash(data.shift.openingCash.toString());
-      }
-    } catch {
-      toast.error("Gagal memuat data shift.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
+    fetch("/api/shifts")
+      .then(async (res) => {
+        const data = await res.json();
+        if (!isMounted) return;
+
+        setCurrentShift(data.shift || null);
+        if (data.shift) {
+          setClosingCash(data.shift.openingCash.toString());
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          toast.error("Gagal memuat data shift.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function handleOpenShift() {
     setIsSubmitting(true);

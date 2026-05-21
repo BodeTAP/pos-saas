@@ -62,7 +62,6 @@ export function POSInterface({
   const cart = useCartStore();
   const taxPct = tenant?.taxRate ?? 0;
   const pointValue = tenant?.pointValue || 100;
-  const pointsPerAmount = tenant?.pointsPerAmount || 10000;
 
   const filteredProducts = products.filter((p) => {
     const matchSearch =
