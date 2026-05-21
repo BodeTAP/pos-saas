@@ -19,6 +19,7 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 | Payment Gateway | Tripay |
 | File Storage | Vercel Blob |
 | Toast | Sonner |
+| Validation | Zod |
 
 ---
 
@@ -42,7 +43,8 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Pencarian produk cepat (nama, SKU, barcode)
 - Filter kategori
 - Keranjang belanja real-time (Zustand)
-- Diskon persentase / nominal
+- Diskon persentase / nominal (global per transaksi)
+- **Diskon per produk** (nominal per item di keranjang)
 - Tukar poin loyalitas pelanggan
 - Tahan transaksi (hold) & restore
 - Metode bayar dikonfigurasi per toko (CASH, QRIS, Transfer, Kartu)
@@ -50,27 +52,42 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Unduh struk sebagai HTML
 - Foto produk di grid kasir
 
+### ⏱️ Manajemen Shift Kasir
+- Buka shift dengan input kas awal
+- Ringkasan transaksi & pendapatan real-time selama shift berjalan
+- Tutup shift dengan input kas akhir
+- Laporan otomatis per shift: total transaksi, pendapatan, tunai vs non-tunai
+- Riwayat shift (Owner melihat semua, Kasir melihat milik sendiri)
+
 ### 📦 Manajemen Produk & Inventaris
 - CRUD produk lengkap (nama, SKU auto-generate, barcode, harga beli/jual, kategori, foto)
 - Stok per cabang via `OutletStock`
 - Low stock alert di dashboard
-- Riwayat mutasi stok (masuk, keluar, penyesuaian, penjualan)
+- Riwayat mutasi stok (masuk, keluar, penyesuaian, penjualan, retur)
 - Transfer stok antar cabang
 - Soft delete produk
 - Manajemen kategori (CRUD)
 - Pagination halaman produk
+
+### 🔄 Retur Transaksi
+- Owner dapat meretur transaksi yang sudah selesai
+- Input alasan retur wajib diisi
+- Opsi kembalikan stok — stok semua item dikembalikan ke cabang asal
+- Poin loyalitas pelanggan otomatis dikurangi
+- Transaksi berubah status menjadi `CANCELLED` dengan catatan alasan
 
 ### 👤 Loyalitas Pelanggan
 - CRUD pelanggan (nama, telepon, email)
 - Sistem poin: dikonfigurasi per toko (default: 1 poin per Rp 10.000)
 - Redeem poin: dikonfigurasi per toko (default: 1 poin = Rp 100 diskon)
 - Pilih pelanggan langsung dari POS
+- Pagination daftar pelanggan
 
 ### 📊 Laporan & Analitik
 - Dashboard ringkasan (pendapatan hari ini, transaksi, stok menipis)
 - Grafik tren pendapatan harian (line chart)
 - Bar chart produk terlaris
-- **Tabel performa per kasir** (transaksi, rata-rata, total pendapatan)
+- Tabel performa per kasir (transaksi, rata-rata, total pendapatan)
 - Filter tanggal custom + quick preset (7/30/90 hari)
 - Filter per cabang
 - Ekspor laporan ke **Excel** (multi-sheet: Ringkasan, Transaksi, Detail Item) atau **CSV**
@@ -80,7 +97,8 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Checkout via Tripay (BRIVA, QRIS, e-wallet, dll)
 - Webhook callback otomatis aktivasi paket
 - Manual cek status pembayaran (untuk dev localhost)
-- Blokir upgrade paket berbeda saat masih aktif
+- Upgrade paket langsung (Pro → Enterprise)
+- Downgrade terjadwal (efektif saat masa aktif berakhir)
 - Perpanjang paket yang sama (extend masa aktif)
 
 ### 🔒 Keamanan & Enforcement
@@ -90,7 +108,9 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Tenant expired → redirect ke halaman billing
 - Middleware edge-safe (tanpa Prisma di edge runtime)
 - Tenant isolation di semua query
-- Input validation di semua API endpoint
+- **Zod validation** di semua API endpoint (runtime type safety)
+- Atomic stock deduction (mencegah oversell saat transaksi bersamaan)
+- Idempotent webhook (mencegah duplikasi aktivasi paket)
 
 ### ⚙️ Konfigurasi Admin
 
@@ -126,7 +146,7 @@ src/
 │   │       ├── pos/         # Kasir + Riwayat Shift
 │   │       ├── products/    # Manajemen Produk
 │   │       ├── categories/  # Manajemen Kategori
-│   │       ├── transactions/# Riwayat Transaksi + Reprint
+│   │       ├── transactions/# Riwayat Transaksi + Reprint + Retur
 │   │       ├── reports/     # Laporan + Grafik + Per Kasir + Ekspor
 │   │       ├── staff/       # Manajemen Karyawan
 │   │       ├── customers/   # Pelanggan & Poin
@@ -142,28 +162,33 @@ src/
 │   │       └── settings/    # Konfigurasi sistem + Super Admin
 │   ├── suspended/           # Halaman akun suspended (auto-logout)
 │   └── api/                 # API Routes
+│       ├── shifts/          # Manajemen shift kasir
+│       ├── transactions/
+│       │   └── [id]/refund/ # Retur transaksi
+│       └── ...
 ├── components/
 │   ├── layout/              # Sidebar, Header, Outlet Switcher
-│   ├── pos/                 # POS Interface, Cart, Payment, Receipt
+│   ├── pos/                 # POS Interface, Cart, Payment, Receipt, ShiftModal
 │   ├── products/            # Product Form Modal (dengan upload foto)
 │   ├── customers/           # Customer Form Modal
 │   ├── outlets/             # Outlet Form Modal, Transfer Stock Modal
 │   ├── staff/               # Staff Form Modal
 │   ├── billing/             # Checkout Modal
+│   ├── transactions/        # Refund Modal
 │   ├── super-admin/         # Super Admin components
 │   └── ui/                  # Shared: Toaster, Pagination, ImageUpload, NoTenant
 ├── lib/
 │   ├── auth.ts              # NextAuth full config (server)
 │   ├── auth-config.ts       # NextAuth minimal config (edge/middleware)
 │   ├── prisma.ts            # Prisma client singleton
-│   ├── plans.ts             # Plan pricing dari database
+│   ├── plans.ts             # Plan pricing dari database (1 query)
+│   ├── schemas.ts           # Zod schemas terpusat + parseBody helper
 │   ├── platform-config.ts   # Platform config (key-value store)
 │   ├── tripay.ts            # Tripay API helper
 │   ├── billing-actions.ts   # Shared billing logic
 │   ├── active-outlet.ts     # Resolve outlet aktif dari session
 │   ├── hold-transactions.ts # Hold transaction via localStorage
 │   ├── print-receipt.ts     # Generate & print struk
-│   ├── validation.ts        # Input validation helpers
 │   └── utils.ts             # Helper functions
 ├── stores/
 │   └── cart-store.ts        # Zustand cart state
@@ -222,6 +247,9 @@ NEXT_PUBLIC_APP_NAME="POS SaaS"
 # Jalankan migrasi
 npm run db:migrate
 
+# Generate Prisma client
+npm run db:generate
+
 # Seed data demo (pricing plans + akun demo + platform config)
 npm run db:seed
 ```
@@ -233,6 +261,8 @@ npm run dev
 ```
 
 Buka [http://localhost:3000](http://localhost:3000)
+
+> **Catatan:** Setelah menjalankan `prisma migrate dev`, selalu jalankan `npm run db:generate` dengan dev server dalam keadaan **mati** terlebih dahulu. Windows mengunci file `query_engine-windows.dll.node` saat server berjalan.
 
 ---
 
@@ -267,6 +297,7 @@ Tenant A ──┬── Users (Owner, Kasir)
            ├── Outlets (Cabang Utama, Cabang 2, ...)
            ├── Products ──── OutletStock (stok per cabang)
            ├── Transactions (per outlet, per kasir)
+           ├── CashierShifts (shift per kasir per outlet)
            ├── Customers (shared antar cabang)
            ├── Categories
            └── BillingInvoices
@@ -290,9 +321,19 @@ prisma.product.findMany({ where: { tenantId: session.user.tenantId } })
 1. **Tambah produk** → OutletStock otomatis dibuat di semua cabang (stok awal hanya di cabang utama)
 2. **Tambah cabang baru** → OutletStock dibuat untuk semua produk existing dengan stok 0
 3. **Transfer stok** → UI di halaman Cabang, mencatat 2 StockMutation (OUT + IN)
-4. **Transaksi** → stok di-deduct dari OutletStock cabang aktif saja
+4. **Transaksi** → stok di-deduct dari OutletStock cabang aktif saja (atomic, mencegah oversell)
 5. **Owner switch cabang** → semua data (produk, laporan, dashboard) ikut berubah
 6. **Kasir** → terikat ke 1 cabang, tidak bisa switch
+
+---
+
+## Alur Shift Kasir
+
+1. Kasir buka shift → input kas awal → shift status `OPEN`
+2. Selama shift berjalan → semua transaksi tercatat
+3. Kasir tutup shift → input kas akhir → sistem hitung ringkasan otomatis
+4. Shift status `CLOSED` → laporan tersimpan permanen
+5. Owner bisa melihat riwayat semua shift di halaman Laporan
 
 ---
 
@@ -339,7 +380,7 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 NEXT_PUBLIC_APP_URL="https://yourdomain.com"
 ```
 
-### VPS Windows + Nginx
+### VPS / Server
 
 ```bash
 # Build
@@ -390,10 +431,22 @@ Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan s
 - Toast notifications (Sonner)
 - Pagination
 
+### ✅ Fase 4 — Kualitas & Fitur Tambahan
+- Zod validation di semua API endpoint
+- Atomic stock deduction (mencegah oversell)
+- Idempotent webhook billing
+- Unique constraints (tripayReference, invoiceNumber, phone+tenantId)
+- Optimasi query (N+1 SKU generation, getAllPlans single query)
+- **Shift kasir** (buka/tutup shift, kas awal/akhir, laporan per shift)
+- **Retur transaksi** (batalkan + kembalikan stok + reverse poin)
+- **Diskon per produk** di POS
+- Pagination pelanggan
+
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
 - Reset password (butuh email service)
 - Notifikasi low stock via email
+- Rate limiting endpoint
 - Audit log aktivitas
 - Offline mode / PWA
 
