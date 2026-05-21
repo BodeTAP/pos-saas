@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatDate } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 import { Plus, Edit, Trash2, Users, Shield, Store } from "lucide-react";
 import { StaffFormModal, type StaffMember } from "@/components/staff/staff-form-modal";
 
@@ -48,9 +49,10 @@ export function StaffClient({ initialStaff, maxCashiers, plan, outlets }: StaffC
       setStaff((prev) =>
         prev.map((s) => (s.id === id ? { ...s, isActive: false } : s))
       );
+      toast.success("Kasir berhasil dinonaktifkan.");
     } else {
       const data = await res.json();
-      alert(data.error || "Gagal menonaktifkan kasir.");
+      toast.error(data.error || "Gagal menonaktifkan kasir.");
     }
   }
 

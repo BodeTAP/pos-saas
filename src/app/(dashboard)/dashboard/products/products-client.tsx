@@ -7,6 +7,7 @@ import {
   Plus, Search, Edit, Trash2, AlertTriangle, Package, Store,
 } from "lucide-react";
 import { ProductFormModal } from "@/components/products/product-form-modal";
+import { Pagination } from "@/components/ui/pagination";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -21,6 +22,9 @@ interface ProductsClientProps {
   categories: Category[];
   tenantId: string;
   outlet: OutletInfo | null;
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
 }
 
 export function ProductsClient({
@@ -28,6 +32,9 @@ export function ProductsClient({
   categories,
   tenantId,
   outlet,
+  totalCount,
+  currentPage,
+  pageSize,
 }: ProductsClientProps) {
   const [products, setProducts] = useState(initialProducts);
   const [search, setSearch] = useState("");
@@ -211,6 +218,16 @@ export function ProductsClient({
           tenantId={tenantId}
           onClose={() => { setShowModal(false); setEditProduct(null); }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Pagination */}
+      {totalCount > pageSize && (
+        <Pagination
+          currentPage={currentPage}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          basePath="/dashboard/products"
         />
       )}
     </div>

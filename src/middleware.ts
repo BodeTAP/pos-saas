@@ -13,6 +13,7 @@ const ownerOnlyRoutes = [
   "/dashboard/billing",
   "/dashboard/staff",
   "/dashboard/products",
+  "/dashboard/categories",
   "/dashboard/transactions",
   "/dashboard/reports",
   "/dashboard/customers",

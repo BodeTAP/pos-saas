@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toaster";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   CheckCircle,
@@ -65,21 +66,21 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.error || "Gagal mengecek status.");
+        toast.error(data.error || "Gagal mengecek status.");
         return;
       }
 
       if (data.status === "PAID") {
-        alert("Pembayaran berhasil! Paket langganan telah diaktifkan.");
+        toast.success("Pembayaran berhasil! Paket langganan telah diaktifkan.");
         router.refresh();
       } else if (data.status === "EXPIRED" || data.status === "FAILED") {
-        alert(`Status: ${data.status}. Silakan buat tagihan baru.`);
+        toast.info(`Status: ${data.status}. Silakan buat tagihan baru.`);
         router.refresh();
       } else {
-        alert("Pembayaran belum diterima. Silakan coba lagi setelah membayar.");
+        toast.info("Pembayaran belum diterima. Silakan coba lagi setelah membayar.");
       }
     } catch {
-      alert("Terjadi kesalahan saat mengecek status.");
+      toast.error("Terjadi kesalahan saat mengecek status.");
     } finally {
       setCheckingId(null);
     }

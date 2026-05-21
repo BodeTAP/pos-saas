@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCartStore } from "@/stores/cart-store";
+import { toast } from "@/components/ui/toaster";
 import { formatCurrency, generateInvoiceNumber } from "@/lib/utils";
 import { X, Loader2, CheckCircle, Banknote, QrCode, CreditCard, Printer, Download } from "lucide-react";
 import { Receipt, type ReceiptData } from "./receipt";
@@ -142,7 +143,7 @@ export function PaymentModal({
       setIsSuccess(true);
     } catch (err) {
       console.error(err);
-      alert("Transaksi gagal. Silakan coba lagi.");
+      toast.error("Transaksi gagal. Silakan coba lagi.");
     } finally {
       setIsLoading(false);
     }

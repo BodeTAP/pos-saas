@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { generateSlug } from "@/lib/utils";
+import { isValidEmail } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +13,13 @@ export async function POST(req: NextRequest) {
     if (!ownerName || !email || !password || !storeName) {
       return NextResponse.json(
         { error: "Semua field wajib diisi." },
+        { status: 400 }
+      );
+    }
+
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: "Format email tidak valid." },
         { status: 400 }
       );
     }

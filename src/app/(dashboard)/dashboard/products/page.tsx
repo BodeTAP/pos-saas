@@ -4,13 +4,20 @@ import { ProductsClient } from "./products-client";
 import { NoTenant } from "@/components/ui/no-tenant";
 import { getActiveOutletId } from "@/lib/active-outlet";
 
-export default async function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const session = await auth();
   if (!session?.user.tenantId) return <NoTenant />;
 
+  const params = await searchParams;
+  const page = parseInt(params.page || "1");
+  const limit = 20;
   const outletId = await getActiveOutletId();
 
-  const [productsRaw, categories, outlet] = await Promise.all([
+  const [productsRaw, categories, outlet, totalCount] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: session.user.tenantId },
       include: {
@@ -18,6 +25,8 @@ export default async function ProductsPage() {
         outletStocks: outletId ? { where: { outletId }, take: 1 } : false,
       },
       orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
     }),
     prisma.category.findMany({
       where: { tenantId: session.user.tenantId },
@@ -29,9 +38,9 @@ export default async function ProductsPage() {
           select: { id: true, name: true, isMain: true },
         })
       : Promise.resolve(null),
+    prisma.product.count({ where: { tenantId: session.user.tenantId } }),
   ]);
 
-  // Override stock & minStock dengan data dari OutletStock outlet aktif
   const products = productsRaw.map((p) => {
     const outletStock = p.outletStocks?.[0];
     return {
@@ -48,6 +57,9 @@ export default async function ProductsPage() {
       categories={categories}
       tenantId={session.user.tenantId}
       outlet={outlet}
+      totalCount={totalCount}
+      currentPage={page}
+      pageSize={limit}
     />
   );
 }

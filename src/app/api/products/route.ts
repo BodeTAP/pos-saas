@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generateSKUPrefix, formatSKUNumber } from "@/lib/utils";
+import { validateProductInput } from "@/lib/validation";
 
 /**
  * Generate SKU otomatis berdasarkan nama produk dan urutan per prefix
@@ -126,6 +127,11 @@ export async function POST(req: NextRequest) {
         { error: "Nama dan harga jual wajib diisi." },
         { status: 400 }
       );
+    }
+
+    const validationError = validateProductInput(body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
     // Cek limit produk berdasarkan plan

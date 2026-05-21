@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Edit, Trash2, Store, MapPin, Users, ShoppingBag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Edit, Trash2, Store, MapPin, Users, ShoppingBag, ArrowLeftRight } from "lucide-react";
+import { toast } from "@/components/ui/toaster";
 import { OutletFormModal, type OutletData } from "@/components/outlets/outlet-form-modal";
+import { TransferStockModal } from "@/components/outlets/transfer-stock-modal";
 
 export interface OutletWithCount extends OutletData {
   _count: { users: number; transactions: number };
@@ -15,8 +18,10 @@ interface OutletsClientProps {
 }
 
 export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClientProps) {
+  const router = useRouter();
   const [outlets, setOutlets] = useState<OutletWithCount[]>(initialOutlets);
   const [showModal, setShowModal] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const [editOutlet, setEditOutlet] = useState<OutletData | null>(null);
 
   const activeCount = outlets.filter((o) => o.isActive).length;
@@ -47,9 +52,10 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
       setOutlets((prev) =>
         prev.map((o) => (o.id === id ? { ...o, isActive: false } : o))
       );
+      toast.success("Cabang berhasil dinonaktifkan.");
     } else {
       const data = await res.json();
-      alert(data.error || "Gagal menonaktifkan cabang.");
+      toast.error(data.error || "Gagal menonaktifkan cabang.");
     }
   }
 
@@ -62,6 +68,16 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
             {activeCount}/{maxOutlets} cabang aktif (Paket {plan})
           </p>
         </div>
+      <div className="flex items-center gap-2">
+        {outlets.filter((o) => o.isActive).length > 1 && (
+          <button
+            onClick={() => setShowTransfer(true)}
+            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl font-medium transition-colors"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+            Transfer Stok
+          </button>
+        )}
         <button
           onClick={() => {
             setEditOutlet(null);
@@ -74,6 +90,7 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
           <Plus className="w-4 h-4" />
           Tambah Cabang
         </button>
+      </div>
       </div>
 
       {!canAddMore && plan !== "ENTERPRISE" && (
@@ -175,6 +192,17 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
             setEditOutlet(null);
           }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {showTransfer && (
+        <TransferStockModal
+          outlets={outlets.filter((o) => o.isActive).map((o) => ({ id: o.id, name: o.name }))}
+          onClose={() => setShowTransfer(false)}
+          onSuccess={() => {
+            setShowTransfer(false);
+            router.refresh();
+          }}
         />
       )}
     </div>

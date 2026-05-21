@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Customer } from "@prisma/client";
+import { toast } from "@/components/ui/toaster";
 import { formatDate } from "@/lib/utils";
 import { Plus, Edit, Trash2, Users, Search, Star } from "lucide-react";
 import { CustomerFormModal } from "@/components/customers/customer-form-modal";
@@ -38,9 +39,10 @@ export function CustomersClient({ initialCustomers }: CustomersClientProps) {
     const res = await fetch(`/api/customers/${id}`, { method: "DELETE" });
     if (res.ok) {
       setCustomers((prev) => prev.filter((c) => c.id !== id));
+      toast.success("Pelanggan berhasil dihapus.");
     } else {
       const data = await res.json();
-      alert(data.error || "Gagal menghapus pelanggan.");
+      toast.error(data.error || "Gagal menghapus pelanggan.");
     }
   }
 

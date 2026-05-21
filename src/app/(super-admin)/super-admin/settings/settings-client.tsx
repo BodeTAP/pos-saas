@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toaster";
 import { formatDate } from "@/lib/utils";
 import {
   Settings,
@@ -43,7 +44,7 @@ export function SettingsClient({ currentUserId, superAdmins }: SettingsClientPro
 
   async function handleToggleActive(id: string, isActive: boolean) {
     if (id === currentUserId && !isActive) {
-      alert("Tidak bisa menonaktifkan akun sendiri.");
+      toast.error("Tidak bisa menonaktifkan akun sendiri.");
       return;
     }
     if (
@@ -64,7 +65,7 @@ export function SettingsClient({ currentUserId, superAdmins }: SettingsClientPro
       router.refresh();
     } else {
       const data = await res.json();
-      alert(data.error || "Gagal mengubah status.");
+      toast.error(data.error || "Gagal mengubah status.");
     }
   }
 

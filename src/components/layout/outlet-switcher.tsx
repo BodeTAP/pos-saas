@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { toast } from "@/components/ui/toaster";
 import { useRouter } from "next/navigation";
 import { Store, ChevronDown, Check, Loader2 } from "lucide-react";
 
@@ -47,7 +48,7 @@ export function OutletSwitcher() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "Gagal berpindah cabang.");
+        toast.error(data.error || "Gagal berpindah cabang.");
         return;
       }
 
@@ -56,7 +57,7 @@ export function OutletSwitcher() {
       await update({ outletId });
       window.location.reload();
     } catch {
-      alert("Terjadi kesalahan.");
+      toast.error("Terjadi kesalahan.");
     } finally {
       setIsSwitching(null);
     }

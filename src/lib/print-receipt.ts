@@ -163,7 +163,7 @@ export function printReceipt(data: ReceiptData): void {
   );
 
   if (!popup) {
-    alert("Popup diblokir browser. Izinkan popup untuk localhost dan coba lagi.");
+    console.error("Popup diblokir browser. Izinkan popup untuk localhost dan coba lagi.");
     return;
   }
 

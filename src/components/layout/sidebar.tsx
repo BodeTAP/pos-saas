@@ -13,6 +13,7 @@ import {
   CreditCard,
   ShoppingBag,
   Store,
+  Tag,
   ChevronLeft,
   ChevronRight,
   History,
@@ -55,6 +56,12 @@ const tenantNavItems: NavItem[] = [
     label: "Produk",
     href: "/dashboard/products",
     icon: Package,
+    roles: ["OWNER"],
+  },
+  {
+    label: "Kategori",
+    href: "/dashboard/categories",
+    icon: Tag,
     roles: ["OWNER"],
   },
   {

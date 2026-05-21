@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toaster";
 import { formatCurrency } from "@/lib/utils";
 import {
   BarChart3,
@@ -63,7 +64,7 @@ export function ReportsClient({
 
   function applyFilter() {
     if (new Date(start) > new Date(end)) {
-      alert("Tanggal mulai tidak boleh setelah tanggal akhir.");
+      toast.error("Tanggal mulai tidak boleh setelah tanggal akhir.");
       return;
     }
     router.push(`/dashboard/reports?start=${start}&end=${end}`);
@@ -99,7 +100,7 @@ export function ReportsClient({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert("Gagal mengunduh laporan. Silakan coba lagi.");
+      toast.error("Gagal mengunduh laporan. Silakan coba lagi.");
     } finally {
       setIsExporting(null);
     }
