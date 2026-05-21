@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { ShoppingBag, Filter } from "lucide-react";
+import { ShoppingBag, Filter, RotateCcw } from "lucide-react";
 import { ReprintButton } from "@/components/pos/reprint-button";
+import { RefundModal } from "@/components/transactions/refund-modal";
 import type { ReceiptData } from "@/components/pos/receipt";
 
 interface TransactionItem {
@@ -19,6 +20,7 @@ interface TransactionItem {
 interface TransactionData {
   id: string;
   invoiceNumber: string;
+  status: string;
   paymentMethod: string;
   subtotal: number;
   discount: number;
@@ -55,6 +57,7 @@ interface TransactionsClientProps {
   outlets: OutletSummary[];
   tenant: TenantInfo | null;
   cashierName: string;
+  isOwner?: boolean;
 }
 
 const paymentLabel: Record<string, string> = {
@@ -70,13 +73,16 @@ export function TransactionsClient({
   outlets,
   tenant,
   cashierName,
+  isOwner = false,
 }: TransactionsClientProps) {
   const [selectedOutlet, setSelectedOutlet] = useState<string>("ALL");
+  const [transactions, setTransactions] = useState(initialTransactions);
+  const [refundTarget, setRefundTarget] = useState<TransactionData | null>(null);
 
   const filtered =
     selectedOutlet === "ALL"
-      ? initialTransactions
-      : initialTransactions.filter((tx) => tx.outlet?.id === selectedOutlet);
+      ? transactions
+      : transactions.filter((tx) => tx.outlet?.id === selectedOutlet);
 
   function buildReceiptData(tx: TransactionData): ReceiptData {
     return {
@@ -108,7 +114,8 @@ export function TransactionsClient({
   }
 
   return (
-    <div className="space-y-5">
+    <>
+      <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Riwayat Transaksi</h1>
@@ -151,12 +158,15 @@ export function TransactionsClient({
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Pembayaran</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600">Total</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Struk</th>
+                {isOwner && (
+                  <th className="text-center px-4 py-3 font-medium text-gray-600">Retur</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-400">
+                  <td colSpan={isOwner ? 10 : 9} className="text-center py-12 text-gray-400">
                     <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     <p>Belum ada transaksi</p>
                   </td>
@@ -185,6 +195,24 @@ export function TransactionsClient({
                     <td className="px-4 py-3 text-center">
                       <ReprintButton data={buildReceiptData(tx)} />
                     </td>
+                    {isOwner && (
+                      <td className="px-4 py-3 text-center">
+                        {tx.status === "COMPLETED" ? (
+                          <button
+                            onClick={() => setRefundTarget(tx)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Retur transaksi"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Retur
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded-lg">
+                            {tx.status === "CANCELLED" ? "Diretur" : tx.status}
+                          </span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -193,5 +221,22 @@ export function TransactionsClient({
         </div>
       </div>
     </div>
+
+    {refundTarget && (
+      <RefundModal
+        transaction={refundTarget}
+        onClose={() => setRefundTarget(null)}
+        onSuccess={() => {
+          // Mark the transaction as CANCELLED in local state
+          setTransactions((prev) =>
+            prev.map((tx) =>
+              tx.id === refundTarget.id ? { ...tx, status: "CANCELLED" } : tx
+            )
+          );
+          setRefundTarget(null);
+        }}
+      />
+    )}
+    </>
   );
 }

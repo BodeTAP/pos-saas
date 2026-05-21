@@ -158,6 +158,7 @@ model Tenant {
   billingInvoices BillingInvoice[]
   customers     Customer[]
   outlets       Outlet[]
+  cashierShifts CashierShift[]
 
   @@map("tenants")
 }
@@ -185,6 +186,7 @@ model Outlet {
   users          User[]
   outletStocks   OutletStock[]
   stockMutations StockMutation[]
+  cashierShifts  CashierShift[]
 
   @@index([tenantId])
   @@map("outlets")
@@ -237,9 +239,10 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  transactions Transaction[]
-  sessions     Session[]
-  accounts     Account[]
+  transactions  Transaction[]
+  sessions      Session[]
+  accounts      Account[]
+  cashierShifts CashierShift[]
 
   @@map("users")
 }
@@ -455,6 +458,46 @@ model StockMutation {
   @@index([productId])
   @@index([outletId])
   @@map("stock_mutations")
+}
+
+// ─────────────────────────────────────────────
+// SHIFT KASIR
+// ─────────────────────────────────────────────
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model CashierShift {
+  id          String      @id @default(cuid())
+  status      ShiftStatus @default(OPEN)
+  openedAt    DateTime    @default(now())
+  closedAt    DateTime?
+  openingCash Float       @default(0)  // Kas awal
+  closingCash Float?                   // Kas akhir (diisi saat tutup)
+  note        String?
+
+  // Ringkasan (dihitung saat tutup shift)
+  totalTransactions Int   @default(0)
+  totalRevenue      Float @default(0)
+  totalCash         Float @default(0)
+  totalNonCash      Float @default(0)
+
+  cashierId String
+  cashier   User   @relation(fields: [cashierId], references: [id])
+  outletId  String
+  outlet    Outlet @relation(fields: [outletId], references: [id])
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cashierId])
+  @@index([tenantId])
+  @@index([outletId])
+  @@map("cashier_shifts")
 }
 
 // ─────────────────────────────────────────────

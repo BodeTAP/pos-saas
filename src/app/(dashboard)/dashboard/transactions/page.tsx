@@ -9,7 +9,10 @@ export default async function TransactionsPage() {
 
   const [transactions, outlets, tenant] = await Promise.all([
     prisma.transaction.findMany({
-      where: { tenantId: session.user.tenantId, status: "COMPLETED" },
+      where: {
+        tenantId: session.user.tenantId,
+        status: { in: ["COMPLETED", "CANCELLED"] },
+      },
       include: {
         cashier: { select: { name: true } },
         outlet: { select: { id: true, name: true } },
@@ -36,6 +39,7 @@ export default async function TransactionsPage() {
       outlets={outlets}
       tenant={tenant}
       cashierName={session.user.name}
+      isOwner={session.user.role === "OWNER"}
     />
   );
 }

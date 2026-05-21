@@ -6,9 +6,10 @@ import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
 import { PaymentModal } from "./payment-modal";
 import { HeldTransactionsModal } from "./held-transactions-modal";
+import { ShiftModal } from "./shift-modal";
 import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
-import { PauseCircle } from "lucide-react";
+import { PauseCircle, Clock } from "lucide-react";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -52,6 +53,7 @@ export function POSInterface({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showHeld, setShowHeld] = useState(false);
+  const [showShift, setShowShift] = useState(false);
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
@@ -155,6 +157,14 @@ export function POSInterface({
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setShowShift(true)}
+              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm text-gray-700 transition-colors"
+              title="Manajemen shift"
+            >
+              <Clock className="w-4 h-4 text-green-500" />
+              <span className="hidden sm:inline">Shift</span>
+            </button>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
@@ -229,6 +239,13 @@ export function POSInterface({
         <HeldTransactionsModal
           cashierId={cashierId}
           onClose={handleHeldModalClose}
+        />
+      )}
+
+      {showShift && (
+        <ShiftModal
+          onClose={() => setShowShift(false)}
+          onShiftChange={() => setShowShift(false)}
         />
       )}
     </div>
