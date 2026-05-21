@@ -19,7 +19,6 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
     description: plan.description || "",
     monthlyPrice: plan.monthlyPrice.toString(),
     yearlyPrice: plan.yearlyPrice.toString(),
-    yearlyDiscountPct: plan.yearlyDiscountPct.toString(),
     maxProducts: plan.maxProducts.toString(),
     maxCashiers: plan.maxCashiers.toString(),
     maxOutlets: plan.maxOutlets.toString(),
@@ -66,7 +65,6 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
           description: form.description,
           monthlyPrice: parseFloat(form.monthlyPrice) || 0,
           yearlyPrice: parseFloat(form.yearlyPrice) || 0,
-          yearlyDiscountPct: parseFloat(form.yearlyDiscountPct) || 0,
           maxProducts: parseInt(form.maxProducts) || 0,
           maxCashiers: parseInt(form.maxCashiers) || 0,
           maxOutlets: parseInt(form.maxOutlets) || 0,
@@ -163,36 +161,31 @@ export function PlanFormModal({ plan, onClose, onSaved }: PlanFormModalProps) {
               </div>
             </div>
 
-            {/* Diskon tahunan */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Label Diskon Tahunan (%)
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  name="yearlyDiscountPct"
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={form.yearlyDiscountPct}
-                  onChange={handleChange}
-                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-                {parseFloat(form.yearlyDiscountPct) > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                    Preview: Hemat {Math.round(parseFloat(form.yearlyDiscountPct))}%
+            {/* Preview diskon tahunan otomatis */}
+            {(() => {
+              const monthly = parseFloat(form.monthlyPrice) || 0;
+              const yearly = parseFloat(form.yearlyPrice) || 0;
+              if (monthly <= 0 || yearly <= 0) return null;
+              const annual = monthly * 12;
+              const pct = yearly < annual
+                ? Math.round(((annual - yearly) / annual) * 100)
+                : 0;
+              const saving = annual - yearly;
+              return (
+                <div className={`rounded-lg px-3 py-2.5 text-sm flex items-center justify-between ${pct > 0 ? "bg-green-50 border border-green-200" : "bg-amber-50 border border-amber-200"}`}>
+                  <span className={pct > 0 ? "text-green-700" : "text-amber-700"}>
+                    {pct > 0
+                      ? `Pelanggan hemat ${pct}% (Rp ${saving.toLocaleString("id-ID")}/tahun)`
+                      : "Harga tahunan lebih mahal dari bulanan × 12 — tidak ada label hemat"}
                   </span>
-                ) : (
-                  <span className="text-xs text-gray-400">
-                    0 = tidak tampilkan label diskon
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Label ini ditampilkan di tombol pilih periode tahunan saat checkout. Isi 0 untuk menyembunyikan label.
-              </p>
-            </div>
+                  {pct > 0 && (
+                    <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold ml-2 flex-shrink-0">
+                      Hemat {pct}%
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-3 gap-3">
               <div>

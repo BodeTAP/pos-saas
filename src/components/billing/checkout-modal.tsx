@@ -31,7 +31,6 @@ interface PlanSummary {
   name: string;
   monthlyPrice: number;
   yearlyPrice: number;
-  yearlyDiscountPct: number;
   features: string[];
 }
 
@@ -306,11 +305,16 @@ export function CheckoutModal({ plan, mode, tenant, onClose, onSuccess }: Checko
                     period === "YEARLY" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  {planInfo && planInfo.yearlyDiscountPct > 0 && (
-                    <span className="absolute -top-2 right-2 bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
-                      Hemat {Math.round(planInfo.yearlyDiscountPct)}%
-                    </span>
-                  )}
+                  {planInfo && (() => {
+                    const pct = planInfo.monthlyPrice > 0 && planInfo.yearlyPrice > 0
+                      ? Math.round(((planInfo.monthlyPrice * 12 - planInfo.yearlyPrice) / (planInfo.monthlyPrice * 12)) * 100)
+                      : 0;
+                    return pct > 0 ? (
+                      <span className="absolute -top-2 right-2 bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full font-medium">
+                        Hemat {pct}%
+                      </span>
+                    ) : null;
+                  })()}
                   <p className="text-sm font-semibold text-gray-900">Tahunan</p>
                   <p className="text-lg font-bold text-blue-600 mt-0.5">
                     {formatCurrency(planInfo?.yearlyPrice || 0)}

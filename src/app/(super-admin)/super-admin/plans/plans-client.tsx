@@ -76,11 +76,16 @@ export function PlansClient({ initialPlans }: PlansClientProps) {
               {plan.yearlyPrice > 0 && (
                 <p className="text-xs text-gray-500 flex items-center gap-1.5">
                   Tahunan: {formatCurrency(plan.yearlyPrice)}
-                  {plan.yearlyDiscountPct > 0 && (
-                    <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
-                      Hemat {Math.round(plan.yearlyDiscountPct)}%
-                    </span>
-                  )}
+                  {(() => {
+                    const pct = plan.monthlyPrice > 0
+                      ? Math.round(((plan.monthlyPrice * 12 - plan.yearlyPrice) / (plan.monthlyPrice * 12)) * 100)
+                      : 0;
+                    return pct > 0 ? (
+                      <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
+                        Hemat {pct}%
+                      </span>
+                    ) : null;
+                  })()}
                 </p>
               )}
             </div>

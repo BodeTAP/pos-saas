@@ -29,7 +29,6 @@ export async function PUT(
       description,
       monthlyPrice,
       yearlyPrice,
-      yearlyDiscountPct,
       maxProducts,
       maxCashiers,
       maxOutlets,
@@ -41,14 +40,11 @@ export async function PUT(
       return NextResponse.json({ error: "Nama paket wajib diisi." }, { status: 400 });
     }
 
-    const discountPct = Math.min(100, Math.max(0, parseFloat(yearlyDiscountPct) || 0));
-
     const data = {
       name: name.trim(),
       description: description?.trim() || null,
       monthlyPrice: parseFloat(monthlyPrice) || 0,
       yearlyPrice: parseFloat(yearlyPrice) || 0,
-      yearlyDiscountPct: discountPct,
       maxProducts: parseInt(maxProducts) || 1,
       maxCashiers: parseInt(maxCashiers) || 1,
       maxOutlets: parseInt(maxOutlets) || 1,
@@ -73,7 +69,6 @@ export async function PUT(
       description: plan.description,
       monthlyPrice: plan.monthlyPrice,
       yearlyPrice: plan.yearlyPrice,
-      yearlyDiscountPct: plan.yearlyDiscountPct,
       maxProducts: plan.maxProducts,
       maxCashiers: plan.maxCashiers,
       maxOutlets: plan.maxOutlets,
