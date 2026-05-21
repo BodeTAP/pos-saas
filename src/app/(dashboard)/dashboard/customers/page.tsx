@@ -9,7 +9,7 @@ export default async function CustomersPage() {
   const session = await auth();
   if (!session?.user.tenantId) return <NoTenant />;
 
-  const [customers, total] = await Promise.all([
+  const [customers, total, tenant] = await Promise.all([
     prisma.customer.findMany({
       where: { tenantId: session.user.tenantId },
       orderBy: { createdAt: "desc" },
@@ -18,7 +18,18 @@ export default async function CustomersPage() {
     prisma.customer.count({
       where: { tenantId: session.user.tenantId },
     }),
+    prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { pointsPerAmount: true, pointValue: true },
+    }),
   ]);
 
-  return <CustomersClient initialCustomers={customers} initialTotal={total} />;
+  return (
+    <CustomersClient
+      initialCustomers={customers}
+      initialTotal={total}
+      pointsPerAmount={tenant?.pointsPerAmount ?? 10000}
+      pointValue={tenant?.pointValue ?? 100}
+    />
+  );
 }

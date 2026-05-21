@@ -10,11 +10,13 @@ import { CustomerFormModal } from "@/components/customers/customer-form-modal";
 interface CustomersClientProps {
   initialCustomers: Customer[];
   initialTotal: number;
+  pointsPerAmount: number;
+  pointValue: number;
 }
 
 const PAGE_SIZE = 20;
 
-export function CustomersClient({ initialCustomers, initialTotal }: CustomersClientProps) {
+export function CustomersClient({ initialCustomers, initialTotal, pointsPerAmount, pointValue }: CustomersClientProps) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [total, setTotal] = useState(initialTotal);
   const [search, setSearch] = useState("");
@@ -207,8 +209,9 @@ export function CustomersClient({ initialCustomers, initialTotal }: CustomersCli
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <strong>Sistem Poin:</strong> Pelanggan otomatis mendapat 1 poin untuk setiap Rp 10.000
-        belanja. Poin bisa ditukar diskon Rp 100 per poin saat transaksi.
+        <strong>Sistem Poin:</strong> Pelanggan otomatis mendapat 1 poin untuk setiap Rp{" "}
+        {pointsPerAmount.toLocaleString("id-ID")} belanja. Poin bisa ditukar diskon Rp{" "}
+        {pointValue.toLocaleString("id-ID")} per poin saat transaksi.
       </div>
 
       {showModal && (
