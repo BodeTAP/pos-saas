@@ -11,23 +11,32 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || "";
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const skip = (page - 1) * limit;
 
-    const customers = await prisma.customer.findMany({
-      where: {
-        tenantId: session.user.tenantId,
-        ...(search && {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { phone: { contains: search } },
-            { email: { contains: search, mode: "insensitive" as const } },
-          ],
-        }),
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
+    const where = {
+      tenantId: session.user.tenantId,
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { phone: { contains: search } },
+          { email: { contains: search, mode: "insensitive" as const } },
+        ],
+      }),
+    };
 
-    return NextResponse.json({ customers });
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.customer.count({ where }),
+    ]);
+
+    return NextResponse.json({ customers, total, page, limit });
   } catch (error) {
     console.error("Get customers error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -51,10 +60,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cek duplikasi phone (jika diisi)
+    // Cek duplikasi phone menggunakan unique constraint (lebih efisien dari findFirst)
     if (phone) {
-      const existing = await prisma.customer.findFirst({
-        where: { tenantId: session.user.tenantId, phone },
+      const existing = await prisma.customer.findUnique({
+        where: {
+          phone_tenantId: { phone, tenantId: session.user.tenantId },
+        },
+        select: { id: true },
       });
       if (existing) {
         return NextResponse.json(

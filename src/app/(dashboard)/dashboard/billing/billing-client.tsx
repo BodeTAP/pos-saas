@@ -304,7 +304,7 @@ export function BillingClient({ tenant, invoices, plans }: BillingClientProps) {
                 )}
                 {isDowngrade && !isScheduledDowngrade && (
                   <p className="text-xs text-orange-700 bg-orange-50 rounded-lg px-3 py-2 mb-3">
-                    Paket saat ini tetap aktif hingga {formatDate(tenant.subscriptionEndsAt!)}. Downgrade efektif setelah itu.
+                    Paket saat ini tetap aktif hingga {tenant.subscriptionEndsAt ? formatDate(tenant.subscriptionEndsAt) : "masa berakhir"}. Downgrade efektif setelah itu.
                   </p>
                 )}
 

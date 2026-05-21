@@ -90,11 +90,34 @@ export async function getPlan(tier: SubscriptionPlan): Promise<PlanInfo> {
 }
 
 /**
- * Ambil semua plan dari database (urut FREE → PRO → ENTERPRISE)
+ * Ambil semua plan dari database (urut FREE → PRO → ENTERPRISE).
+ * Satu query findMany, bukan 3 query sequential.
  */
 export async function getAllPlans(): Promise<PlanInfo[]> {
   const tiers: SubscriptionPlan[] = ["FREE", "PRO", "ENTERPRISE"];
-  return Promise.all(tiers.map((t) => getPlan(t)));
+
+  const dbPlans = await prisma.pricingPlan.findMany({
+    where: { tier: { in: tiers } },
+  });
+
+  const dbByTier = Object.fromEntries(dbPlans.map((p) => [p.tier, p]));
+
+  return tiers.map((tier) => {
+    const plan = dbByTier[tier];
+    if (!plan) return { tier, ...DEFAULT_PLANS[tier] };
+    return {
+      tier: plan.tier,
+      name: plan.name,
+      description: plan.description,
+      monthlyPrice: plan.monthlyPrice,
+      yearlyPrice: plan.yearlyPrice,
+      maxProducts: plan.maxProducts,
+      maxCashiers: plan.maxCashiers,
+      maxOutlets: plan.maxOutlets,
+      features: plan.features,
+      isActive: plan.isActive,
+    };
+  });
 }
 
 /**

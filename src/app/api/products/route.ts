@@ -5,9 +5,11 @@ import { generateSKUPrefix, formatSKUNumber } from "@/lib/utils";
 import { validateProductInput } from "@/lib/validation";
 
 /**
- * Generate SKU otomatis berdasarkan nama produk dan urutan per prefix
+ * Generate SKU otomatis berdasarkan nama produk dan urutan per prefix.
  * Contoh: "Kopi Hitam" → KOP-0001, KOP-0002, dst
  * Memastikan unik per tenant.
+ *
+ * Menggunakan satu query findMany untuk menghindari N+1.
  */
 async function generateUniqueSKU(
   productName: string,
@@ -15,34 +17,30 @@ async function generateUniqueSKU(
 ): Promise<string> {
   const prefix = generateSKUPrefix(productName);
 
-  // Cari SKU terakhir dengan prefix yang sama untuk tenant ini
-  const lastProduct = await prisma.product.findFirst({
+  // Ambil semua SKU dengan prefix ini sekaligus (1 query, bukan loop 100 query)
+  const existingProducts = await prisma.product.findMany({
     where: {
       tenantId,
       sku: { startsWith: `${prefix}-` },
     },
-    orderBy: { sku: "desc" },
     select: { sku: true },
+    orderBy: { sku: "desc" },
   });
 
+  // Kumpulkan semua nomor yang sudah terpakai
+  const usedNumbers = new Set<number>();
+  for (const p of existingProducts) {
+    const match = p.sku?.match(/-(\d+)$/);
+    if (match) usedNumbers.add(parseInt(match[1]));
+  }
+
+  // Cari nomor berikutnya yang belum terpakai
   let nextNumber = 1;
-  if (lastProduct?.sku) {
-    const match = lastProduct.sku.match(/-(\d+)$/);
-    if (match) nextNumber = parseInt(match[1]) + 1;
+  while (usedNumbers.has(nextNumber)) {
+    nextNumber++;
   }
 
-  // Loop guard: pastikan benar-benar unik (untuk safety)
-  for (let i = 0; i < 100; i++) {
-    const candidate = `${prefix}-${formatSKUNumber(nextNumber + i)}`;
-    const exists = await prisma.product.findFirst({
-      where: { tenantId, sku: candidate },
-      select: { id: true },
-    });
-    if (!exists) return candidate;
-  }
-
-  // Fallback ke timestamp jika entah kenapa gagal
-  return `${prefix}-${Date.now().toString().slice(-6)}`;
+  return `${prefix}-${formatSKUNumber(nextNumber)}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -59,7 +57,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
-    // Resolve outlet aktif untuk include stok per outlet
+    // Resolve outlet aktif sekali saja
     const { getActiveOutletId } = await import("@/lib/active-outlet");
     const activeOutletId = await getActiveOutletId();
 
@@ -229,18 +227,18 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return newProduct;
+      return { product: newProduct, outlets };
     });
 
-    // Transform: tampilkan stock sesuai outlet aktif user
+    // Resolve outlet aktif untuk menampilkan stok yang benar
     const { getActiveOutletId } = await import("@/lib/active-outlet");
     const activeOutletId = await getActiveOutletId();
-    let displayStock = product.stock;
-    let displayMinStock = product.minStock;
+    let displayStock = product.product.stock;
+    let displayMinStock = product.product.minStock;
     if (activeOutletId) {
       const outletStock = await prisma.outletStock.findUnique({
         where: {
-          outletId_productId: { outletId: activeOutletId, productId: product.id },
+          outletId_productId: { outletId: activeOutletId, productId: product.product.id },
         },
         select: { stock: true, minStock: true },
       });
@@ -253,7 +251,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         product: {
-          ...product,
+          ...product.product,
           stock: displayStock,
           minStock: displayMinStock,
         },

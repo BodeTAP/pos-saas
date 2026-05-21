@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useCartStore, POINT_VALUE } from "@/stores/cart-store";
+import { useCartStore } from "@/stores/cart-store";
 import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
 import { PaymentModal } from "./payment-modal";
