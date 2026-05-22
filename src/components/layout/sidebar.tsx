@@ -42,17 +42,23 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
-  const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  const filteredItems = tenantNavItems.filter((item) => item.roles.includes(role));
-
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    onClose?.();
-  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const navContent = (
+// Komponen terpisah agar tidak ada duplikasi DOM node
+function NavContent({
+  filteredItems,
+  pathname,
+  collapsed,
+  setCollapsed,
+  onClose,
+  isMobile,
+}: {
+  filteredItems: NavItem[];
+  pathname: string;
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  onClose?: () => void;
+  isMobile: boolean;
+}) {
+  return (
     <>
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 flex-shrink-0">
@@ -62,20 +68,21 @@ export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
           </div>
           {!collapsed && <span className="font-bold text-gray-900">POS SaaS</span>}
         </div>
-        {/* Desktop collapse button */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 ml-auto hidden lg:flex"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
-        {/* Mobile close button */}
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 ml-auto lg:hidden"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {isMobile ? (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 ml-auto"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 ml-auto"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Nav Items */}
@@ -109,6 +116,19 @@ export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
       )}
     </>
   );
+}
+
+export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const filteredItems = tenantNavItems.filter((item) => item.roles.includes(role));
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    onClose?.();
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const navProps = { filteredItems, pathname, collapsed, setCollapsed, onClose };
 
   return (
     <>
@@ -120,24 +140,24 @@ export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — render terpisah dari desktop */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 lg:hidden",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {navContent}
+        <NavContent {...navProps} isMobile={true} />
       </aside>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — render terpisah dari mobile */}
       <aside
         className={cn(
           "hidden lg:flex bg-white border-r border-gray-200 flex-col transition-all duration-300",
           collapsed ? "w-16" : "w-60"
         )}
       >
-        {navContent}
+        <NavContent {...navProps} isMobile={false} />
       </aside>
     </>
   );
