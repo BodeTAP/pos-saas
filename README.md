@@ -88,7 +88,18 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Poin loyalitas pelanggan otomatis dikurangi
 - Transaksi berubah status menjadi `CANCELLED` dengan catatan alasan
 
-### 👤 Loyalitas Pelanggan
+### 📱 PWA & Offline Mode
+- App bisa di-install ke homescreen Android/iOS (manifest + icons)
+- Service Worker cache halaman POS, static assets, dan gambar produk
+- **Offline transaction queue** — transaksi disimpan ke IndexedDB saat offline, sync otomatis saat internet kembali
+- **Conflict resolution UI** — modal detail status semua transaksi offline, retry transaksi gagal
+- **PIN offline** — Owner set PIN 6 digit untuk kasir, verifikasi lokal (bcrypt), sesi offline 8 jam
+- **Stale data banner** — peringatan jika data produk sudah >24 jam saat offline
+- **Offline fallback page** — halaman proper saat navigasi ke URL yang tidak di-cache
+- Badge status sync di toolbar POS (pending/gagal/tersinkron)
+- Auto-sync saat koneksi kembali online
+
+
 - CRUD pelanggan (nama, telepon, email)
 - Sistem poin: dikonfigurasi per toko (default: 1 poin per Rp 10.000)
 - Redeem poin: dikonfigurasi per toko (default: 1 poin = Rp 100 diskon)
@@ -185,6 +196,10 @@ src/
 │       ├── stock-opname/    # Stock opname (rekonsiliasi fisik vs sistem)
 │       ├── inventory/
 │       │   └── low-stock/   # Daftar produk stok menipis/habis
+│       ├── offline/
+│       │   ├── sync-data/        # Sync produk+config ke IndexedDB
+│       │   ├── sync-transactions/# Batch sync transaksi offline
+│       │   └── set-pin/          # Set/get PIN offline kasir
 │       └── ...
 ├── components/
 │   ├── layout/              # Sidebar, Header, Outlet Switcher
@@ -209,6 +224,9 @@ src/
 │   ├── active-outlet.ts     # Resolve outlet aktif dari session
 │   ├── hold-transactions.ts # Hold transaction via localStorage
 │   ├── print-receipt.ts     # Generate & print struk
+│   ├── offline-db.ts        # IndexedDB schema via Dexie.js
+│   ├── offline-queue.ts     # Offline transaction queue manager
+│   ├── offline-pin.ts       # PIN offline: save, verify, session
 │   └── utils.ts             # Helper functions
 ├── stores/
 │   └── cart-store.ts        # Zustand cart state
@@ -440,6 +458,44 @@ Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan s
 
 ---
 
+## PWA & Offline Mode
+
+### Test PWA di Lokal
+
+Service worker aktif di **production build** saja:
+
+```bash
+npm run build
+npm start
+```
+
+Lalu buka `http://localhost:3000`, login, kunjungi `/dashboard/pos` agar halaman ter-cache.
+
+### Setup PIN Offline
+
+1. Login sebagai Owner → **Pengaturan** → scroll ke bawah → **PIN Offline Kasir**
+2. Pilih kasir, input PIN 6 digit, klik **Simpan PIN Offline**
+3. Hash PIN tersimpan di IndexedDB browser kasir
+
+### Alur Offline
+
+```
+Online  → Sync data ke IndexedDB (produk, config, stok)
+Offline → Kasir bisa transaksi → disimpan ke queue IndexedDB
+        → Stok dikurangi secara optimistic di lokal
+Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
+        → Toast notifikasi hasil sync
+```
+
+### Batasan Offline
+
+- Data produk stale setelah **24 jam** — banner merah muncul
+- Sesi PIN offline berlaku **8 jam** (1 shift)
+- Transaksi FAILED bisa di-retry max **3x**
+- Halaman yang bisa diakses offline: `/dashboard/pos` (harus pernah dikunjungi saat online)
+
+---
+
 ## Roadmap
 
 ### ✅ Fase 1 — MVP
@@ -488,6 +544,20 @@ Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan s
 - **API bulk adjustment** — update stok massal dalam satu transaksi
 - **API low-stock** — daftar produk di bawah minStock per outlet
 - Dashboard "Stok Menipis" sekarang link ke halaman Inventaris
+
+### ✅ Fase 6 — PWA & Offline Mode
+- **Installable PWA** — manifest.json, icons, bisa di-install ke homescreen Android/iOS
+- **Service Worker manual** (`public/sw.js`) — cache halaman POS, static assets, gambar
+- **Offline fallback page** (`/offline.html`) — halaman proper saat navigasi offline, tombol kembali ke kasir, auto-redirect saat online
+- **IndexedDB via Dexie.js** — schema: products, categories, tenantConfig, offlineQueue, offlinePins, offlineSession
+- **Sync data ke IndexedDB** — produk, kategori, config tenant di-cache lokal (stale setelah 24 jam)
+- **Offline transaction queue** — transaksi disimpan ke IndexedDB saat offline, sync otomatis saat online kembali
+- **Conflict resolution** — transaksi FAILED bisa di-retry, modal detail status semua transaksi offline
+- **PIN offline** — Owner set PIN 6 digit untuk kasir, verifikasi lokal via bcrypt, sesi offline 8 jam
+- **Stale data banner** — peringatan merah jika data >24 jam saat offline
+- **OfflineSyncStatus badge** — badge oranye/merah di toolbar POS, klik untuk sync atau lihat detail
+- **PWA install prompt** — prompt install ke homescreen (Android native + instruksi iOS)
+- **API offline** — `/api/offline/sync-data`, `/api/offline/sync-transactions`, `/api/offline/set-pin`
 
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
