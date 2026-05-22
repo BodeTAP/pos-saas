@@ -587,6 +587,17 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Offline support: variant data di-sync ke IndexedDB, queue transaksi varian
 - Backward compatible — produk lama tanpa varian tetap berjalan normal
 
+### ✅ Fase 8 — Purchase Order / Penerimaan Barang
+- **Schema baru**: `PurchaseOrder`, `PurchaseOrderItem`, enum `PurchaseOrderStatus` (DRAFT/ORDERED/PARTIAL/RECEIVED/CANCELLED), `StockMutationType.PURCHASE`
+- Buat PO dengan daftar produk, qty, harga beli, nama supplier, estimasi tiba
+- Status flow: Draft → Dipesan → Sebagian Diterima → Diterima / Dibatalkan
+- **Penerimaan barang**: catat qty diterima per item, stok otomatis bertambah di `OutletStock`, harga beli produk diperbarui jika berubah
+- `StockMutation` type `PURCHASE` dicatat untuk setiap penerimaan
+- Progress bar penerimaan (qty diterima / qty dipesan)
+- API: `GET/POST /api/purchase-orders`, `GET/PUT/DELETE /api/purchase-orders/[id]`, `POST /api/purchase-orders/[id]/receive`
+- Halaman `/dashboard/purchase-orders` dengan filter status dan summary cards
+- Sidebar: menu "Pembelian (PO)" dengan ikon Truck
+
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
 - Reset password (butuh email service)

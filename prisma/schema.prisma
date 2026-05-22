@@ -55,6 +55,15 @@ enum StockMutationType {
   ADJUSTMENT
   SALE
   RETURN
+  PURCHASE // Penerimaan dari purchase order
+}
+
+enum PurchaseOrderStatus {
+  DRAFT      // Baru dibuat, belum dikirim ke supplier
+  ORDERED    // Sudah dipesan ke supplier
+  PARTIAL    // Sebagian barang sudah diterima
+  RECEIVED   // Semua barang sudah diterima
+  CANCELLED  // Dibatalkan
 }
 
 enum BillingStatus {
@@ -160,6 +169,7 @@ model Tenant {
   outlets       Outlet[]
   cashierShifts CashierShift[]
   stockMutationVariants StockMutationVariant[]
+  purchaseOrders PurchaseOrder[]
 
   @@map("tenants")
 }
@@ -190,6 +200,7 @@ model Outlet {
   cashierShifts  CashierShift[]
   outletStockVariants OutletStockVariant[]
   stockMutationVariants StockMutationVariant[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([tenantId])
   @@map("outlets")
@@ -351,6 +362,7 @@ model Product {
   outletStocks     OutletStock[]
   variantTypes     ProductVariantType[]
   variantSKUs      ProductVariantSKU[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([sku, tenantId])
   @@index([tenantId])
@@ -665,4 +677,58 @@ model BillingInvoice {
 
   @@index([tenantId])
   @@map("billing_invoices")
+}
+
+// ─────────────────────────────────────────────
+// PURCHASE ORDER (Pembelian dari Supplier)
+// ─────────────────────────────────────────────
+
+model PurchaseOrder {
+  id             String              @id @default(cuid())
+  poNumber       String              @unique // Nomor PO, e.g. PO-20260523-0001
+  status         PurchaseOrderStatus @default(DRAFT)
+  supplierName   String?             // Nama supplier (opsional)
+  supplierPhone  String?
+  note           String?
+  expectedDate   DateTime?           // Tanggal estimasi tiba
+  receivedAt     DateTime?           // Tanggal diterima
+
+  // Total nilai PO (dihitung dari items)
+  totalItems     Int   @default(0)   // Total qty item dipesan
+  totalCost      Float @default(0)   // Total harga beli
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  outletId String                    // Cabang tujuan penerimaan
+  outlet   Outlet @relation(fields: [outletId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items PurchaseOrderItem[]
+
+  @@index([tenantId])
+  @@index([outletId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(cuid())
+  quantity        Int    // Qty dipesan
+  quantityReceived Int   @default(0) // Qty sudah diterima
+  buyPrice        Float  // Harga beli per unit saat PO dibuat
+  note            String?
+
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+
+  // Snapshot nama produk saat PO dibuat
+  productName String
+  productSku  String?
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
 }
