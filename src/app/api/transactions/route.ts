@@ -6,8 +6,8 @@ import { parseBody, createTransactionSchema } from "@/lib/schemas";
 import { generateInvoiceNumber } from "@/lib/utils";
 import { Prisma } from "@prisma/client";
 
-export const POINT_VALUE = 100; // default
-export const POINT_PER_AMOUNT = 10000; // default
+const POINT_VALUE = 100; // default
+const POINT_PER_AMOUNT = 10000; // default
 const MAX_INVOICE_ATTEMPTS = 3;
 
 function isInvoiceNumberConflict(error: unknown): boolean {
