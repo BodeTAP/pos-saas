@@ -89,7 +89,7 @@ export function CartPanel({
 
             return (
               <div
-                key={item.productId}
+                key={`${item.productId}:${item.variantSkuId ?? ""}`}
                 className={`rounded-lg p-3 border ${
                   isOverStock
                     ? "bg-red-50 border-red-200"
