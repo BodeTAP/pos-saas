@@ -93,6 +93,45 @@ export function OfflineIndicator({ onSyncRequest }: OfflineIndicatorProps) {
 }
 
 /**
+ * Banner peringatan data sudah terlalu lama (>24 jam) — blokir checkout
+ */
+export function StaleBanner({ onSyncRequest }: { onSyncRequest?: () => void }) {
+  const [isStale, setIsStale] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    isSyncStale(SYNC_KEYS.PRODUCTS).then(setIsStale);
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Hanya tampilkan jika offline DAN data stale
+  if (!isStale || isOnline) return null;
+
+  return (
+    <div className="bg-red-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium">
+      <AlertTriangle className="w-3.5 h-3.5" />
+      <span>Data produk sudah lebih dari 24 jam. Sambungkan internet untuk memperbarui.</span>
+      {onSyncRequest && (
+        <button
+          onClick={onSyncRequest}
+          className="bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full text-xs transition-colors"
+        >
+          Perbarui
+        </button>
+      )}
+    </div>
+  );
+}
+/**
  * Banner offline di atas halaman POS (lebih mencolok)
  */
 export function OfflineBanner() {

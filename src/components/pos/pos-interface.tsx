@@ -11,7 +11,7 @@ import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
 import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
-import { OfflineBanner, OfflineIndicator } from "@/components/pwa/offline-indicator";
+import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
 
 type ProductWithCategory = Product & { category: Category | null };
@@ -159,6 +159,8 @@ export function POSInterface({
       <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
         {/* Offline Banner */}
         <OfflineBanner />
+        {/* Stale data banner */}
+        <StaleBanner onSyncRequest={forceSync} />
 
         {/* Outlet Indicator */}
         {outlet && (

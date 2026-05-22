@@ -5,9 +5,17 @@ import { Tenant } from "@prisma/client";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { OfflinePinManager } from "@/components/pwa/offline-pin-manager";
+
+interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+}
 
 interface SettingsClientProps {
   tenant: Tenant;
+  staff: StaffMember[];
 }
 
 const PAYMENT_METHODS = [
@@ -17,7 +25,7 @@ const PAYMENT_METHODS = [
   { value: "CARD", label: "Kartu" },
 ];
 
-export function SettingsClient({ tenant }: SettingsClientProps) {
+export function SettingsClient({ tenant, staff }: SettingsClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(tenant.logoUrl || null);
 
@@ -288,6 +296,17 @@ export function SettingsClient({ tenant }: SettingsClientProps) {
           )}
         </button>
       </form>
+
+      {/* PIN Offline — di luar form agar tidak ikut submit */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-gray-900">PIN Offline Kasir</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Atur PIN untuk kasir agar bisa mengakses halaman kasir saat tidak ada internet
+          </p>
+        </div>
+        <OfflinePinManager staff={staff} />
+      </div>
     </div>
   );
 }

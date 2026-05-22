@@ -68,6 +68,21 @@ export interface SyncMeta {
   lastSyncAt: number; // timestamp ms
 }
 
+export interface OfflinePinRecord {
+  userId: string; // primary key
+  pinHash: string;
+  expiresAt: number; // timestamp ms
+}
+
+export interface OfflineSession {
+  id: string; // selalu "current"
+  userId: string;
+  cashierId: string;
+  outletId: string;
+  startedAt: number;
+  expiresAt: number; // 8 jam dari startedAt
+}
+
 // ─────────────────────────────────────────────
 // DATABASE CLASS
 // ─────────────────────────────────────────────
@@ -78,6 +93,8 @@ export class POSOfflineDB extends Dexie {
   tenantConfig!: Table<OfflineTenantConfig, string>;
   offlineQueue!: Table<OfflineQueueItem, number>;
   syncMeta!: Table<SyncMeta, string>;
+  offlinePins!: Table<OfflinePinRecord, string>;
+  offlineSession!: Table<OfflineSession, string>;
 
   constructor() {
     super("pos-saas-offline");
@@ -88,6 +105,17 @@ export class POSOfflineDB extends Dexie {
       tenantConfig: "id",
       offlineQueue: "++id, localId, status, createdAt",
       syncMeta: "key",
+    });
+
+    // Version 2: tambah tabel PIN dan session offline
+    this.version(2).stores({
+      products: "id, categoryId, name, isActive",
+      categories: "id, name",
+      tenantConfig: "id",
+      offlineQueue: "++id, localId, status, createdAt",
+      syncMeta: "key",
+      offlinePins: "userId",
+      offlineSession: "id",
     });
   }
 }
