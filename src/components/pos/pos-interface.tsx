@@ -40,7 +40,7 @@ interface POSInterfaceProps {
 }
 
 export function POSInterface({
-  products,
+  products: initialProducts,
   categories,
   tenant,
   cashierId,
@@ -57,6 +57,9 @@ export function POSInterface({
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
+
+  // State produk lokal — bisa diupdate setelah transaksi tanpa full page refresh
+  const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
 
   const cart = useCartStore();
   const taxPct = tenant?.taxRate ?? 0;
@@ -82,7 +85,29 @@ export function POSInterface({
         price: product.sellPrice,
         quantity: 1,
         discount: 0,
+        stock: product.stock,
+        minStock: product.minStock,
       });
+    },
+    [cart]
+  );
+
+  /**
+   * Kurangi stok produk di state lokal setelah transaksi berhasil.
+   * Dipanggil dari PaymentModal dengan daftar item yang terjual.
+   */
+  const handleTransactionSuccess = useCallback(
+    (soldItems: Array<{ productId: string; quantity: number }>) => {
+      setProducts((prev) =>
+        prev.map((p) => {
+          const sold = soldItems.find((i) => i.productId === p.id);
+          if (!sold) return p;
+          const newStock = Math.max(0, p.stock - sold.quantity);
+          return { ...p, stock: newStock };
+        })
+      );
+      cart.clearCart();
+      setShowPayment(false);
     },
     [cart]
   );
@@ -192,7 +217,7 @@ export function POSInterface({
           </div>
         </div>
 
-        {/* Product grid — add bottom padding on mobile to avoid FAB overlap */}
+        {/* Product grid */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
           <ProductGrid products={filteredProducts} onAddProduct={handleAddProduct} />
         </div>
@@ -275,11 +300,9 @@ export function POSInterface({
           tenant={tenant}
           customerId={cart.customer?.id}
           pointsRedeemed={cart.pointsToRedeem}
+          cartItems={cart.items}
           onClose={() => setShowPayment(false)}
-          onSuccess={() => {
-            cart.clearCart();
-            setShowPayment(false);
-          }}
+          onSuccess={handleTransactionSuccess}
         />
       )}
 

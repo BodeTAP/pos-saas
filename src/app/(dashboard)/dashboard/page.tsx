@@ -288,7 +288,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Peringatan Stok Rendah</h2>
             <Link
-              href="/dashboard/products"
+              href="/dashboard/inventory"
               className="text-sm text-blue-600 hover:underline flex items-center gap-1"
             >
               Kelola <ArrowUpRight className="w-3 h-3" />

@@ -63,8 +63,13 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 ### 📦 Manajemen Produk & Inventaris
 - CRUD produk lengkap (nama, SKU auto-generate, barcode, harga beli/jual, kategori, foto)
 - Stok per cabang via `OutletStock`
-- Low stock alert di dashboard
-- Riwayat mutasi stok (masuk, keluar, penyesuaian, penjualan, retur)
+- **Halaman Inventaris terpadu** (`/dashboard/inventory`) dengan 4 tab:
+  - **Stok Menipis** — daftar lengkap produk di bawah batas minimum, filter habis/menipis, refresh real-time
+  - **Riwayat Mutasi Stok** — log semua perubahan stok (masuk, keluar, penyesuaian, penjualan, retur) dengan filter tipe & tanggal
+  - **Stock Opname** — rekonsiliasi stok fisik vs sistem, input per produk, laporan selisih, catatan opname
+  - **Penyesuaian Massal** — update stok banyak produk sekaligus (set/tambah/kurangi), quick apply ke semua produk
+- **Warning stok di POS** — produk stok habis ditampilkan disabled (tidak bisa ditambah), badge "Habis"/"Menipis" di grid produk
+- **Warning stok di keranjang** — alert merah jika quantity melebihi stok tersedia, alert oranye jika stok menipis
 - Transfer stok antar cabang
 - Soft delete produk
 - Manajemen kategori (CRUD)
@@ -156,6 +161,7 @@ src/
 │   │       ├── pos/         # Kasir + Riwayat Shift
 │   │       ├── products/    # Manajemen Produk
 │   │       ├── categories/  # Manajemen Kategori
+│   │       ├── inventory/   # Inventaris (Stok Menipis, Mutasi, Opname, Bulk Adj)
 │   │       ├── transactions/# Riwayat Transaksi + Reprint + Retur
 │   │       ├── reports/     # Laporan + Grafik + Per Kasir + Ekspor
 │   │       ├── staff/       # Manajemen Karyawan
@@ -175,6 +181,10 @@ src/
 │       ├── shifts/          # Manajemen shift kasir
 │       ├── transactions/
 │       │   └── [id]/refund/ # Retur transaksi
+│       ├── stock-mutations/ # Riwayat & penyesuaian stok (+ /bulk)
+│       ├── stock-opname/    # Stock opname (rekonsiliasi fisik vs sistem)
+│       ├── inventory/
+│       │   └── low-stock/   # Daftar produk stok menipis/habis
 │       └── ...
 ├── components/
 │   ├── layout/              # Sidebar, Header, Outlet Switcher
@@ -468,6 +478,16 @@ Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan s
 - **Retur transaksi** (batalkan + kembalikan stok + reverse poin)
 - **Diskon per produk** di POS
 - Pagination pelanggan
+
+### ✅ Fase 5 — Manajemen Inventaris Lengkap
+- **Halaman Inventaris terpadu** dengan 4 tab (Stok Menipis, Riwayat Mutasi, Stock Opname, Penyesuaian Massal)
+- **Warning stok di POS** — produk habis disabled, badge visual di grid produk
+- **Warning stok di keranjang** — alert jika quantity melebihi stok atau stok menipis
+- **API stock mutations** — endpoint riwayat mutasi dengan filter tipe & tanggal
+- **API stock opname** — rekonsiliasi stok fisik vs sistem secara atomik
+- **API bulk adjustment** — update stok massal dalam satu transaksi
+- **API low-stock** — daftar produk di bawah minStock per outlet
+- Dashboard "Stok Menipis" sekarang link ke halaman Inventaris
 
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)

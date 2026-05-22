@@ -8,6 +8,8 @@ export interface CartItem {
   quantity: number;
   discount: number;
   subtotal: number;
+  stock?: number;    // stok tersedia di outlet aktif
+  minStock?: number; // batas minimum stok
 }
 
 export interface CartCustomer {
@@ -67,6 +69,9 @@ export const useCartStore = create<CartState>((set) => ({
                 ...i,
                 quantity: i.quantity + newItem.quantity,
                 subtotal: (i.quantity + newItem.quantity) * i.price - i.discount,
+                // Update stock info jika ada
+                stock: newItem.stock ?? i.stock,
+                minStock: newItem.minStock ?? i.minStock,
               }
             : i
         );

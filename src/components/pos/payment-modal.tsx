@@ -28,8 +28,9 @@ interface PaymentModalProps {
   } | null;
   customerId?: string;
   pointsRedeemed?: number;
+  cartItems: Array<{ productId: string; quantity: number }>;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (soldItems: Array<{ productId: string; quantity: number }>) => void;
 }
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "CARD";
@@ -74,6 +75,7 @@ export function PaymentModal({
   tenant,
   customerId,
   pointsRedeemed,
+  cartItems,
   onClose,
   onSuccess,
 }: PaymentModalProps) {
@@ -97,6 +99,10 @@ export function PaymentModal({
   const [isSuccess, setIsSuccess] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  // Simpan item yang terjual untuk diteruskan ke onSuccess
+  const [soldItems] = useState(() =>
+    cartItems.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+  );
 
   const paid = parseFloat(amountPaid) || 0;
   const change = Math.max(0, paid - total);
@@ -253,7 +259,7 @@ export function PaymentModal({
               </button>
             </div>
             <button
-              onClick={onSuccess}
+              onClick={() => onSuccess(soldItems)}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition-colors"
             >
               Transaksi Baru

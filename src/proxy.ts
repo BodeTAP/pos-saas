@@ -14,6 +14,7 @@ const ownerOnlyRoutes = [
   "/dashboard/staff",
   "/dashboard/products",
   "/dashboard/categories",
+  "/dashboard/inventory",
   "/dashboard/transactions",
   "/dashboard/reports",
   "/dashboard/customers",

@@ -2,7 +2,7 @@
 
 import { useCartStore, POINT_VALUE } from "@/stores/cart-store";
 import { formatCurrency } from "@/lib/utils";
-import { Trash2, Plus, Minus, ShoppingCart, Star, PauseCircle } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Star, PauseCircle, AlertTriangle } from "lucide-react";
 import { CustomerSelector } from "./customer-selector";
 
 interface CartPanelProps {
@@ -79,70 +79,100 @@ export function CartPanel({
             <p className="text-xs mt-1">Klik produk untuk menambahkan</p>
           </div>
         ) : (
-          items.map((item) => (
-            <div
-              key={item.productId}
-              className="bg-gray-50 rounded-lg p-3 border border-gray-100"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {item.name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {formatCurrency(item.price)} / pcs
-                  </p>
-                </div>
-                <button
-                  onClick={() => removeItem(item.productId)}
-                  className="text-red-400 hover:text-red-600 p-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-2">
+          items.map((item) => {
+            const stockAvailable = item.stock ?? Infinity;
+            const isOverStock = item.quantity > stockAvailable;
+            const isLowStock =
+              item.stock !== undefined &&
+              item.stock <= (item.minStock ?? 5) &&
+              item.stock > 0;
+
+            return (
+              <div
+                key={item.productId}
+                className={`rounded-lg p-3 border ${
+                  isOverStock
+                    ? "bg-red-50 border-red-200"
+                    : isLowStock
+                    ? "bg-orange-50 border-orange-200"
+                    : "bg-gray-50 border-gray-100"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatCurrency(item.price)} / pcs
+                    </p>
+                  </div>
                   <button
-                    onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                    className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                    onClick={() => removeItem(item.productId)}
+                    className="text-red-400 hover:text-red-600 p-1"
                   >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-sm font-medium w-6 text-center">
-                    {item.quantity}
-                  </span>
-                  <button
-                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                    className="w-6 h-6 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center"
-                  >
-                    <Plus className="w-3 h-3 text-blue-600" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p className="text-sm font-bold text-gray-900">
-                  {formatCurrency(item.subtotal)}
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                      className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="text-sm font-medium w-6 text-center">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      className="w-6 h-6 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center"
+                    >
+                      <Plus className="w-3 h-3 text-blue-600" />
+                    </button>
+                  </div>
+                  <p className="text-sm font-bold text-gray-900">
+                    {formatCurrency(item.subtotal)}
+                  </p>
+                </div>
+
+                {/* Stock warnings */}
+                {isOverStock && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-red-700 bg-red-100 rounded px-2 py-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    <span>Melebihi stok tersedia ({stockAvailable} tersisa)</span>
+                  </div>
+                )}
+                {!isOverStock && isLowStock && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-orange-700 bg-orange-100 rounded px-2 py-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    <span>Stok menipis ({item.stock} tersisa)</span>
+                  </div>
+                )}
+
+                {/* Per-item discount */}
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-gray-400 flex-shrink-0">Diskon item</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={item.price * item.quantity}
+                    value={item.discount || ""}
+                    onChange={(e) => {
+                      const val = Math.min(
+                        parseFloat(e.target.value) || 0,
+                        item.price * item.quantity
+                      );
+                      updateItemDiscount(item.productId, val);
+                    }}
+                    placeholder="0"
+                    className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
               </div>
-              {/* Per-item discount */}
-              <div className="mt-2 flex items-center gap-2">
-                <label className="text-xs text-gray-400 flex-shrink-0">Diskon item</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={item.price * item.quantity}
-                  value={item.discount || ""}
-                  onChange={(e) => {
-                    const val = Math.min(
-                      parseFloat(e.target.value) || 0,
-                      item.price * item.quantity
-                    );
-                    updateItemDiscount(item.productId, val);
-                  }}
-                  placeholder="0"
-                  className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

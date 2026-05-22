@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ShoppingCart, Package, BarChart3, Settings,
   Users, UserCircle, CreditCard, ShoppingBag, Store, Tag,
-  ChevronLeft, ChevronRight, History, X,
+  ChevronLeft, ChevronRight, History, X, Warehouse,
 } from "lucide-react";
 import { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const tenantNavItems: NavItem[] = [
   { label: "Riwayat Shift", href: "/dashboard/pos/history", icon: History, roles: ["KASIR"] },
   { label: "Produk", href: "/dashboard/products", icon: Package, roles: ["OWNER"] },
   { label: "Kategori", href: "/dashboard/categories", icon: Tag, roles: ["OWNER"] },
+  { label: "Inventaris", href: "/dashboard/inventory", icon: Warehouse, roles: ["OWNER"] },
   { label: "Transaksi", href: "/dashboard/transactions", icon: ShoppingBag, roles: ["OWNER"] },
   { label: "Laporan", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER"] },
   { label: "Karyawan", href: "/dashboard/staff", icon: Users, roles: ["OWNER"] },

@@ -34,18 +34,17 @@ export default async function POSPage() {
     orderBy: { name: "asc" },
   });
 
-  // Filter hanya yang ada stok di outlet ini
-  const products = productsRaw
-    .map((p) => {
-      const outletStock = p.outletStocks[0];
-      return {
-        ...p,
-        stock: outletStock?.stock ?? 0,
-        minStock: outletStock?.minStock ?? p.minStock,
-        outletStocks: undefined,
-      };
-    })
-    .filter((p) => p.stock > 0);
+  // Tampilkan semua produk aktif — termasuk stok 0 (disabled di grid)
+  // agar kasir tahu produk mana yang habis
+  const products = productsRaw.map((p) => {
+    const outletStock = p.outletStocks[0];
+    return {
+      ...p,
+      stock: outletStock?.stock ?? 0,
+      minStock: outletStock?.minStock ?? p.minStock,
+      outletStocks: undefined,
+    };
+  });
 
   const [categories, tenant, outlet] = await Promise.all([
     prisma.category.findMany({
