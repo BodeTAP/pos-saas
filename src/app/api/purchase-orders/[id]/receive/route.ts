@@ -8,9 +8,9 @@ const receiveSchema = z.object({
   items: z
     .array(
       z.object({
-        itemId: z.string().cuid("ID item tidak valid."),
+        itemId: z.string().min(1, "ID item tidak valid."),
         quantityReceived: z.number().int().positive("Jumlah diterima harus lebih dari 0."),
-        buyPrice: z.number().nonnegative().optional(), // override harga beli jika berbeda
+        buyPrice: z.number().nonnegative().optional(),
       })
     )
     .min(1, "Minimal 1 item harus diterima."),

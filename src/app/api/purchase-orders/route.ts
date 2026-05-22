@@ -6,15 +6,15 @@ import { z } from "zod";
 import { generateInvoiceNumber } from "@/lib/utils";
 
 const createPOSchema = z.object({
-  outletId: z.string().cuid("ID cabang tidak valid."),
+  outletId: z.string().min(1, "ID cabang tidak valid."),
   supplierName: z.string().max(100).optional().nullable(),
   supplierPhone: z.string().max(20).optional().nullable(),
   note: z.string().max(500).optional().nullable(),
-  expectedDate: z.string().optional().nullable(), // ISO date string
+  expectedDate: z.string().optional().nullable(),
   items: z
     .array(
       z.object({
-        productId: z.string().cuid("ID produk tidak valid."),
+        productId: z.string().min(1, "ID produk tidak valid."),
         quantity: z.number().int().positive("Jumlah harus lebih dari 0."),
         buyPrice: z.number().nonnegative("Harga beli tidak boleh negatif."),
         note: z.string().max(200).optional().nullable(),
