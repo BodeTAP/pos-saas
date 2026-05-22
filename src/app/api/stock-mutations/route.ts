@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       tenantId: session.user.tenantId,
       ...(outletId && { outletId }),
       ...(productId && { productId }),
-      ...(type && { type: type as "IN" | "OUT" | "ADJUSTMENT" | "SALE" | "RETURN" }),
+      ...(type && { type: type as "IN" | "OUT" | "ADJUSTMENT" | "SALE" | "RETURN" | "PURCHASE" }),
       ...(dateFrom || dateTo
         ? {
             createdAt: {

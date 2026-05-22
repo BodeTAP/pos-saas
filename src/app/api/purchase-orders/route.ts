@@ -10,7 +10,12 @@ const createPOSchema = z.object({
   supplierName: z.string().max(100).optional().nullable(),
   supplierPhone: z.string().max(20).optional().nullable(),
   note: z.string().max(500).optional().nullable(),
-  expectedDate: z.string().optional().nullable(),
+  // BUG 14: validate expectedDate is a real date string
+  expectedDate: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((v) => !v || !isNaN(Date.parse(v)), "Format tanggal tidak valid."),
   items: z
     .array(
       z.object({
@@ -18,10 +23,16 @@ const createPOSchema = z.object({
         quantity: z.number().int().positive("Jumlah harus lebih dari 0."),
         buyPrice: z.number().nonnegative("Harga beli tidak boleh negatif."),
         note: z.string().max(200).optional().nullable(),
+        // BUG 3: optional variantSkuId per item
+        variantSkuId: z.string().optional().nullable(),
       })
     )
     .min(1, "Minimal 1 produk dalam PO."),
 });
+
+// BUG 22: valid status values for filter
+const VALID_STATUSES = ["DRAFT", "ORDERED", "PARTIAL", "RECEIVED", "CANCELLED"] as const;
+type POStatus = (typeof VALID_STATUSES)[number];
 
 /**
  * GET /api/purchase-orders
@@ -37,13 +48,21 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
-    const status = searchParams.get("status");
+    const statusParam = searchParams.get("status");
     const outletId = searchParams.get("outletId");
     const skip = (page - 1) * limit;
 
+    // BUG 22: validate status against known values to prevent injection
+    const safeStatus =
+      statusParam && VALID_STATUSES.includes(statusParam as POStatus)
+        ? (statusParam as POStatus)
+        : null;
+
+    // BUG 21: outletId is safe because tenantId is always in the where clause,
+    // preventing cross-tenant leakage even if an arbitrary outletId is supplied.
     const where = {
       tenantId: session.user.tenantId,
-      ...(status && { status: status as "DRAFT" | "ORDERED" | "PARTIAL" | "RECEIVED" | "CANCELLED" }),
+      ...(safeStatus && { status: safeStatus }),
       ...(outletId && { outletId }),
     };
 
@@ -108,42 +127,92 @@ export async function POST(req: NextRequest) {
     }
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    const poNumber = generateInvoiceNumber("PO");
+    // BUG 3: validate variantSkuIds if provided
+    const variantSkuIds = items
+      .map((i) => i.variantSkuId)
+      .filter((id): id is string => !!id);
+    if (variantSkuIds.length > 0) {
+      const variantSkus = await prisma.productVariantSKU.findMany({
+        where: { id: { in: variantSkuIds } },
+        select: { id: true, sku: true },
+      });
+      const variantSkuMap = new Map(variantSkus.map((v) => [v.id, v]));
+      for (const item of items) {
+        if (item.variantSkuId && !variantSkuMap.has(item.variantSkuId)) {
+          return NextResponse.json(
+            { error: `Varian SKU ${item.variantSkuId} tidak valid.` },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
     const totalCost = items.reduce((sum, i) => sum + i.quantity * i.buyPrice, 0);
 
-    const order = await prisma.purchaseOrder.create({
-      data: {
-        poNumber,
-        status: "DRAFT",
-        supplierName: supplierName || null,
-        supplierPhone: supplierPhone || null,
-        note: note || null,
-        expectedDate: expectedDate ? new Date(expectedDate) : null,
-        totalItems,
-        totalCost,
-        tenantId: session.user.tenantId,
-        outletId,
-        items: {
-          create: items.map((item) => {
-            const product = productMap.get(item.productId)!;
-            return {
-              productId: item.productId,
-              productName: product.name,
-              productSku: product.sku || null,
-              quantity: item.quantity,
-              quantityReceived: 0,
-              buyPrice: item.buyPrice,
-              note: item.note || null,
-            };
-          }),
-        },
-      },
-      include: {
-        outlet: { select: { name: true } },
-        items: { include: { product: { select: { name: true, unit: true } } } },
-      },
-    });
+    // BUG 1: retry loop (max 3 attempts) to handle poNumber unique constraint violations
+    let order = null;
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const poNumber = generateInvoiceNumber("PO");
+      try {
+        order = await prisma.purchaseOrder.create({
+          data: {
+            poNumber,
+            status: "DRAFT",
+            supplierName: supplierName || null,
+            supplierPhone: supplierPhone || null,
+            note: note || null,
+            expectedDate: expectedDate ? new Date(expectedDate) : null,
+            totalItems,
+            totalCost,
+            tenantId: session.user.tenantId,
+            outletId,
+            items: {
+              create: items.map((item) => {
+                const product = productMap.get(item.productId)!;
+                return {
+                  productId: item.productId,
+                  productName: product.name,
+                  productSku: product.sku || null,
+                  quantity: item.quantity,
+                  quantityReceived: 0,
+                  buyPrice: item.buyPrice,
+                  note: item.note || null,
+                  // BUG 3: store variantSkuId if provided
+                  variantSkuId: item.variantSkuId || null,
+                };
+              }),
+            },
+          },
+          include: {
+            outlet: { select: { name: true } },
+            items: { include: { product: { select: { name: true, unit: true } } } },
+          },
+        });
+        break; // success — exit retry loop
+      } catch (err: unknown) {
+        // Check for unique constraint violation on poNumber (Prisma error code P2002)
+        if (
+          err &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code: string }).code === "P2002"
+        ) {
+          lastError = err;
+          continue; // retry with a new poNumber
+        }
+        throw err; // re-throw non-collision errors immediately
+      }
+    }
+
+    if (!order) {
+      console.error("PO number collision after 3 attempts:", lastError);
+      return NextResponse.json(
+        { error: "Gagal membuat nomor PO unik. Coba lagi." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ order }, { status: 201 });
   } catch (error) {

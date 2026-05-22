@@ -67,7 +67,7 @@ export function CreatePOModal({ outlets, onClose, onCreated }: CreatePOModalProp
     if (!productSearch.trim()) { setProducts([]); return; }
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products?search=${encodeURIComponent(productSearch)}&limit=10`);
+        const res = await fetch(`/api/products?search=${encodeURIComponent(productSearch)}&limit=10&isActive=true`);
         if (res.ok) {
           const data = await res.json();
           setProducts(data.products || []);

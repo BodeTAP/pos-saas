@@ -1,11 +1,17 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NoTenant } from "@/components/ui/no-tenant";
+import { redirect } from "next/navigation";
 import { PurchaseOrdersClient } from "./purchase-orders-client";
 
 export default async function PurchaseOrdersPage() {
   const session = await auth();
   if (!session?.user.tenantId) return <NoTenant />;
+
+  // BUG 8: only OWNER can access purchase orders
+  if (session.user.role !== "OWNER") {
+    redirect("/dashboard/pos");
+  }
 
   const [ordersRaw, outlets] = await Promise.all([
     prisma.purchaseOrder.findMany({

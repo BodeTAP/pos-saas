@@ -8,7 +8,12 @@ const updatePOSchema = z.object({
   supplierName: z.string().max(100).optional().nullable(),
   supplierPhone: z.string().max(20).optional().nullable(),
   note: z.string().max(500).optional().nullable(),
-  expectedDate: z.string().optional().nullable(),
+  // BUG 14: validate expectedDate is a real date string
+  expectedDate: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((v) => !v || !isNaN(Date.parse(v)), "Format tanggal tidak valid."),
   status: z.enum(["DRAFT", "ORDERED", "CANCELLED"]).optional(),
 });
 
@@ -136,6 +141,16 @@ export async function DELETE(
     if (existing.status === "RECEIVED") {
       return NextResponse.json(
         { error: "PO yang sudah diterima tidak bisa dibatalkan." },
+        { status: 400 }
+      );
+    }
+    // BUG 7: block cancellation of PARTIAL POs to prevent stock inconsistency
+    if (existing.status === "PARTIAL") {
+      return NextResponse.json(
+        {
+          error:
+            "PO yang sudah sebagian diterima tidak bisa dibatalkan. Hubungi admin untuk penyesuaian stok manual.",
+        },
         { status: 400 }
       );
     }

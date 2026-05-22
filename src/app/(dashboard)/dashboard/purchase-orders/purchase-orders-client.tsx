@@ -5,11 +5,11 @@ import {
   Plus, ShoppingCart, Clock, CheckCircle, XCircle,
   AlertTriangle, Package, ChevronRight, Filter,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import { Pagination } from "@/components/ui/pagination";
+// BUG 23: merged duplicate imports from @/lib/utils into one
+import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { CreatePOModal } from "@/components/purchase-orders/create-po-modal";
 import { PODetailModal } from "@/components/purchase-orders/po-detail-modal";
+// BUG 10: removed unused Pagination import
 
 type POStatus = "DRAFT" | "ORDERED" | "PARTIAL" | "RECEIVED" | "CANCELLED";
 
@@ -63,8 +63,36 @@ export function PurchaseOrdersClient({ initialOrders, outlets }: PurchaseOrdersC
     setShowCreate(false);
   }
 
-  function handleUpdated(order: { id: string; status: POSummary["status"]; receivedAt: string | null }) {
-    setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: order.status, receivedAt: order.receivedAt ? new Date(order.receivedAt) : null } : o)));
+  // BUG 9: handleUpdated now also updates receivedQty, totalQty, and totalCost
+  function handleUpdated(order: {
+    id: string;
+    status: POSummary["status"];
+    receivedAt: string | null;
+    totalCost?: number;
+    items?: Array<{ quantity: number; quantityReceived: number }>;
+  }) {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== order.id) return o;
+        // Recalculate totalQty and receivedQty from items if provided
+        const totalQty =
+          order.items != null
+            ? order.items.reduce((s, i) => s + i.quantity, 0)
+            : o.totalQty;
+        const receivedQty =
+          order.items != null
+            ? order.items.reduce((s, i) => s + i.quantityReceived, 0)
+            : o.receivedQty;
+        return {
+          ...o,
+          status: order.status,
+          receivedAt: order.receivedAt ? new Date(order.receivedAt) : null,
+          ...(order.totalCost !== undefined && { totalCost: order.totalCost }),
+          totalQty,
+          receivedQty,
+        };
+      })
+    );
   }
 
   const stats = {
@@ -212,6 +240,7 @@ export function PurchaseOrdersClient({ initialOrders, outlets }: PurchaseOrdersC
               </button>
             );
           })}
+          {/* Pagination can be added here when the list grows beyond 20 items */}
         </div>
       )}
 

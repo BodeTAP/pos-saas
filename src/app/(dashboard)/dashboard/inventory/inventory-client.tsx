@@ -231,7 +231,6 @@ export function InventoryClient({
           {activeTab === "mutations" && (
             <StockMutationsTab
               selectedOutlet={selectedOutlet}
-              outlets={outlets}
             />
           )}
           {activeTab === "opname" && (

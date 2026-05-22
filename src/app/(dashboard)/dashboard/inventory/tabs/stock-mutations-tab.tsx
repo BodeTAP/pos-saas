@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Filter, Package } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Filter } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Pagination } from "@/components/ui/pagination";
@@ -24,22 +24,25 @@ interface StockMutation {
   outlet: { name: string };
 }
 
+// BUG 24: removed unused `outlets` prop from interface
 interface StockMutationsTabProps {
   selectedOutlet: OutletInfo | null;
-  outlets: OutletInfo[];
 }
 
+// BUG 6: added PURCHASE to TYPE_LABELS
 const TYPE_LABELS: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   IN: { label: "Masuk", color: "text-green-700 bg-green-100", icon: ArrowUp },
   OUT: { label: "Keluar", color: "text-red-700 bg-red-100", icon: ArrowDown },
   ADJUSTMENT: { label: "Penyesuaian", color: "text-blue-700 bg-blue-100", icon: ArrowUpDown },
   SALE: { label: "Penjualan", color: "text-orange-700 bg-orange-100", icon: ArrowDown },
   RETURN: { label: "Retur", color: "text-purple-700 bg-purple-100", icon: ArrowUp },
+  PURCHASE: { label: "Pembelian (PO)", color: "text-teal-700 bg-teal-100", icon: ArrowUp },
 };
 
 const PAGE_SIZE = 30;
 
-export function StockMutationsTab({ selectedOutlet, outlets }: StockMutationsTabProps) {
+// BUG 24: removed `outlets` from destructured props
+export function StockMutationsTab({ selectedOutlet }: StockMutationsTabProps) {
   const [mutations, setMutations] = useState<StockMutation[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -138,6 +141,8 @@ export function StockMutationsTab({ selectedOutlet, outlets }: StockMutationsTab
                 <option value="ADJUSTMENT">Penyesuaian</option>
                 <option value="SALE">Penjualan</option>
                 <option value="RETURN">Retur</option>
+                {/* BUG 6: added PURCHASE filter option */}
+                <option value="PURCHASE">Pembelian (PO)</option>
               </select>
             </div>
             <div>

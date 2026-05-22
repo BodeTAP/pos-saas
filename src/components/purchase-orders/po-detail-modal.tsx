@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   X, Loader2, CheckCircle, XCircle, ShoppingCart,
   AlertTriangle, Clock, Package, Truck, RefreshCw,
@@ -53,10 +53,17 @@ const STATUS_CONFIG: Record<POStatus, { label: string; color: string; icon: Reac
   CANCELLED: { label: "Dibatalkan", color: "bg-red-100 text-red-700", icon: XCircle },
 };
 
+// BUG 9: onUpdated now accepts full updated order data including items for qty recalculation
 interface PODetailModalProps {
   poId: string;
   onClose: () => void;
-  onUpdated: (order: { id: string; status: POStatus; receivedAt: string | null }) => void;
+  onUpdated: (order: {
+    id: string;
+    status: POStatus;
+    receivedAt: string | null;
+    totalCost?: number;
+    items?: Array<{ quantity: number; quantityReceived: number }>;
+  }) => void;
 }
 
 export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) {
@@ -66,20 +73,18 @@ export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) 
   const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
   const [receiveNote, setReceiveNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // BUG 20: inline cancel confirmation state instead of window.confirm()
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  useEffect(() => {
-    fetchOrder();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poId]);
-
-  async function fetchOrder() {
+  // BUG 25: wrap fetchOrder in useCallback with proper dependencies
+  const fetchOrder = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/purchase-orders/${poId}`);
       if (res.ok) {
         const data = await res.json();
         setOrder(data.order);
-        // Init receive items dengan sisa qty
+        // Init receive items with remaining qty
         setReceiveItems(
           data.order.items
             .filter((i: POItem) => i.quantity > i.quantityReceived)
@@ -93,17 +98,23 @@ export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) 
     } finally {
       setLoading(false);
     }
-  }
+  }, [poId]);
+
+  useEffect(() => {
+    fetchOrder();
+  }, [fetchOrder]);
 
   async function handleStatusChange(newStatus: "ORDERED" | "CANCELLED") {
     if (!order) return;
-    if (newStatus === "CANCELLED" && !confirm("Batalkan PO ini?")) return;
 
     try {
+      // BUG 11: don't send Content-Type: application/json for DELETE requests
       const res = await fetch(`/api/purchase-orders/${poId}`, {
         method: newStatus === "CANCELLED" ? "DELETE" : "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: newStatus !== "CANCELLED" ? JSON.stringify({ status: newStatus }) : undefined,
+        ...(newStatus !== "CANCELLED" && {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Gagal mengubah status."); return; }
@@ -112,7 +123,15 @@ export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) 
         ? { ...order, status: "CANCELLED" as POStatus }
         : data.order;
       setOrder(updated);
-      onUpdated(updated);
+      // BUG 9: pass full updated data to onUpdated
+      onUpdated({
+        id: updated.id,
+        status: updated.status,
+        receivedAt: updated.receivedAt,
+        totalCost: updated.totalCost,
+        items: updated.items,
+      });
+      setShowCancelConfirm(false);
       toast.success(newStatus === "CANCELLED" ? "PO dibatalkan." : "Status PO diperbarui.");
     } catch {
       toast.error("Terjadi kesalahan.");
@@ -138,7 +157,14 @@ export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) 
       if (!res.ok) { toast.error(data.error || "Gagal mencatat penerimaan."); return; }
 
       setOrder(data.order);
-      onUpdated(data.order);
+      // BUG 9: pass full updated order data including items for qty recalculation
+      onUpdated({
+        id: data.order.id,
+        status: data.order.status,
+        receivedAt: data.order.receivedAt,
+        totalCost: data.order.totalCost,
+        items: data.order.items,
+      });
       toast.success("Penerimaan barang berhasil dicatat. Stok sudah diperbarui.");
       setActiveTab("detail");
       await fetchOrder();
@@ -410,14 +436,32 @@ export function PODetailModal({ poId, onClose, onUpdated }: PODetailModalProps) 
                   Terima Barang
                 </button>
               )}
-              {canCancel && (
+              {/* BUG 20: inline cancel confirmation instead of window.confirm() */}
+              {canCancel && !showCancelConfirm && (
                 <button
-                  onClick={() => handleStatusChange("CANCELLED")}
+                  onClick={() => setShowCancelConfirm(true)}
                   className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition-colors"
                 >
                   <XCircle className="w-4 h-4" />
                   Batalkan PO
                 </button>
+              )}
+              {canCancel && showCancelConfirm && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <span className="text-sm text-red-700 font-medium">Yakin batalkan PO ini?</span>
+                  <button
+                    onClick={() => handleStatusChange("CANCELLED")}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors"
+                  >
+                    Ya, Batalkan
+                  </button>
+                  <button
+                    onClick={() => setShowCancelConfirm(false)}
+                    className="px-3 py-1 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    Tidak
+                  </button>
+                </div>
               )}
               <button
                 onClick={onClose}

@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") || "";
     const categoryId = searchParams.get("categoryId");
     const requestedOutletId = searchParams.get("outletId");
+    const isActiveParam = searchParams.get("isActive");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
@@ -90,6 +91,9 @@ export async function GET(req: NextRequest) {
         ],
       }),
       ...(categoryId && { categoryId }),
+      // BUG 17: support isActive filter — "true" → only active, "false" → only inactive
+      ...(isActiveParam === "true" && { isActive: true }),
+      ...(isActiveParam === "false" && { isActive: false }),
     };
 
     const [productsRaw, total] = await Promise.all([

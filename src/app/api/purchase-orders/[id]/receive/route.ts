@@ -21,10 +21,11 @@ const receiveSchema = z.object({
  * POST /api/purchase-orders/[id]/receive
  * Catat penerimaan barang dari PO.
  * - Update quantityReceived per item
- * - Update OutletStock (tambah stok)
- * - Catat StockMutation type PURCHASE
+ * - Update OutletStock / OutletStockVariant (tambah stok)
+ * - Catat StockMutation / StockMutationVariant type PURCHASE
  * - Update status PO (PARTIAL / RECEIVED)
- * - Update buyPrice produk jika berubah
+ * - Update buyPrice produk / ProductVariantSKU jika berubah
+ * - Recalculate totalCost dari updated items (BUG 15)
  */
 export async function POST(
   req: NextRequest,
@@ -81,11 +82,10 @@ export async function POST(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const receivedItemIds: string[] = [];
-
       for (const ri of receiveItems) {
         const poItem = itemMap.get(ri.itemId)!;
         const effectiveBuyPrice = ri.buyPrice ?? poItem.buyPrice;
+        const isVariant = !!poItem.variantSkuId;
 
         // 1. Update quantityReceived di PO item
         await tx.purchaseOrderItem.update({
@@ -96,59 +96,138 @@ export async function POST(
           },
         });
 
-        // 2. Update OutletStock — tambah stok
-        const outletStock = await tx.outletStock.upsert({
-          where: {
-            outletId_productId: {
-              outletId: order.outletId,
-              productId: poItem.productId,
+        if (isVariant) {
+          // ── VARIANT PATH ──────────────────────────────────────────────
+
+          // BUG 2: read current stock BEFORE update to get accurate stockBefore
+          const existingVariantStock = await tx.outletStockVariant.findUnique({
+            where: {
+              outletId_skuId: {
+                outletId: order.outletId,
+                skuId: poItem.variantSkuId!,
+              },
             },
-          },
-          update: { stock: { increment: ri.quantityReceived } },
-          create: {
-            outletId: order.outletId,
-            productId: poItem.productId,
-            tenantId: session.user.tenantId!,
-            stock: ri.quantityReceived,
-            minStock: 5,
-          },
-          select: { stock: true },
-        });
-
-        const stockBefore = outletStock.stock - ri.quantityReceived;
-
-        // 3. Catat StockMutation type PURCHASE
-        await tx.stockMutation.create({
-          data: {
-            type: "PURCHASE",
-            quantity: ri.quantityReceived,
-            stockBefore,
-            stockAfter: outletStock.stock,
-            note: note
-              ? `PO ${order.poNumber}: ${note}`
-              : `Penerimaan PO ${order.poNumber}`,
-            tenantId: session.user.tenantId!,
-            productId: poItem.productId,
-            outletId: order.outletId,
-          },
-        });
-
-        // 4. Update buyPrice produk jika harga beli berubah
-        if (ri.buyPrice !== undefined && ri.buyPrice !== poItem.buyPrice) {
-          await tx.product.update({
-            where: { id: poItem.productId },
-            data: { buyPrice: ri.buyPrice },
+            select: { stock: true },
           });
-        }
+          const stockBefore = existingVariantStock?.stock ?? 0;
+          const stockAfter = stockBefore + ri.quantityReceived;
 
-        receivedItemIds.push(ri.itemId);
+          // BUG 3: update OutletStockVariant instead of OutletStock
+          if (existingVariantStock) {
+            await tx.outletStockVariant.update({
+              where: {
+                outletId_skuId: {
+                  outletId: order.outletId,
+                  skuId: poItem.variantSkuId!,
+                },
+              },
+              data: { stock: stockAfter },
+            });
+          } else {
+            await tx.outletStockVariant.create({
+              data: {
+                outletId: order.outletId,
+                skuId: poItem.variantSkuId!,
+                tenantId: session.user.tenantId!,
+                stock: stockAfter,
+                minStock: 5,
+              },
+            });
+          }
+
+          // BUG 3: create StockMutationVariant instead of StockMutation
+          await tx.stockMutationVariant.create({
+            data: {
+              type: "PURCHASE",
+              quantity: ri.quantityReceived,
+              stockBefore,
+              stockAfter,
+              note: note
+                ? `PO ${order.poNumber}: ${note}`
+                : `Penerimaan PO ${order.poNumber}`,
+              tenantId: session.user.tenantId!,
+              skuId: poItem.variantSkuId!,
+              outletId: order.outletId,
+            },
+          });
+
+          // BUG 4: update ProductVariantSKU.buyPrice when variantSkuId is set
+          if (ri.buyPrice !== undefined && ri.buyPrice !== poItem.buyPrice) {
+            await tx.productVariantSKU.update({
+              where: { id: poItem.variantSkuId! },
+              data: { buyPrice: effectiveBuyPrice },
+            });
+          }
+        } else {
+          // ── BASE PRODUCT PATH ─────────────────────────────────────────
+
+          // BUG 2: read current stock BEFORE update to get accurate stockBefore
+          const existingStock = await tx.outletStock.findUnique({
+            where: {
+              outletId_productId: {
+                outletId: order.outletId,
+                productId: poItem.productId,
+              },
+            },
+            select: { stock: true },
+          });
+          const stockBefore = existingStock?.stock ?? 0;
+          const stockAfter = stockBefore + ri.quantityReceived;
+
+          // BUG 2: use update/create separately instead of upsert so stockBefore is always accurate
+          if (existingStock) {
+            await tx.outletStock.update({
+              where: {
+                outletId_productId: {
+                  outletId: order.outletId,
+                  productId: poItem.productId,
+                },
+              },
+              data: { stock: stockAfter },
+            });
+          } else {
+            await tx.outletStock.create({
+              data: {
+                outletId: order.outletId,
+                productId: poItem.productId,
+                tenantId: session.user.tenantId!,
+                stock: stockAfter,
+                minStock: 5,
+              },
+            });
+          }
+
+          // Catat StockMutation type PURCHASE
+          await tx.stockMutation.create({
+            data: {
+              type: "PURCHASE",
+              quantity: ri.quantityReceived,
+              stockBefore,
+              stockAfter,
+              note: note
+                ? `PO ${order.poNumber}: ${note}`
+                : `Penerimaan PO ${order.poNumber}`,
+              tenantId: session.user.tenantId!,
+              productId: poItem.productId,
+              outletId: order.outletId,
+            },
+          });
+
+          // BUG 4: update Product.buyPrice only for non-variant products
+          if (ri.buyPrice !== undefined && ri.buyPrice !== poItem.buyPrice) {
+            await tx.product.update({
+              where: { id: poItem.productId },
+              data: { buyPrice: effectiveBuyPrice },
+            });
+          }
+        }
       }
 
       // 5. Hitung status PO baru
       // Re-fetch items setelah update
       const updatedItems = await tx.purchaseOrderItem.findMany({
         where: { purchaseOrderId: id },
-        select: { quantity: true, quantityReceived: true },
+        select: { quantity: true, quantityReceived: true, buyPrice: true },
       });
 
       const allReceived = updatedItems.every(
@@ -162,10 +241,17 @@ export async function POST(
         ? "PARTIAL"
         : order.status;
 
+      // BUG 15: recalculate totalCost from updated items
+      const newTotalCost = updatedItems.reduce(
+        (sum, item) => sum + item.quantity * item.buyPrice,
+        0
+      );
+
       const updatedOrder = await tx.purchaseOrder.update({
         where: { id },
         data: {
           status: newStatus,
+          totalCost: newTotalCost,
           ...(allReceived && { receivedAt: new Date() }),
         },
         include: {

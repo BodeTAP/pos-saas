@@ -432,6 +432,7 @@ model ProductVariantSKU {
   outletStocks   OutletStockVariant[]
   stockMutations StockMutationVariant[]
   transactionItems TransactionItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([productId])
   @@map("product_variant_skus")
@@ -727,6 +728,10 @@ model PurchaseOrderItem {
   // Snapshot nama produk saat PO dibuat
   productName String
   productSku  String?
+
+  // Varian SKU (opsional — diisi jika produk punya varian)
+  variantSkuId String?
+  variantSku   ProductVariantSKU? @relation(fields: [variantSkuId], references: [id], onDelete: SetNull)
 
   @@index([purchaseOrderId])
   @@index([productId])
