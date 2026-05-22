@@ -121,92 +121,19 @@ export function PaymentModal({
     if (paymentMethod === "CASH" && paid < total) return;
 
     setIsLoading(true);
-    try {
-      // ── Mode Offline ──────────────────────────────────────────
-      if (!navigator.onLine) {
-        const config = await import("@/lib/offline-db").then((m) =>
-          m.getOfflineDB().tenantConfig.get("current")
-        );
 
-        const { localId, invoiceNumber } = await enqueueOfflineTransaction(
-          {
-            items: items.map((i) => ({
-              productId: i.productId,
-              productName: i.name,
-              productSku: i.sku || null,
-              quantity: i.quantity,
-              unitPrice: i.price,
-              discount: i.discount,
-              subtotal: i.subtotal,
-            })),
-            subtotal,
-            discount: discountAmount,
-            discountPct: discountNominal > 0 ? 0 : discountPct,
-            discountNominal,
-            tax: taxAmount,
-            taxPct,
-            total,
-            amountPaid: paid,
-            change,
-            paymentMethod,
-            note: note || null,
-            cashierId,
-            tenantId,
-            customerId: customerId || null,
-            pointsRedeemed: pointsRedeemed || 0,
-          },
-          config?.invoicePrefix || "INV"
-        );
+    // Helper: proses transaksi sebagai offline queue
+    async function processOffline() {
+      const config = await import("@/lib/offline-db").then((m) =>
+        m.getOfflineDB().tenantConfig.get("current")
+      );
 
-        // Kurangi stok di IndexedDB secara optimistic
-        await decrementOfflineStock(
-          items.map((i) => ({ productId: i.productId, quantity: i.quantity }))
-        );
-
-        // Buat receipt dari data lokal
-        const offlineReceipt: ReceiptData = {
-          invoiceNumber: `${invoiceNumber} (Offline)`,
-          storeName: config?.name || tenant?.name || "Toko",
-          storeAddress: config?.address || tenant?.address,
-          storePhone: config?.phone || tenant?.phone,
-          receiptNote: config?.receiptNote || tenant?.receiptNote,
-          receiptHeader: config?.receiptHeader || tenant?.receiptHeader,
-          receiptWidth: config?.receiptWidth || tenant?.receiptWidth || 80,
-          cashierName,
-          items: items.map((i) => ({
-            name: i.name,
-            quantity: i.quantity,
-            unitPrice: i.price,
-            discount: i.discount,
-            subtotal: i.subtotal,
-          })),
-          subtotal,
-          discountAmount,
-          taxAmount,
-          taxPct,
-          total,
-          amountPaid: paid,
-          change,
-          paymentMethod,
-          note: note || null,
-          createdAt: new Date(),
-        };
-
-        setReceiptData(offlineReceipt);
-        setIsOfflineSuccess(true);
-        setIsSuccess(true);
-        return;
-      }
-
-      // ── Mode Online (normal) ──────────────────────────────────
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { localId, invoiceNumber } = await enqueueOfflineTransaction(
+        {
           items: items.map((i) => ({
             productId: i.productId,
             productName: i.name,
-            productSku: i.sku,
+            productSku: i.sku || null,
             quantity: i.quantity,
             unitPrice: i.price,
             discount: i.discount,
@@ -222,13 +149,92 @@ export function PaymentModal({
           amountPaid: paid,
           change,
           paymentMethod,
-          note,
+          note: note || null,
           cashierId,
           tenantId,
           customerId: customerId || null,
           pointsRedeemed: pointsRedeemed || 0,
-        }),
-      });
+        },
+        config?.invoicePrefix || "INV"
+      );
+
+      // Kurangi stok di IndexedDB secara optimistic
+      await decrementOfflineStock(
+        items.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+      );
+
+      const offlineReceipt: ReceiptData = {
+        invoiceNumber: `${invoiceNumber} (Offline)`,
+        storeName: config?.name || tenant?.name || "Toko",
+        storeAddress: config?.address || tenant?.address,
+        storePhone: config?.phone || tenant?.phone,
+        receiptNote: config?.receiptNote || tenant?.receiptNote,
+        receiptHeader: config?.receiptHeader || tenant?.receiptHeader,
+        receiptWidth: config?.receiptWidth || tenant?.receiptWidth || 80,
+        cashierName,
+        items: items.map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.price,
+          discount: i.discount,
+          subtotal: i.subtotal,
+        })),
+        subtotal,
+        discountAmount,
+        taxAmount,
+        taxPct,
+        total,
+        amountPaid: paid,
+        change,
+        paymentMethod,
+        note: note || null,
+        createdAt: new Date(),
+      };
+
+      setReceiptData(offlineReceipt);
+      setIsOfflineSuccess(true);
+      setIsSuccess(true);
+    }
+
+    try {
+      // ── Coba online dulu ──────────────────────────────────────
+      let res: Response;
+      try {
+        res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: items.map((i) => ({
+              productId: i.productId,
+              productName: i.name,
+              productSku: i.sku,
+              quantity: i.quantity,
+              unitPrice: i.price,
+              discount: i.discount,
+              subtotal: i.subtotal,
+            })),
+            subtotal,
+            discount: discountAmount,
+            discountPct: discountNominal > 0 ? 0 : discountPct,
+            discountNominal,
+            tax: taxAmount,
+            taxPct,
+            total,
+            amountPaid: paid,
+            change,
+            paymentMethod,
+            note,
+            cashierId,
+            tenantId,
+            customerId: customerId || null,
+            pointsRedeemed: pointsRedeemed || 0,
+          }),
+        });
+      } catch {
+        // Network error (offline) — fallback ke queue
+        await processOffline();
+        return;
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Transaksi gagal");
