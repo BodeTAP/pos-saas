@@ -88,6 +88,17 @@
       font-size: 12px;
       color: #9ca3af;
     }
+    .cache-msg {
+      display: none;
+      margin-top: 12px;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #92400e;
+      text-align: left;
+    }
     .dot {
       display: inline-block;
       width: 8px;
@@ -124,7 +135,7 @@
       atau tunggu koneksi internet kembali.
     </p>
 
-    <a href="/dashboard/pos" class="btn-primary">
+    <a href="/dashboard/pos" class="btn-primary" id="btn-pos" onclick="handlePosClick(event)">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
@@ -143,10 +154,48 @@
     <p class="status">
       <span class="dot"></span>Mode Offline Aktif
     </p>
+    <div class="cache-msg" id="cache-msg">
+      ⚠️ Halaman kasir belum ter-cache. Sambungkan internet terlebih dahulu, buka halaman kasir, lalu bisa digunakan offline.
+    </div>
   </div>
 
   <script>
-    // Auto redirect ke /dashboard/pos jika sudah online
+    // Cek apakah /dashboard/pos ada di cache
+    async function checkPosCache() {
+      if (!('caches' in window)) return false;
+      try {
+        const cached = await caches.match('/dashboard/pos');
+        return !!cached;
+      } catch {
+        return false;
+      }
+    }
+
+    async function handlePosClick(e) {
+      e.preventDefault();
+      const hasCached = await checkPosCache();
+      if (hasCached) {
+        window.location.href = '/dashboard/pos';
+      } else {
+        const msg = document.getElementById('cache-msg');
+        if (msg) {
+          msg.style.display = 'block';
+          setTimeout(() => { msg.style.display = 'none'; }, 4000);
+        }
+      }
+    }
+
+    // Tampilkan/sembunyikan tombol berdasarkan cache
+    checkPosCache().then((hasCached) => {
+      const btn = document.getElementById('btn-pos');
+      const msg = document.getElementById('cache-msg');
+      if (!hasCached && btn) {
+        btn.style.opacity = '0.5';
+        btn.title = 'Halaman kasir belum ter-cache. Buka saat online terlebih dahulu.';
+      }
+    });
+
+    // Auto redirect ke /dashboard/pos saat sudah online
     window.addEventListener('online', () => {
       window.location.href = '/dashboard/pos';
     });

@@ -29,6 +29,14 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+// ── Message: trigger cache halaman POS dari client ─────────────
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CACHE_POS_PAGE") {
+    caches.open(PAGES_CACHE).then((cache) => {
+      cache.add("/dashboard/pos").catch(() => {});
+    });
+  }
+});
 // ── Activate: hapus cache lama ─────────────────────────────────
 self.addEventListener("activate", (event) => {
   const validCaches = [STATIC_CACHE, PAGES_CACHE, IMAGES_CACHE];
