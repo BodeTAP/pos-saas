@@ -42,14 +42,15 @@ export function formatDateTime(date: Date | string): string {
 }
 
 /**
- * Generate nomor invoice dengan suffix waktu dan entropy UUID.
+ * Generate nomor invoice: PREFIX-YYYYMMDD-XXXX
+ * Contoh: INV-20260522-3847
+ * 4 digit angka acak cukup untuk POS — collision ditangani retry loop di API.
  */
 export function generateInvoiceNumber(prefix = "INV"): string {
   const now = new Date();
   const date = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const time = now.getTime().toString(36).toUpperCase();
-  const entropy = crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase();
-  return `${prefix}-${date}-${time}-${entropy}`;
+  const rand = Math.floor(1000 + Math.random() * 9000); // 1000–9999
+  return `${prefix}-${date}-${rand}`;
 }
 
 /**
