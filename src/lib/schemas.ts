@@ -72,6 +72,7 @@ const transactionItemSchema = z.object({
   subtotal: z.number().nonnegative("Subtotal tidak boleh negatif."),
   // Varian (opsional)
   variantSkuId: z.string().cuid().optional().nullable(),
+  variantLabel: z.string().max(200).optional().nullable(),
 });
 
 export const createTransactionSchema = z.object({

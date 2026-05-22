@@ -152,17 +152,29 @@ export async function getOfflineConfig(): Promise<OfflineTenantConfig | null> {
 }
 
 /**
- * Update stok produk di IndexedDB setelah transaksi offline
+ * Update stok produk di IndexedDB setelah transaksi offline.
+ * Untuk produk varian, kurangi stok di variantSKUs[].stock.
+ * Untuk produk biasa, kurangi product.stock.
  */
 export async function decrementOfflineStock(
-  items: Array<{ productId: string; quantity: number }>
+  items: Array<{ productId: string; quantity: number; variantSkuId?: string | null }>
 ): Promise<void> {
   try {
     const db = getOfflineDB();
     await db.transaction("rw", db.products, async () => {
       for (const item of items) {
         const product = await db.products.get(item.productId);
-        if (product) {
+        if (!product) continue;
+
+        if (item.variantSkuId && product.variantSKUs) {
+          // Kurangi stok varian spesifik
+          const updatedSKUs = product.variantSKUs.map((sku) => {
+            if (sku.id !== item.variantSkuId) return sku;
+            return { ...sku, stock: Math.max(0, sku.stock - item.quantity) };
+          });
+          await db.products.update(item.productId, { variantSKUs: updatedSKUs });
+        } else {
+          // Kurangi stok produk biasa
           await db.products.update(item.productId, {
             stock: Math.max(0, product.stock - item.quantity),
           });

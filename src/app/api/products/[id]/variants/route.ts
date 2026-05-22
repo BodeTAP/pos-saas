@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { getActiveOutletId } from "@/lib/active-outlet";
 import { z } from "zod";
 import { parseBody } from "@/lib/schemas";
 
@@ -62,6 +61,7 @@ export async function GET(
       return NextResponse.json({ error: "Produk tidak ditemukan." }, { status: 404 });
     }
 
+    const { getActiveOutletId } = await import("@/lib/active-outlet");
     const outletId = await getActiveOutletId();
 
     const [variantTypes, skus] = await Promise.all([
@@ -144,8 +144,6 @@ export async function POST(
       where: { tenantId: session.user.tenantId, isActive: true },
       select: { id: true, isMain: true },
     });
-
-    const activeOutletId = await getActiveOutletId();
 
     await prisma.$transaction(async (tx) => {
       // 1. Hapus semua varian lama (cascade akan hapus options, skus, stocks)

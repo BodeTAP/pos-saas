@@ -94,6 +94,7 @@ export default async function POSPage() {
         pointsPerAmount: true,
         pointValue: true,
         activePaymentMethods: true,
+        invoicePrefix: true,
       },
     }),
     prisma.outlet.findUnique({

@@ -137,19 +137,24 @@ export async function syncOfflineQueue(): Promise<SyncResult[]> {
     try {
       const payload = JSON.parse(item.payload) as OfflineTransactionPayload;
 
-      const res = await fetch("/api/transactions", {
+      const res = await fetch("/api/offline/sync-transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...payload,
-          // Kirim localId untuk idempotency di server
-          offlineLocalId: item.localId,
+          transactions: [
+            {
+              localId: item.localId,
+              invoiceNumber: item.invoiceNumber,
+              payload,
+            },
+          ],
         }),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.results?.[0]?.status !== "FAILED") {
+        const result = data.results?.[0];
         await db.offlineQueue.update(item.id!, {
           status: "SYNCED",
           syncedAt: Date.now(),
@@ -160,10 +165,10 @@ export async function syncOfflineQueue(): Promise<SyncResult[]> {
           localId: item.localId,
           invoiceNumber: item.invoiceNumber,
           status: "SYNCED",
-          serverInvoiceNumber: data.transaction?.invoiceNumber,
+          serverInvoiceNumber: result?.serverInvoiceNumber,
         });
       } else {
-        const errorMsg = data.error || "Sync gagal";
+        const errorMsg = data.results?.[0]?.error || data.error || "Sync gagal";
         await db.offlineQueue.update(item.id!, {
           status: "FAILED",
           error: errorMsg,

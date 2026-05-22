@@ -64,35 +64,64 @@ export async function POST(
       // Restore stock if requested
       if (restoreStock) {
         for (const item of transaction.items) {
-          const restoredStock = await tx.outletStock.upsert({
-            where: {
-              outletId_productId: {
+          if (item.variantSkuId) {
+            // Restore ke OutletStockVariant
+            const restoredVariant = await tx.outletStockVariant.upsert({
+              where: { outletId_skuId: { outletId: transaction.outletId, skuId: item.variantSkuId } },
+              update: { stock: { increment: item.quantity } },
+              create: {
+                stock: item.quantity,
+                outletId: transaction.outletId,
+                skuId: item.variantSkuId,
+                tenantId: session.user.tenantId!,
+              },
+              select: { stock: true },
+            });
+
+            await tx.stockMutationVariant.create({
+              data: {
+                type: "RETURN",
+                quantity: item.quantity,
+                stockBefore: restoredVariant.stock - item.quantity,
+                stockAfter: restoredVariant.stock,
+                note: `Retur - ${transaction.invoiceNumber}: ${reason}`,
+                tenantId: session.user.tenantId!,
+                skuId: item.variantSkuId,
+                outletId: transaction.outletId,
+              },
+            });
+          } else {
+            // Restore ke OutletStock biasa
+            const restoredStock = await tx.outletStock.upsert({
+              where: {
+                outletId_productId: {
+                  outletId: transaction.outletId,
+                  productId: item.productId,
+                },
+              },
+              update: { stock: { increment: item.quantity } },
+              create: {
+                stock: item.quantity,
                 outletId: transaction.outletId,
                 productId: item.productId,
+                tenantId: session.user.tenantId!,
               },
-            },
-            update: { stock: { increment: item.quantity } },
-            create: {
-              stock: item.quantity,
-              outletId: transaction.outletId,
-              productId: item.productId,
-              tenantId: session.user.tenantId!,
-            },
-            select: { stock: true },
-          });
+              select: { stock: true },
+            });
 
-          await tx.stockMutation.create({
-            data: {
-              type: "RETURN",
-              quantity: item.quantity,
-              stockBefore: restoredStock.stock - item.quantity,
-              stockAfter: restoredStock.stock,
-              note: `Retur - ${transaction.invoiceNumber}: ${reason}`,
-              tenantId: session.user.tenantId!,
-              productId: item.productId,
-              outletId: transaction.outletId,
-            },
-          });
+            await tx.stockMutation.create({
+              data: {
+                type: "RETURN",
+                quantity: item.quantity,
+                stockBefore: restoredStock.stock - item.quantity,
+                stockAfter: restoredStock.stock,
+                note: `Retur - ${transaction.invoiceNumber}: ${reason}`,
+                tenantId: session.user.tenantId!,
+                productId: item.productId,
+                outletId: transaction.outletId,
+              },
+            });
+          }
         }
       }
 

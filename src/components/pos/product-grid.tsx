@@ -47,17 +47,19 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {products.map((product) => {
+        // Harga display — guard terhadap empty array (Math.min([]) = Infinity)
+        const activeVariantSKUs = product.variantSKUs?.filter((s) => s.isActive) ?? [];
+
         const isOutOfStock = product.hasVariants
-          ? (product.variantSKUs?.filter((s) => s.isActive) ?? []).every((s) => s.stock === 0)
+          ? activeVariantSKUs.length > 0 && activeVariantSKUs.every((s) => s.stock === 0)
           : product.stock === 0;
         const isLowStock = !isOutOfStock && !product.hasVariants && product.stock <= product.minStock;
 
-        // Harga display
-        const displayPrice = product.hasVariants && product.variantSKUs && product.variantSKUs.length > 0
-          ? Math.min(...product.variantSKUs.filter((s) => s.isActive).map((s) => s.price))
+        const displayPrice = product.hasVariants && activeVariantSKUs.length > 0
+          ? Math.min(...activeVariantSKUs.map((s) => s.price))
           : product.sellPrice;
-        const hasMultiplePrices = product.hasVariants && product.variantSKUs
-          ? new Set(product.variantSKUs.filter((s) => s.isActive).map((s) => s.price)).size > 1
+        const hasMultiplePrices = product.hasVariants && activeVariantSKUs.length > 1
+          ? new Set(activeVariantSKUs.map((s) => s.price)).size > 1
           : false;
 
         return (
@@ -137,7 +139,7 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
                   isOutOfStock ? "text-gray-400" : "text-blue-600"
                 )}
               >
-                {hasMultiplePrices ? `Mulai ` : ""}{formatCurrency(displayPrice)}
+              {hasMultiplePrices ? `Mulai ` : ""}{formatCurrency(displayPrice)}
               </p>
               {product.hasVariants ? (
                 <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 flex items-center gap-0.5">

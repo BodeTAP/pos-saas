@@ -138,6 +138,24 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Bug 5 fix: Validasi variantSkuId milik produk tenant
+        const variantSkuIds = payload.items
+          .map((i) => i.variantSkuId)
+          .filter(Boolean) as string[];
+
+        const variantSkusById = new Map<string, { id: string; price: number; sku: string | null; productId: string }>();
+        if (variantSkuIds.length > 0) {
+          const variantSkus = await prisma.productVariantSKU.findMany({
+            where: { id: { in: variantSkuIds }, productId: { in: productIds }, isActive: true },
+            select: { id: true, price: true, sku: true, productId: true },
+          });
+          if (variantSkus.length !== variantSkuIds.length) {
+            results.push({ localId: tx.localId, status: "FAILED", error: "Satu atau lebih varian tidak valid." });
+            continue;
+          }
+          variantSkus.forEach((vs) => variantSkusById.set(vs.id, vs));
+        }
+
         const productsById = new Map(ownedProducts.map((p) => [p.id, p]));
         const pointsPerAmount = tenantConfig.pointsPerAmount || POINT_PER_AMOUNT;
         const pointValue = tenantConfig.pointValue || POINT_VALUE;
@@ -177,14 +195,18 @@ export async function POST(req: NextRequest) {
                   items: {
                     create: payload.items.map((item) => {
                       const product = productsById.get(item.productId)!;
+                      // Bug 4 fix: pakai harga varian dari DB, bukan harga produk dasar
+                      const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
+                      const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+                      const itemSku = variantSku?.sku ?? product.sku;
                       return {
                         productId: item.productId,
                         productName: product.name,
-                        productSku: product.sku || null,
+                        productSku: itemSku || null,
                         quantity: item.quantity,
-                        unitPrice: product.sellPrice, // pakai harga server
+                        unitPrice,
                         discount: item.discount || 0,
-                        subtotal: product.sellPrice * item.quantity - (item.discount || 0),
+                        subtotal: unitPrice * item.quantity - (item.discount || 0),
                         variantSkuId: item.variantSkuId || null,
                         variantLabel: item.variantLabel || null,
                       };

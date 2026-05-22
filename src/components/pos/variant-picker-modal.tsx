@@ -170,7 +170,7 @@ export function VariantPickerModal({
                     <button
                       key={option.id}
                       onClick={() => handleSelectOption(variantType.id, option.id)}
-                      disabled={availability === "no_sku"}
+                      disabled={availability === "no_sku" || availability === "out_of_stock"}
                       className={cn(
                         "px-4 py-2 rounded-xl text-sm font-medium border-2 transition-all relative",
                         isSelected

@@ -27,6 +27,7 @@ interface PaymentModalProps {
     receiptNote: string | null;
     receiptHeader?: string | null;
     activePaymentMethods?: string | null;
+    invoicePrefix?: string | null;
   } | null;
   customerId?: string;
   pointsRedeemed?: number;
@@ -156,12 +157,12 @@ export function PaymentModal({
           customerId: customerId || null,
           pointsRedeemed: pointsRedeemed || 0,
         },
-        config?.invoicePrefix || "INV"
+        config?.invoicePrefix || tenant?.invoicePrefix || "INV"
       );
 
-      // Kurangi stok di IndexedDB secara optimistic
+      // Kurangi stok di IndexedDB secara optimistic (support varian)
       await decrementOfflineStock(
-        items.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+        items.map((i) => ({ productId: i.productId, quantity: i.quantity, variantSkuId: i.variantSkuId ?? null }))
       );
 
       const offlineReceipt: ReceiptData = {

@@ -10,9 +10,10 @@ import { formatCurrency } from "@/lib/utils";
 // ─────────────────────────────────────────────
 
 export interface VariantTypeInput {
+  _key?: string; // stable key untuk React list rendering
   name: string;
   position: number;
-  options: { name: string }[];
+  options: { _key?: string; name: string }[];
 }
 
 export interface VariantSKUInput {
@@ -90,11 +91,12 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
   // Load existing variants when editing
   useEffect(() => {
     if (!productId || !value.hasVariants) return;
-    // Only load once when first enabling variants for an existing product
-    // (the parent controls hasVariants toggle, so we load when productId is set and hasVariants is true)
-    loadVariants();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
+    // Hanya load jika belum ada data (hindari overwrite saat user sudah edit)
+    if (value.variantTypes.length === 0 && value.skus.length === 0) {
+      loadVariants();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, value.hasVariants]);
 
   async function loadVariants() {
     if (!productId) return;
@@ -165,7 +167,7 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
   function addVariantType() {
     const newTypes = [
       ...value.variantTypes,
-      { name: "", position: value.variantTypes.length, options: [{ name: "" }] },
+      { _key: crypto.randomUUID(), name: "", position: value.variantTypes.length, options: [{ _key: crypto.randomUUID(), name: "" }] },
     ];
     onChange({ ...value, variantTypes: newTypes });
   }
@@ -188,7 +190,7 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
 
   function addOption(typeIdx: number) {
     const newTypes = value.variantTypes.map((t, i) =>
-      i === typeIdx ? { ...t, options: [...t.options, { name: "" }] } : t
+      i === typeIdx ? { ...t, options: [...t.options, { _key: crypto.randomUUID(), name: "" }] } : t
     );
     onChange({ ...value, variantTypes: newTypes });
   }
@@ -252,6 +254,10 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
         skus: value.skus,
       };
       onChange(newValue);
+      // Jika produk existing dan belum ada data, load dari server
+      if (productId && value.variantTypes.length === 0 && value.skus.length === 0) {
+        loadVariants();
+      }
     } else {
       onChange({ hasVariants: false, variantTypes: value.variantTypes, skus: value.skus });
     }
@@ -324,7 +330,7 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
 
                 {value.variantTypes.map((vt, typeIdx) => (
                   <div
-                    key={typeIdx}
+                    key={vt._key ?? typeIdx}
                     className="border border-gray-200 rounded-xl p-3 space-y-2 bg-white"
                   >
                     <div className="flex items-center gap-2">
@@ -350,7 +356,7 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
                     <div className="space-y-1.5 pl-2">
                       <p className="text-xs text-gray-500 font-medium">Opsi:</p>
                       {vt.options.map((opt, optIdx) => (
-                        <div key={optIdx} className="flex items-center gap-2">
+                        <div key={opt._key ?? optIdx} className="flex items-center gap-2">
                           <input
                             type="text"
                             value={opt.name}
@@ -402,7 +408,7 @@ export function VariantForm({ productId, value, onChange }: VariantFormProps) {
                   <div className="space-y-2">
                     {value.skus.map((sku, skuIdx) => (
                       <div
-                        key={skuIdx}
+                        key={sku.label || skuIdx}
                         className={`border rounded-xl overflow-hidden ${
                           sku.isActive ? "border-gray-200" : "border-gray-100 opacity-60"
                         }`}

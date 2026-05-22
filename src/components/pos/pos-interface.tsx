@@ -53,6 +53,7 @@ interface POSInterfaceProps {
     pointsPerAmount?: number;
     pointValue?: number;
     activePaymentMethods?: string | null;
+    invoicePrefix?: string | null;
   } | null;
   cashierId: string;
   cashierName: string;
