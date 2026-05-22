@@ -22,7 +22,8 @@ const variantTypeSchema = z.object({
 
 const variantSKUSchema = z.object({
   id: z.string().cuid().optional(),
-  optionIds: z.array(z.string().cuid()).min(1, "SKU harus punya minimal 1 opsi."),
+  // optionIds dikirim sebagai "typeIdx-optionIdx" (e.g. "0-0", "1-2") — bukan CUID
+  optionIds: z.array(z.string().min(1)).min(1, "SKU harus punya minimal 1 opsi."),
   price: z.number().positive("Harga harus lebih dari 0."),
   buyPrice: z.number().nonnegative().default(0),
   sku: z.string().max(50).optional().nullable(),

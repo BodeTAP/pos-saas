@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     const {
       name, sku, barcode, description, imageUrl, buyPrice, sellPrice,
-      stock, minStock, unit, categoryId, isActive,
+      stock, minStock, unit, categoryId, isActive, hasVariants,
     } = parsed.data;
 
     if (categoryId) {
@@ -203,10 +203,11 @@ export async function POST(req: NextRequest) {
           imageUrl: imageUrl || null,
           buyPrice: buyPrice || 0,
           sellPrice,
-          stock: stock || 0, // baseline default
+          stock: stock || 0,
           minStock: minStock || 5,
           unit: unit || "pcs",
           isActive: isActive !== false,
+          hasVariants: hasVariants ?? false,
           tenantId: session.user.tenantId!,
           categoryId: categoryId || null,
         },

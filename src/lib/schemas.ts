@@ -118,10 +118,12 @@ export const createProductSchema = z.object({
   unit: z.string().max(20).default("pcs"),
   categoryId: z.string().cuid().optional().nullable(),
   isActive: z.boolean().default(true),
+  hasVariants: z.boolean().default(false),
 });
 
 export const updateProductSchema = createProductSchema.partial().extend({
   isActive: z.boolean().optional(),
+  hasVariants: z.boolean().optional(),
 });
 
 // ─────────────────────────────────────────────

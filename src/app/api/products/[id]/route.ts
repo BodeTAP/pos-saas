@@ -31,7 +31,7 @@ export async function PUT(
     const {
       name, sku, barcode, description, buyPrice, sellPrice,
       stock, minStock, unit, categoryId, isActive,
-      imageUrl,
+      imageUrl, hasVariants,
     } = parsed.data;
 
     if (categoryId) {
@@ -131,6 +131,7 @@ export async function PUT(
         unit: unit ?? existing.unit,
         isActive: isActive !== undefined ? isActive : existing.isActive,
         categoryId: categoryId !== undefined ? categoryId : existing.categoryId,
+        ...(hasVariants !== undefined && { hasVariants }),
       },
       include: {
         category: true,
