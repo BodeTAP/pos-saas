@@ -12,6 +12,7 @@ import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transaction
 import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
 import { OfflineBanner, OfflineIndicator } from "@/components/pwa/offline-indicator";
+import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -202,6 +203,8 @@ export function POSInterface({
               <Clock className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Shift</span>
             </button>
+            {/* Offline queue status */}
+            <OfflineSyncStatus />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button

@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { toast } from "@/components/ui/toaster";
 import { formatCurrency } from "@/lib/utils";
-import { X, Loader2, CheckCircle, Banknote, QrCode, CreditCard, Printer, Download } from "lucide-react";
+import { X, Loader2, CheckCircle, Banknote, QrCode, CreditCard, Printer, Download, WifiOff } from "lucide-react";
 import { Receipt, type ReceiptData } from "./receipt";
 import { printReceipt, downloadReceiptHTML } from "@/lib/print-receipt";
+import { enqueueOfflineTransaction } from "@/lib/offline-queue";
+import { decrementOfflineStock } from "@/hooks/use-offline-sync";
 
 interface PaymentModalProps {
   total: number;
@@ -97,6 +99,7 @@ export function PaymentModal({
   const [amountPaid, setAmountPaid] = useState<string>(total.toString());
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isOfflineSuccess, setIsOfflineSuccess] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   // Simpan item yang terjual untuk diteruskan ke onSuccess
@@ -119,6 +122,83 @@ export function PaymentModal({
 
     setIsLoading(true);
     try {
+      // ── Mode Offline ──────────────────────────────────────────
+      if (!navigator.onLine) {
+        const config = await import("@/lib/offline-db").then((m) =>
+          m.getOfflineDB().tenantConfig.get("current")
+        );
+
+        const { localId, invoiceNumber } = await enqueueOfflineTransaction(
+          {
+            items: items.map((i) => ({
+              productId: i.productId,
+              productName: i.name,
+              productSku: i.sku || null,
+              quantity: i.quantity,
+              unitPrice: i.price,
+              discount: i.discount,
+              subtotal: i.subtotal,
+            })),
+            subtotal,
+            discount: discountAmount,
+            discountPct: discountNominal > 0 ? 0 : discountPct,
+            discountNominal,
+            tax: taxAmount,
+            taxPct,
+            total,
+            amountPaid: paid,
+            change,
+            paymentMethod,
+            note: note || null,
+            cashierId,
+            tenantId,
+            customerId: customerId || null,
+            pointsRedeemed: pointsRedeemed || 0,
+          },
+          config?.invoicePrefix || "INV"
+        );
+
+        // Kurangi stok di IndexedDB secara optimistic
+        await decrementOfflineStock(
+          items.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+        );
+
+        // Buat receipt dari data lokal
+        const offlineReceipt: ReceiptData = {
+          invoiceNumber: `${invoiceNumber} (Offline)`,
+          storeName: config?.name || tenant?.name || "Toko",
+          storeAddress: config?.address || tenant?.address,
+          storePhone: config?.phone || tenant?.phone,
+          receiptNote: config?.receiptNote || tenant?.receiptNote,
+          receiptHeader: config?.receiptHeader || tenant?.receiptHeader,
+          receiptWidth: config?.receiptWidth || tenant?.receiptWidth || 80,
+          cashierName,
+          items: items.map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.price,
+            discount: i.discount,
+            subtotal: i.subtotal,
+          })),
+          subtotal,
+          discountAmount,
+          taxAmount,
+          taxPct,
+          total,
+          amountPaid: paid,
+          change,
+          paymentMethod,
+          note: note || null,
+          createdAt: new Date(),
+        };
+
+        setReceiptData(offlineReceipt);
+        setIsOfflineSuccess(true);
+        setIsSuccess(true);
+        return;
+      }
+
+      // ── Mode Online (normal) ──────────────────────────────────
       const res = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,7 +214,6 @@ export function PaymentModal({
           })),
           subtotal,
           discount: discountAmount,
-          // FIX 15: Send both pct and nominal so server always has correct discount info
           discountPct: discountNominal > 0 ? 0 : discountPct,
           discountNominal,
           tax: taxAmount,
@@ -200,11 +279,21 @@ export function PaymentModal({
         <div className="bg-white rounded-2xl max-w-sm w-full">
           {/* Header sukses */}
           <div className="p-6 text-center border-b border-gray-100">
-            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <CheckCircle className="w-7 h-7 text-green-600" />
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 ${isOfflineSuccess ? "bg-orange-100" : "bg-green-100"}`}>
+              {isOfflineSuccess
+                ? <WifiOff className="w-7 h-7 text-orange-600" />
+                : <CheckCircle className="w-7 h-7 text-green-600" />
+              }
             </div>
-            <h2 className="text-lg font-bold text-gray-900">Pembayaran Berhasil</h2>
+            <h2 className="text-lg font-bold text-gray-900">
+              {isOfflineSuccess ? "Transaksi Tersimpan" : "Pembayaran Berhasil"}
+            </h2>
             <p className="text-gray-400 text-sm mt-0.5">{receiptData.invoiceNumber}</p>
+            {isOfflineSuccess && (
+              <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+                Transaksi disimpan lokal dan akan dikirim ke server saat internet kembali.
+              </div>
+            )}
           </div>
 
           {/* Ringkasan */}
