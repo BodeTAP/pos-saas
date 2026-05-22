@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
             unitPrice: number;
             discount: number;
             subtotal: number;
+            variantSkuId?: string | null;
+            variantLabel?: string | null;
           }>;
           subtotal: number;
           discount: number;
@@ -183,6 +185,8 @@ export async function POST(req: NextRequest) {
                         unitPrice: product.sellPrice, // pakai harga server
                         discount: item.discount || 0,
                         subtotal: product.sellPrice * item.quantity - (item.discount || 0),
+                        variantSkuId: item.variantSkuId || null,
+                        variantLabel: item.variantLabel || null,
                       };
                     }),
                   },
@@ -191,37 +195,72 @@ export async function POST(req: NextRequest) {
 
               // Atomic stock deduction
               for (const item of payload.items) {
-                const updated = await txPrisma.outletStock.updateMany({
-                  where: {
-                    outletId,
-                    productId: item.productId,
-                    stock: { gte: item.quantity },
-                  },
-                  data: { stock: { decrement: item.quantity } },
-                });
+                if (item.variantSkuId) {
+                  // Deduct dari OutletStockVariant
+                  const updated = await txPrisma.outletStockVariant.updateMany({
+                    where: {
+                      outletId,
+                      skuId: item.variantSkuId,
+                      stock: { gte: item.quantity },
+                    },
+                    data: { stock: { decrement: item.quantity } },
+                  });
 
-                if (updated.count === 0) {
-                  throw new Error(`Stok ${item.productName} tidak cukup.`);
+                  if (updated.count === 0) {
+                    throw new Error(`Stok ${item.productName} (${item.variantLabel ?? item.variantSkuId}) tidak cukup.`);
+                  }
+
+                  const updatedStock = await txPrisma.outletStockVariant.findUnique({
+                    where: { outletId_skuId: { outletId, skuId: item.variantSkuId } },
+                    select: { stock: true },
+                  });
+                  const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
+
+                  await txPrisma.stockMutationVariant.create({
+                    data: {
+                      type: "SALE",
+                      quantity: -item.quantity,
+                      stockBefore,
+                      stockAfter: updatedStock?.stock ?? 0,
+                      note: `Penjualan offline - ${invoiceNumber}`,
+                      tenantId: session.user.tenantId!,
+                      skuId: item.variantSkuId,
+                      outletId,
+                    },
+                  });
+                } else {
+                  const updated = await txPrisma.outletStock.updateMany({
+                    where: {
+                      outletId,
+                      productId: item.productId,
+                      stock: { gte: item.quantity },
+                    },
+                    data: { stock: { decrement: item.quantity } },
+                  });
+
+                  if (updated.count === 0) {
+                    throw new Error(`Stok ${item.productName} tidak cukup.`);
+                  }
+
+                  const updatedStock = await txPrisma.outletStock.findUnique({
+                    where: { outletId_productId: { outletId, productId: item.productId } },
+                    select: { stock: true },
+                  });
+                  const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
+
+                  await txPrisma.stockMutation.create({
+                    data: {
+                      type: "SALE",
+                      quantity: -item.quantity,
+                      stockBefore,
+                      stockAfter: updatedStock?.stock ?? 0,
+                      note: `Penjualan offline - ${invoiceNumber}`,
+                      tenantId: session.user.tenantId!,
+                      productId: item.productId,
+                      outletId,
+                    },
+                  });
                 }
-
-                const updatedStock = await txPrisma.outletStock.findUnique({
-                  where: { outletId_productId: { outletId, productId: item.productId } },
-                  select: { stock: true },
-                });
-                const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
-
-                await txPrisma.stockMutation.create({
-                  data: {
-                    type: "SALE",
-                    quantity: -item.quantity,
-                    stockBefore,
-                    stockAfter: updatedStock?.stock ?? 0,
-                    note: `Penjualan offline - ${invoiceNumber}`,
-                    tenantId: session.user.tenantId!,
-                    productId: item.productId,
-                    outletId,
-                  },
-                });
               }
 
               // Update poin pelanggan

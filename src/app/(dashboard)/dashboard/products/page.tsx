@@ -48,6 +48,7 @@ export default async function ProductsPage({
       stock: outletStock?.stock ?? 0,
       minStock: outletStock?.minStock ?? p.minStock,
       outletStocks: undefined,
+      // hasVariants is already on the product model
     };
   });
 

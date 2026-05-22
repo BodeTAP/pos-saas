@@ -20,6 +20,8 @@ export interface OfflineTransactionPayload {
     unitPrice: number;
     discount: number;
     subtotal: number;
+    variantSkuId?: string | null;
+    variantLabel?: string | null;
   }>;
   subtotal: number;
   discount: number;

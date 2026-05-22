@@ -39,6 +39,8 @@ interface ProductForVariant {
   variantSKUs: VariantSKU[];
 }
 
+export type { ProductForVariant };
+
 interface VariantPickerModalProps {
   product: ProductForVariant;
   onClose: () => void;

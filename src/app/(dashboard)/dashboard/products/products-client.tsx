@@ -9,7 +9,7 @@ import {
 import { ProductFormModal } from "@/components/products/product-form-modal";
 import { Pagination } from "@/components/ui/pagination";
 
-type ProductWithCategory = Product & { category: Category | null };
+type ProductWithCategory = Product & { category: Category | null; hasVariants?: boolean };
 
 interface OutletInfo {
   id: string;
@@ -150,25 +150,31 @@ export function ProductsClient({
               </div>
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-1.5">
-                  {product.stock <= product.minStock && product.stock > 0 && (
-                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                  {product.hasVariants ? (
+                    <span className="text-xs text-purple-600 font-medium">Produk varian</span>
+                  ) : (
+                    <>
+                      {product.stock <= product.minStock && product.stock > 0 && (
+                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                      )}
+                      <span
+                        className={`text-sm font-semibold ${
+                          product.stock === 0
+                            ? "text-red-600"
+                            : product.stock <= product.minStock
+                            ? "text-orange-600"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {product.stock} {product.unit}
+                      </span>
+                      <span className="text-xs text-gray-400">stok</span>
+                    </>
                   )}
-                  <span
-                    className={`text-sm font-semibold ${
-                      product.stock === 0
-                        ? "text-red-600"
-                        : product.stock <= product.minStock
-                        ? "text-orange-600"
-                        : "text-gray-700"
-                    }`}
-                  >
-                    {product.stock} {product.unit}
-                  </span>
-                  <span className="text-xs text-gray-400">stok</span>
                 </div>
                 <span className="font-bold text-gray-900">{formatCurrency(product.sellPrice)}</span>
               </div>
-              <div className="mt-2">
+              <div className="mt-2 flex items-center gap-1.5">
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     product.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
@@ -176,6 +182,11 @@ export function ProductsClient({
                 >
                   {product.isActive ? "Aktif" : "Nonaktif"}
                 </span>
+                {product.hasVariants && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                    Varian
+                  </span>
+                )}
               </div>
             </div>
           ))
@@ -213,6 +224,11 @@ export function ProductsClient({
                       {product.barcode && (
                         <p className="text-xs text-gray-400">{product.barcode}</p>
                       )}
+                      {product.hasVariants && (
+                        <span className="inline-block mt-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">
+                          Varian
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500">{product.sku || "-"}</td>
                     <td className="px-4 py-3 text-gray-500">
@@ -222,22 +238,26 @@ export function ProductsClient({
                       {formatCurrency(product.sellPrice)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {product.stock <= product.minStock && product.stock > 0 && (
-                          <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                        )}
-                        <span
-                          className={
-                            product.stock === 0
-                              ? "text-red-600 font-semibold"
-                              : product.stock <= product.minStock
-                              ? "text-orange-600 font-semibold"
-                              : "text-gray-900"
-                          }
-                        >
-                          {product.stock} {product.unit}
-                        </span>
-                      </div>
+                      {product.hasVariants ? (
+                        <span className="text-xs text-purple-600 font-medium">Per varian</span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          {product.stock <= product.minStock && product.stock > 0 && (
+                            <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                          )}
+                          <span
+                            className={
+                              product.stock === 0
+                                ? "text-red-600 font-semibold"
+                                : product.stock <= product.minStock
+                                ? "text-orange-600 font-semibold"
+                                : "text-gray-900"
+                            }
+                          >
+                            {product.stock} {product.unit}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span

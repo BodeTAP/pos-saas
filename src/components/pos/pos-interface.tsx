@@ -13,7 +13,7 @@ import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
 import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
-import { VariantPickerModal } from "./variant-picker-modal";
+import { VariantPickerModal, type ProductForVariant } from "./variant-picker-modal";
 
 type ProductWithCategory = Product & {
   category: Category | null;
@@ -87,7 +87,7 @@ export function POSInterface({
   const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
 
   // State untuk variant picker
-  const [variantProduct, setVariantProduct] = useState<ProductWithCategory | null>(null);
+  const [variantProduct, setVariantProduct] = useState<ProductForVariant | null>(null);
 
   // Sync data ke IndexedDB saat online (untuk offline support)
   const { sync: forceSync } = useOfflineSync({
@@ -116,7 +116,14 @@ export function POSInterface({
     (product: ProductWithCategory) => {
       // Produk dengan varian → buka picker dulu
       if (product.hasVariants && product.variantSKUs && product.variantSKUs.length > 0) {
-        setVariantProduct(product);
+        setVariantProduct({
+          id: product.id,
+          name: product.name,
+          imageUrl: product.imageUrl ?? null,
+          sellPrice: product.sellPrice,
+          variantTypes: product.variantTypes ?? [],
+          variantSKUs: product.variantSKUs,
+        });
         return;
       }
       // Produk biasa → langsung tambah ke keranjang
@@ -416,7 +423,7 @@ export function POSInterface({
       {/* Variant Picker Modal */}
       {variantProduct && (
         <VariantPickerModal
-          product={variantProduct as Parameters<typeof VariantPickerModal>[0]["product"]}
+          product={variantProduct}
           onClose={() => setVariantProduct(null)}
           onConfirm={handleVariantConfirm}
         />
