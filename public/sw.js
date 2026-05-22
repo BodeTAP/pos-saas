@@ -3,7 +3,7 @@
  * Manual implementation tanpa library untuk kompatibilitas Next.js 16 + Turbopack
  */
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `pos-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `pos-pages-${CACHE_VERSION}`;
 const IMAGES_CACHE = `pos-images-${CACHE_VERSION}`;
