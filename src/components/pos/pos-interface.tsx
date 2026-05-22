@@ -10,6 +10,8 @@ import { ShiftModal } from "./shift-modal";
 import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
 import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
+import { useOfflineSync } from "@/hooks/use-offline-sync";
+import { OfflineBanner, OfflineIndicator } from "@/components/pwa/offline-indicator";
 
 type ProductWithCategory = Product & { category: Category | null };
 
@@ -60,6 +62,14 @@ export function POSInterface({
 
   // State produk lokal — bisa diupdate setelah transaksi tanpa full page refresh
   const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
+
+  // Sync data ke IndexedDB saat online (untuk offline support)
+  const { sync: forceSync } = useOfflineSync({
+    onSynced: () => {
+      // Setelah sync, refresh produk dari server jika online
+      // (produk di state sudah up-to-date dari server render)
+    },
+  });
 
   const cart = useCartStore();
   const taxPct = tenant?.taxRate ?? 0;
@@ -146,6 +156,9 @@ export function POSInterface({
     <div className="flex h-full gap-4 -m-6 p-0 relative">
       {/* Left: Product Grid */}
       <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden">
+        {/* Offline Banner */}
+        <OfflineBanner />
+
         {/* Outlet Indicator */}
         {outlet && (
           <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center gap-2 text-xs">
@@ -319,6 +332,9 @@ export function POSInterface({
           onShiftChange={() => setShowShift(false)}
         />
       )}
+
+      {/* Offline status indicator */}
+      <OfflineIndicator onSyncRequest={forceSync} />
     </div>
   );
 }
