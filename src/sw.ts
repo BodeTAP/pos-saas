@@ -10,14 +10,27 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+const OFFLINE_FALLBACK_URL = "/offline.html";
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
+  // Fallback saat navigasi offline dan halaman tidak ada di cache
+  fallbacks: {
+    entries: [
+      {
+        url: OFFLINE_FALLBACK_URL,
+        matcher({ request }) {
+          return request.destination === "document";
+        },
+      },
+    ],
+  },
 
   runtimeCaching: [
-    // ── Halaman POS — Cache First (paling penting untuk offline) ──
+    // ── Halaman POS — NetworkFirst (paling penting untuk offline) ──
     {
       matcher: /^https?:\/\/.*\/dashboard\/pos$/,
       handler: new NetworkFirst({
@@ -26,6 +39,21 @@ const serwist = new Serwist({
           new ExpirationPlugin({
             maxEntries: 10,
             maxAgeSeconds: 24 * 60 * 60, // 24 jam
+          }),
+        ],
+        networkTimeoutSeconds: 5,
+      }),
+    },
+
+    // ── Halaman dashboard lain — NetworkFirst dengan fallback ──
+    {
+      matcher: /^https?:\/\/.*\/dashboard\/.*/,
+      handler: new NetworkFirst({
+        cacheName: "dashboard-pages",
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 20,
+            maxAgeSeconds: 24 * 60 * 60,
           }),
         ],
         networkTimeoutSeconds: 5,
@@ -48,7 +76,7 @@ const serwist = new Serwist({
 
     // ── Gambar produk — Cache First, tahan lama ──
     {
-      matcher: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
+      matcher: /\.(?:png|jpg|jpeg|gif|webp|ico)$/,
       handler: new CacheFirst({
         cacheName: "images",
         plugins: [
