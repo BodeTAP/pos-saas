@@ -22,6 +22,25 @@ export interface OfflineProduct {
   isActive: boolean;
   categoryId: string | null;
   categoryName: string | null;
+  hasVariants: boolean;
+  variantTypes: Array<{
+    id: string;
+    name: string;
+    position: number;
+    options: Array<{ id: string; name: string }>;
+  }>;
+  variantSKUs: Array<{
+    id: string;
+    sku: string | null;
+    price: number;
+    buyPrice: number;
+    imageUrl: string | null;
+    isActive: boolean;
+    stock: number;
+    minStock: number;
+    label: string;
+    optionIds: string[];
+  }>;
 }
 
 export interface OfflineCategory {

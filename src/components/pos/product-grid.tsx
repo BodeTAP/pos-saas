@@ -2,11 +2,32 @@
 
 import { Category, Product } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
-import { Plus, Package, AlertTriangle } from "lucide-react";
+import { Plus, Package, AlertTriangle, Layers } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-type ProductWithCategory = Product & { category: Category | null };
+type ProductWithCategory = Product & {
+  category: Category | null;
+  hasVariants?: boolean;
+  variantTypes?: Array<{
+    id: string;
+    name: string;
+    position: number;
+    options: Array<{ id: string; name: string }>;
+  }>;
+  variantSKUs?: Array<{
+    id: string;
+    sku: string | null;
+    price: number;
+    buyPrice: number;
+    imageUrl: string | null;
+    isActive: boolean;
+    stock: number;
+    minStock: number;
+    label: string;
+    optionIds: string[];
+  }>;
+};
 
 interface ProductGridProps {
   products: ProductWithCategory[];
@@ -26,8 +47,18 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
       {products.map((product) => {
-        const isOutOfStock = product.stock === 0;
-        const isLowStock = !isOutOfStock && product.stock <= product.minStock;
+        const isOutOfStock = product.hasVariants
+          ? (product.variantSKUs?.filter((s) => s.isActive) ?? []).every((s) => s.stock === 0)
+          : product.stock === 0;
+        const isLowStock = !isOutOfStock && !product.hasVariants && product.stock <= product.minStock;
+
+        // Harga display
+        const displayPrice = product.hasVariants && product.variantSKUs && product.variantSKUs.length > 0
+          ? Math.min(...product.variantSKUs.filter((s) => s.isActive).map((s) => s.price))
+          : product.sellPrice;
+        const hasMultiplePrices = product.hasVariants && product.variantSKUs
+          ? new Set(product.variantSKUs.filter((s) => s.isActive).map((s) => s.price)).size > 1
+          : false;
 
         return (
           <button
@@ -106,20 +137,27 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
                   isOutOfStock ? "text-gray-400" : "text-blue-600"
                 )}
               >
-                {formatCurrency(product.sellPrice)}
+                {hasMultiplePrices ? `Mulai ` : ""}{formatCurrency(displayPrice)}
               </p>
-              <span
-                className={cn(
-                  "text-xs px-1.5 py-0.5 rounded-full font-medium",
-                  isOutOfStock
-                    ? "bg-red-100 text-red-700"
-                    : isLowStock
-                    ? "bg-orange-100 text-orange-700"
-                    : "bg-green-100 text-green-700"
-                )}
-              >
-                {product.stock}
-              </span>
+              {product.hasVariants ? (
+                <span className="text-xs px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 flex items-center gap-0.5">
+                  <Layers className="w-2.5 h-2.5" />
+                  Varian
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    "text-xs px-1.5 py-0.5 rounded-full font-medium",
+                    isOutOfStock
+                      ? "bg-red-100 text-red-700"
+                      : isLowStock
+                      ? "bg-orange-100 text-orange-700"
+                      : "bg-green-100 text-green-700"
+                  )}
+                >
+                  {product.stock}
+                </span>
+              )}
             </div>
 
             {/* Add button overlay — hanya tampil kalau ada stok */}
@@ -127,10 +165,11 @@ export function ProductGrid({ products, onAddProduct }: ProductGridProps) {
               <div
                 className={cn(
                   "mt-2 flex items-center justify-center w-full text-white text-xs py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity",
-                  isLowStock ? "bg-orange-500" : "bg-blue-600"
+                  isLowStock ? "bg-orange-500" : product.hasVariants ? "bg-purple-600" : "bg-blue-600"
                 )}
               >
-                <Plus className="w-3 h-3 mr-1" /> Tambah
+                <Plus className="w-3 h-3 mr-1" />
+                {product.hasVariants ? "Pilih Varian" : "Tambah"}
               </div>
             )}
 

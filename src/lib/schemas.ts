@@ -70,6 +70,8 @@ const transactionItemSchema = z.object({
   unitPrice: z.number().nonnegative("Harga satuan tidak boleh negatif."),
   discount: z.number().nonnegative("Diskon tidak boleh negatif.").default(0),
   subtotal: z.number().nonnegative("Subtotal tidak boleh negatif."),
+  // Varian (opsional)
+  variantSkuId: z.string().cuid().optional().nullable(),
 });
 
 export const createTransactionSchema = z.object({

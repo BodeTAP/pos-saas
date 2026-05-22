@@ -30,9 +30,9 @@ interface PaymentModalProps {
   } | null;
   customerId?: string;
   pointsRedeemed?: number;
-  cartItems: Array<{ productId: string; quantity: number }>;
+  cartItems: Array<{ productId: string; quantity: number; variantSkuId?: string | null }>;
   onClose: () => void;
-  onSuccess: (soldItems: Array<{ productId: string; quantity: number }>) => void;
+  onSuccess: (soldItems: Array<{ productId: string; quantity: number; variantSkuId?: string | null }>) => void;
 }
 
 type PaymentMethod = "CASH" | "QRIS" | "TRANSFER" | "CARD";
@@ -104,7 +104,7 @@ export function PaymentModal({
   const [showReceipt, setShowReceipt] = useState(false);
   // Simpan item yang terjual untuk diteruskan ke onSuccess
   const [soldItems] = useState(() =>
-    cartItems.map((i) => ({ productId: i.productId, quantity: i.quantity }))
+    cartItems.map((i) => ({ productId: i.productId, quantity: i.quantity, variantSkuId: i.variantSkuId ?? null }))
   );
 
   const paid = parseFloat(amountPaid) || 0;
@@ -138,6 +138,7 @@ export function PaymentModal({
             unitPrice: i.price,
             discount: i.discount,
             subtotal: i.subtotal,
+            variantSkuId: i.variantSkuId ?? null,
           })),
           subtotal,
           discount: discountAmount,
@@ -212,6 +213,7 @@ export function PaymentModal({
               unitPrice: i.price,
               discount: i.discount,
               subtotal: i.subtotal,
+              variantSkuId: i.variantSkuId ?? null,
             })),
             subtotal,
             discount: discountAmount,

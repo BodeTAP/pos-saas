@@ -159,6 +159,7 @@ model Tenant {
   customers     Customer[]
   outlets       Outlet[]
   cashierShifts CashierShift[]
+  stockMutationVariants StockMutationVariant[]
 
   @@map("tenants")
 }
@@ -187,6 +188,8 @@ model Outlet {
   outletStocks   OutletStock[]
   stockMutations StockMutation[]
   cashierShifts  CashierShift[]
+  outletStockVariants OutletStockVariant[]
+  stockMutationVariants StockMutationVariant[]
 
   @@index([tenantId])
   @@map("outlets")
@@ -322,12 +325,15 @@ model Product {
   description String?
   imageUrl    String?
 
-  buyPrice  Float @default(0) // Harga beli
-  sellPrice Float             // Harga jual
+  buyPrice  Float @default(0) // Harga beli (base)
+  sellPrice Float             // Harga jual (base)
 
   stock    Int @default(0)
   minStock Int @default(5)  // Threshold low stock alert
   unit     String @default("pcs")
+
+  // Varian produk
+  hasVariants Boolean @default(false) // true = stok & harga dikelola per SKU varian
 
   isActive Boolean @default(true)
 
@@ -343,11 +349,136 @@ model Product {
   transactionItems TransactionItem[]
   stockMutations   StockMutation[]
   outletStocks     OutletStock[]
+  variantTypes     ProductVariantType[]
+  variantSKUs      ProductVariantSKU[]
 
   @@unique([sku, tenantId])
   @@index([tenantId])
   @@index([barcode])
   @@map("products")
+}
+
+// ─────────────────────────────────────────────
+// VARIAN PRODUK
+// ─────────────────────────────────────────────
+
+// Tipe varian: "Ukuran", "Warna", "Rasa", dll
+model ProductVariantType {
+  id        String  @id @default(cuid())
+  name      String  // e.g. "Ukuran", "Warna"
+  position  Int     @default(0) // urutan tampil
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  options   ProductVariantOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("product_variant_types")
+}
+
+// Opsi per tipe: "S", "M", "L" atau "Merah", "Biru"
+model ProductVariantOption {
+  id   String @id @default(cuid())
+  name String // e.g. "S", "M", "L"
+
+  variantTypeId String
+  variantType   ProductVariantType @relation(fields: [variantTypeId], references: [id], onDelete: Cascade)
+
+  // Relasi ke SKU kombinasi
+  skuOptions ProductVariantSKUOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([variantTypeId])
+  @@map("product_variant_options")
+}
+
+// SKU = kombinasi unik dari semua tipe varian
+// Contoh: Kaos S+Merah, Kaos S+Biru, Kaos M+Merah, dst
+model ProductVariantSKU {
+  id          String  @id @default(cuid())
+  sku         String? // SKU spesifik varian ini (auto-generate atau manual)
+  barcode     String?
+  imageUrl    String? // Gambar opsional per SKU
+  price       Float   // Harga jual final (bukan delta, langsung harga penuh)
+  buyPrice    Float   @default(0)
+  isActive    Boolean @default(true)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Kombinasi opsi yang membentuk SKU ini
+  options        ProductVariantSKUOption[]
+  outletStocks   OutletStockVariant[]
+  stockMutations StockMutationVariant[]
+  transactionItems TransactionItem[]
+
+  @@index([productId])
+  @@map("product_variant_skus")
+}
+
+// Junction: SKU ↔ VariantOption (many-to-many)
+model ProductVariantSKUOption {
+  skuId    String
+  sku      ProductVariantSKU    @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  optionId String
+  option   ProductVariantOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([skuId, optionId])
+  @@map("product_variant_sku_options")
+}
+
+// Stok per SKU per outlet
+model OutletStockVariant {
+  id       String @id @default(cuid())
+  stock    Int    @default(0)
+  minStock Int    @default(5)
+
+  outletId String
+  outlet   Outlet            @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  skuId    String
+  sku      ProductVariantSKU @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  tenantId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([outletId, skuId])
+  @@index([tenantId])
+  @@index([skuId])
+  @@map("outlet_stock_variants")
+}
+
+// Mutasi stok per SKU varian
+model StockMutationVariant {
+  id          String            @id @default(cuid())
+  type        StockMutationType
+  quantity    Int
+  stockBefore Int
+  stockAfter  Int
+  note        String?
+
+  tenantId String
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  skuId    String
+  sku      ProductVariantSKU @relation(fields: [skuId], references: [id])
+  outletId String
+  outlet   Outlet            @relation(fields: [outletId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([skuId])
+  @@index([outletId])
+  @@map("stock_mutation_variants")
 }
 
 // ─────────────────────────────────────────────
@@ -429,8 +560,13 @@ model TransactionItem {
   productId     String
   product       Product     @relation(fields: [productId], references: [id])
 
-  productName  String // Snapshot nama produk
+  productName  String  // Snapshot nama produk
   productSku   String? // Snapshot SKU
+
+  // Varian (null jika produk tidak punya varian)
+  variantSkuId   String?
+  variantSku     ProductVariantSKU? @relation(fields: [variantSkuId], references: [id])
+  variantLabel   String? // Snapshot label varian, e.g. "M / Merah"
 
   @@map("transaction_items")
 }

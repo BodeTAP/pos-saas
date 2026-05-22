@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     const productIds = [...new Set(items.map((item) => item.productId))];
     const ownedProducts = await prisma.product.findMany({
       where: { id: { in: productIds }, tenantId, isActive: true },
-      select: { id: true, name: true, sku: true, sellPrice: true },
+      select: { id: true, name: true, sku: true, sellPrice: true, hasVariants: true },
     });
     if (ownedProducts.length !== productIds.length) {
       return NextResponse.json(
@@ -139,10 +139,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validasi variant SKUs jika ada
+    const variantSkuIds = items
+      .map((i) => i.variantSkuId)
+      .filter(Boolean) as string[];
+
+    const variantSkusById = new Map<string, { id: string; price: number; sku: string | null; productId: string }>();
+    if (variantSkuIds.length > 0) {
+      const variantSkus = await prisma.productVariantSKU.findMany({
+        where: { id: { in: variantSkuIds }, productId: { in: productIds }, isActive: true },
+        select: { id: true, price: true, sku: true, productId: true },
+      });
+      variantSkus.forEach((vs) => variantSkusById.set(vs.id, vs));
+    }
+
     const productsById = new Map(ownedProducts.map((product) => [product.id, product]));
     const invalidDiscountItem = items.find((item) => {
       const product = productsById.get(item.productId)!;
-      return (item.discount ?? 0) > product.sellPrice * item.quantity;
+      const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
+      const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+      return (item.discount ?? 0) > unitPrice * item.quantity;
     });
     if (invalidDiscountItem) {
       const product = productsById.get(invalidDiscountItem.productId)!;
@@ -152,19 +168,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Ambil label varian untuk snapshot
+    const variantLabels = new Map<string, string>();
+    if (variantSkuIds.length > 0) {
+      const skusWithOptions = await prisma.productVariantSKU.findMany({
+        where: { id: { in: variantSkuIds } },
+        include: {
+          options: {
+            include: { option: { include: { variantType: true } } },
+          },
+        },
+      });
+      skusWithOptions.forEach((sku) => {
+        const label = sku.options
+          .sort((a, b) => a.option.variantType.position - b.option.variantType.position)
+          .map((o) => o.option.name)
+          .join(" / ");
+        variantLabels.set(sku.id, label);
+      });
+    }
+
     const transactionItems = items.map((item) => {
       const product = productsById.get(item.productId)!;
-      const itemGross = product.sellPrice * item.quantity;
+      const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
+      const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+      const itemGross = unitPrice * item.quantity;
       const itemDiscount = item.discount ?? 0;
 
       return {
         productId: product.id,
         productName: product.name,
-        productSku: product.sku,
+        productSku: variantSku?.sku ?? product.sku,
         quantity: item.quantity,
-        unitPrice: product.sellPrice,
+        unitPrice,
         discount: itemDiscount,
         subtotal: itemGross - itemDiscount,
+        variantSkuId: item.variantSkuId ?? null,
+        variantLabel: item.variantSkuId ? (variantLabels.get(item.variantSkuId) ?? null) : null,
       };
     });
 
@@ -231,6 +271,8 @@ export async function POST(req: NextRequest) {
                 unitPrice: item.unitPrice,
                 discount: item.discount ?? 0,
                 subtotal: item.subtotal,
+                variantSkuId: item.variantSkuId || null,
+                variantLabel: item.variantLabel || null,
               })
             ),
           },
@@ -240,41 +282,76 @@ export async function POST(req: NextRequest) {
 
       // FIX 1: Atomic stock deduction — fails if stock insufficient
       for (const item of transactionItems) {
-        const updated = await tx.outletStock.updateMany({
-          where: {
-            outletId: activeOutletId,
-            productId: item.productId,
-            stock: { gte: item.quantity },
-          },
-          data: { stock: { decrement: item.quantity } },
-        });
+        if (item.variantSkuId) {
+          // Deduct dari OutletStockVariant
+          const updated = await tx.outletStockVariant.updateMany({
+            where: {
+              outletId: activeOutletId,
+              skuId: item.variantSkuId,
+              stock: { gte: item.quantity },
+            },
+            data: { stock: { decrement: item.quantity } },
+          });
 
-        if (updated.count === 0) {
-          throw new Error(`Stok ${item.productName} tidak cukup saat transaksi diproses.`);
+          if (updated.count === 0) {
+            throw new Error(`Stok ${item.productName} (${item.variantLabel}) tidak cukup saat transaksi diproses.`);
+          }
+
+          const updatedStock = await tx.outletStockVariant.findUnique({
+            where: { outletId_skuId: { outletId: activeOutletId, skuId: item.variantSkuId } },
+            select: { stock: true },
+          });
+          const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
+
+          await tx.stockMutationVariant.create({
+            data: {
+              type: "SALE",
+              quantity: -item.quantity,
+              stockBefore,
+              stockAfter: updatedStock?.stock ?? 0,
+              note: `Penjualan - ${invoiceNumber}`,
+              tenantId,
+              skuId: item.variantSkuId,
+              outletId: activeOutletId,
+            },
+          });
+        } else {
+          // Deduct dari OutletStock biasa
+          const updated = await tx.outletStock.updateMany({
+            where: {
+              outletId: activeOutletId,
+              productId: item.productId,
+              stock: { gte: item.quantity },
+            },
+            data: { stock: { decrement: item.quantity } },
+          });
+
+          if (updated.count === 0) {
+            throw new Error(`Stok ${item.productName} tidak cukup saat transaksi diproses.`);
+          }
+
+          const updatedStock = await tx.outletStock.findUnique({
+            where: {
+              outletId_productId: { outletId: activeOutletId, productId: item.productId },
+            },
+            select: { stock: true },
+          });
+          const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
+          const stockAfter = updatedStock?.stock ?? 0;
+
+          await tx.stockMutation.create({
+            data: {
+              type: "SALE",
+              quantity: -item.quantity,
+              stockBefore,
+              stockAfter,
+              note: `Penjualan - ${invoiceNumber}`,
+              tenantId,
+              productId: item.productId,
+              outletId: activeOutletId,
+            },
+          });
         }
-
-        // Get updated stock for mutation log
-        const updatedStock = await tx.outletStock.findUnique({
-          where: {
-            outletId_productId: { outletId: activeOutletId, productId: item.productId },
-          },
-          select: { stock: true },
-        });
-        const stockBefore = (updatedStock?.stock ?? 0) + item.quantity;
-        const stockAfter = updatedStock?.stock ?? 0;
-
-        await tx.stockMutation.create({
-          data: {
-            type: "SALE",
-            quantity: -item.quantity,
-            stockBefore,
-            stockAfter,
-            note: `Penjualan - ${invoiceNumber}`,
-            tenantId,
-            productId: item.productId,
-            outletId: activeOutletId,
-          },
-        });
       }
 
       // Update poin pelanggan dan cek redeem secara atomik.

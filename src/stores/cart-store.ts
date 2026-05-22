@@ -2,14 +2,16 @@ import { create } from "zustand";
 
 export interface CartItem {
   productId: string;
+  variantSkuId?: string | null;  // null = produk tanpa varian
+  variantLabel?: string | null;  // e.g. "M / Merah"
   name: string;
   sku?: string;
   price: number;
   quantity: number;
   discount: number;
   subtotal: number;
-  stock?: number;    // stok tersedia di outlet aktif
-  minStock?: number; // batas minimum stok
+  stock?: number;
+  minStock?: number;
 }
 
 export interface CartCustomer {
@@ -33,9 +35,9 @@ interface CartState {
 
   // Actions
   addItem: (item: Omit<CartItem, "subtotal">) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  updateItemDiscount: (productId: string, discount: number) => void;
-  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number, variantSkuId?: string | null) => void;
+  updateItemDiscount: (productId: string, discount: number, variantSkuId?: string | null) => void;
+  removeItem: (productId: string, variantSkuId?: string | null) => void;
   setDiscountPct: (pct: number) => void;
   setDiscountNominal: (nominal: number) => void;
   setTaxPct: (pct: number) => void;
@@ -61,20 +63,22 @@ export const useCartStore = create<CartState>((set) => ({
 
   addItem: (newItem) => {
     set((state) => {
-      const existing = state.items.find((i) => i.productId === newItem.productId);
+      // Key unik: productId + variantSkuId (null untuk produk tanpa varian)
+      const itemKey = `${newItem.productId}:${newItem.variantSkuId ?? ""}`;
+      const existing = state.items.find(
+        (i) => `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
+      );
       if (existing) {
-        const updatedItems = state.items.map((i) =>
-          i.productId === newItem.productId
-            ? {
-                ...i,
-                quantity: i.quantity + newItem.quantity,
-                subtotal: (i.quantity + newItem.quantity) * i.price - i.discount,
-                // Update stock info jika ada
-                stock: newItem.stock ?? i.stock,
-                minStock: newItem.minStock ?? i.minStock,
-              }
-            : i
-        );
+        const updatedItems = state.items.map((i) => {
+          if (`${i.productId}:${i.variantSkuId ?? ""}` !== itemKey) return i;
+          return {
+            ...i,
+            quantity: i.quantity + newItem.quantity,
+            subtotal: (i.quantity + newItem.quantity) * i.price - i.discount,
+            stock: newItem.stock ?? i.stock,
+            minStock: newItem.minStock ?? i.minStock,
+          };
+        });
         return { items: updatedItems };
       }
       const item: CartItem = {
@@ -85,35 +89,38 @@ export const useCartStore = create<CartState>((set) => ({
     });
   },
 
-  updateQuantity: (productId, quantity) => {
+  updateQuantity: (productId, quantity, variantSkuId) => {
+    const itemKey = `${productId}:${variantSkuId ?? ""}`;
     if (quantity <= 0) {
       set((state) => ({
-        items: state.items.filter((i) => i.productId !== productId),
+        items: state.items.filter((i) => `${i.productId}:${i.variantSkuId ?? ""}` !== itemKey),
       }));
       return;
     }
     set((state) => ({
       items: state.items.map((i) =>
-        i.productId === productId
+        `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
           ? { ...i, quantity, subtotal: quantity * i.price - i.discount }
           : i
       ),
     }));
   },
 
-  updateItemDiscount: (productId, discount) => {
+  updateItemDiscount: (productId, discount, variantSkuId) => {
+    const itemKey = `${productId}:${variantSkuId ?? ""}`;
     set((state) => ({
       items: state.items.map((i) =>
-        i.productId === productId
+        `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
           ? { ...i, discount, subtotal: i.quantity * i.price - discount }
           : i
       ),
     }));
   },
 
-  removeItem: (productId) => {
+  removeItem: (productId, variantSkuId) => {
+    const itemKey = `${productId}:${variantSkuId ?? ""}`;
     set((state) => ({
-      items: state.items.filter((i) => i.productId !== productId),
+      items: state.items.filter((i) => `${i.productId}:${i.variantSkuId ?? ""}` !== itemKey),
     }));
   },
 

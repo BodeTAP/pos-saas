@@ -13,8 +13,30 @@ import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
 import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
+import { VariantPickerModal } from "./variant-picker-modal";
 
-type ProductWithCategory = Product & { category: Category | null };
+type ProductWithCategory = Product & {
+  category: Category | null;
+  hasVariants?: boolean;
+  variantTypes?: Array<{
+    id: string;
+    name: string;
+    position: number;
+    options: Array<{ id: string; name: string }>;
+  }>;
+  variantSKUs?: Array<{
+    id: string;
+    sku: string | null;
+    price: number;
+    buyPrice: number;
+    imageUrl: string | null;
+    isActive: boolean;
+    stock: number;
+    minStock: number;
+    label: string;
+    optionIds: string[];
+  }>;
+};
 
 interface POSInterfaceProps {
   products: ProductWithCategory[];
@@ -64,6 +86,9 @@ export function POSInterface({
   // State produk lokal — bisa diupdate setelah transaksi tanpa full page refresh
   const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
 
+  // State untuk variant picker
+  const [variantProduct, setVariantProduct] = useState<ProductWithCategory | null>(null);
+
   // Sync data ke IndexedDB saat online (untuk offline support)
   const { sync: forceSync } = useOfflineSync({
     onSynced: () => {
@@ -89,6 +114,12 @@ export function POSInterface({
 
   const handleAddProduct = useCallback(
     (product: ProductWithCategory) => {
+      // Produk dengan varian → buka picker dulu
+      if (product.hasVariants && product.variantSKUs && product.variantSKUs.length > 0) {
+        setVariantProduct(product);
+        return;
+      }
+      // Produk biasa → langsung tambah ke keranjang
       cart.addItem({
         productId: product.id,
         name: product.name,
@@ -103,18 +134,63 @@ export function POSInterface({
     [cart]
   );
 
+  const handleVariantConfirm = useCallback(
+    (params: {
+      productId: string;
+      variantSkuId: string;
+      variantLabel: string;
+      price: number;
+      stock: number;
+      minStock: number;
+      sku: string | null;
+    }) => {
+      const product = products.find((p) => p.id === params.productId);
+      if (!product) return;
+      cart.addItem({
+        productId: params.productId,
+        variantSkuId: params.variantSkuId,
+        variantLabel: params.variantLabel,
+        name: `${product.name}`,
+        sku: params.sku ?? undefined,
+        price: params.price,
+        quantity: 1,
+        discount: 0,
+        stock: params.stock,
+        minStock: params.minStock,
+      });
+      setVariantProduct(null);
+    },
+    [cart, products]
+  );
+
   /**
    * Kurangi stok produk di state lokal setelah transaksi berhasil.
    * Dipanggil dari PaymentModal dengan daftar item yang terjual.
    */
   const handleTransactionSuccess = useCallback(
-    (soldItems: Array<{ productId: string; quantity: number }>) => {
+    (soldItems: Array<{ productId: string; quantity: number; variantSkuId?: string | null }>) => {
       setProducts((prev) =>
         prev.map((p) => {
-          const sold = soldItems.find((i) => i.productId === p.id);
-          if (!sold) return p;
-          const newStock = Math.max(0, p.stock - sold.quantity);
-          return { ...p, stock: newStock };
+          // Update stok produk biasa
+          const sold = soldItems.find((i) => i.productId === p.id && !i.variantSkuId);
+          if (sold) {
+            const newStock = Math.max(0, p.stock - sold.quantity);
+            return { ...p, stock: newStock };
+          }
+          // Update stok varian
+          if (p.hasVariants && p.variantSKUs) {
+            const variantSoldItems = soldItems.filter(
+              (i) => i.productId === p.id && i.variantSkuId
+            );
+            if (variantSoldItems.length === 0) return p;
+            const updatedSKUs = p.variantSKUs.map((sku) => {
+              const soldVariant = variantSoldItems.find((i) => i.variantSkuId === sku.id);
+              if (!soldVariant) return sku;
+              return { ...sku, stock: Math.max(0, sku.stock - soldVariant.quantity) };
+            });
+            return { ...p, variantSKUs: updatedSKUs };
+          }
+          return p;
         })
       );
       cart.clearCart();
@@ -320,8 +396,7 @@ export function POSInterface({
           pointsRedeemed={cart.pointsToRedeem}
           cartItems={cart.items}
           onClose={() => setShowPayment(false)}
-          onSuccess={handleTransactionSuccess}
-        />
+          onSuccess={handleTransactionSuccess}        />
       )}
 
       {showHeld && (
@@ -335,6 +410,15 @@ export function POSInterface({
         <ShiftModal
           onClose={() => setShowShift(false)}
           onShiftChange={() => setShowShift(false)}
+        />
+      )}
+
+      {/* Variant Picker Modal */}
+      {variantProduct && (
+        <VariantPickerModal
+          product={variantProduct as Parameters<typeof VariantPickerModal>[0]["product"]}
+          onClose={() => setVariantProduct(null)}
+          onConfirm={handleVariantConfirm}
         />
       )}
 

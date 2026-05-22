@@ -103,12 +103,17 @@ export function CartPanel({
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {item.name}
                     </p>
+                    {item.variantLabel && (
+                      <p className="text-xs text-blue-600 font-medium mt-0.5">
+                        {item.variantLabel}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500">
                       {formatCurrency(item.price)} / pcs
                     </p>
                   </div>
                   <button
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => removeItem(item.productId, item.variantSkuId)}
                     className="text-red-400 hover:text-red-600 p-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -117,7 +122,7 @@ export function CartPanel({
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                      onClick={() => updateQuantity(item.productId, item.quantity - 1, item.variantSkuId)}
                       className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
                     >
                       <Minus className="w-3 h-3" />
@@ -126,7 +131,7 @@ export function CartPanel({
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1, item.variantSkuId)}
                       className="w-6 h-6 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center"
                     >
                       <Plus className="w-3 h-3 text-blue-600" />
@@ -164,7 +169,7 @@ export function CartPanel({
                         parseFloat(e.target.value) || 0,
                         item.price * item.quantity
                       );
-                      updateItemDiscount(item.productId, val);
+                      updateItemDiscount(item.productId, val, item.variantSkuId);
                     }}
                     placeholder="0"
                     className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"

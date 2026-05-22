@@ -573,6 +573,18 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - **PWA install prompt** — prompt install ke homescreen (Android native + instruksi iOS)
 - **API offline** — `/api/offline/sync-data`, `/api/offline/sync-transactions`, `/api/offline/set-pin`
 
+### ✅ Fase 7 — Varian Produk (SKU Matrix)
+- **Schema baru**: `ProductVariantType`, `ProductVariantOption`, `ProductVariantSKU`, `OutletStockVariant`, `StockMutationVariant`
+- Satu produk bisa punya banyak tipe varian (Ukuran, Warna, Rasa, dll)
+- Setiap kombinasi opsi = 1 SKU dengan harga, stok, barcode, dan gambar sendiri
+- **Variant Picker Modal** di POS — kasir pilih kombinasi varian sebelum tambah ke keranjang
+- Badge "Varian" + harga mulai di grid produk POS
+- Label varian tampil di keranjang (e.g. "M / Merah")
+- Stok per SKU per outlet, atomic deduction saat transaksi
+- Snapshot `variantLabel` di `TransactionItem` untuk riwayat transaksi
+- API `GET/POST/DELETE /api/products/[id]/variants`
+- Backward compatible — produk lama tanpa varian tetap berjalan normal
+
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
 - Reset password (butuh email service)

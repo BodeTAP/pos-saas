@@ -27,6 +27,21 @@ export async function GET() {
         include: {
           category: { select: { name: true } },
           outletStocks: { where: { outletId }, take: 1 },
+          variantTypes: {
+            include: {
+              options: { orderBy: { createdAt: "asc" } },
+            },
+            orderBy: { position: "asc" },
+          },
+          variantSKUs: {
+            where: { isActive: true },
+            include: {
+              options: {
+                include: { option: { include: { variantType: true } } },
+              },
+              outletStocks: { where: { outletId }, take: 1 },
+            },
+          },
         },
         orderBy: { name: "asc" },
       }),
@@ -58,9 +73,27 @@ export async function GET() {
       }),
     ]);
 
-    // Transform produk — sertakan stok dari outlet aktif
+    // Transform produk — sertakan stok dari outlet aktif + varian
     const products = productsRaw.map((p) => {
       const outletStock = p.outletStocks[0];
+
+      // Transform variant SKUs
+      const variantSKUs = p.variantSKUs.map((sku) => ({
+        id: sku.id,
+        sku: sku.sku,
+        price: sku.price,
+        buyPrice: sku.buyPrice,
+        imageUrl: sku.imageUrl,
+        isActive: sku.isActive,
+        stock: sku.outletStocks[0]?.stock ?? 0,
+        minStock: sku.outletStocks[0]?.minStock ?? 5,
+        label: sku.options
+          .sort((a, b) => a.option.variantType.position - b.option.variantType.position)
+          .map((o) => o.option.name)
+          .join(" / "),
+        optionIds: sku.options.map((o) => o.optionId),
+      }));
+
       return {
         id: p.id,
         name: p.name,
@@ -74,6 +107,14 @@ export async function GET() {
         isActive: p.isActive,
         categoryId: p.categoryId,
         categoryName: p.category?.name ?? null,
+        hasVariants: p.hasVariants,
+        variantTypes: p.variantTypes.map((vt) => ({
+          id: vt.id,
+          name: vt.name,
+          position: vt.position,
+          options: vt.options.map((opt) => ({ id: opt.id, name: opt.name })),
+        })),
+        variantSKUs,
       };
     });
 

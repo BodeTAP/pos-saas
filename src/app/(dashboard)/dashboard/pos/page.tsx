@@ -24,25 +24,54 @@ export default async function POSPage() {
     );
   }
 
-  // Ambil produk dengan stok di outlet aktif
+  // Ambil produk dengan stok di outlet aktif + varian
   const productsRaw = await prisma.product.findMany({
     where: { tenantId: session.user.tenantId, isActive: true },
     include: {
       category: true,
       outletStocks: { where: { outletId }, take: 1 },
+      variantTypes: {
+        include: { options: { orderBy: { createdAt: "asc" } } },
+        orderBy: { position: "asc" },
+      },
+      variantSKUs: {
+        where: { isActive: true },
+        include: {
+          options: {
+            include: { option: { include: { variantType: true } } },
+          },
+          outletStocks: { where: { outletId }, take: 1 },
+        },
+      },
     },
     orderBy: { name: "asc" },
   });
 
-  // Tampilkan semua produk aktif — termasuk stok 0 (disabled di grid)
-  // agar kasir tahu produk mana yang habis
+  // Transform produk
   const products = productsRaw.map((p) => {
     const outletStock = p.outletStocks[0];
+    const variantSKUs = p.variantSKUs.map((sku) => ({
+      id: sku.id,
+      sku: sku.sku,
+      price: sku.price,
+      buyPrice: sku.buyPrice,
+      imageUrl: sku.imageUrl,
+      isActive: sku.isActive,
+      stock: sku.outletStocks[0]?.stock ?? 0,
+      minStock: sku.outletStocks[0]?.minStock ?? 5,
+      label: sku.options
+        .sort((a, b) => a.option.variantType.position - b.option.variantType.position)
+        .map((o) => o.option.name)
+        .join(" / "),
+      optionIds: sku.options.map((o) => o.optionId),
+    }));
+
     return {
       ...p,
       stock: outletStock?.stock ?? 0,
       minStock: outletStock?.minStock ?? p.minStock,
       outletStocks: undefined,
+      variantSKUs,
     };
   });
 
