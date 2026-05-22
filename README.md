@@ -21,6 +21,8 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 | Toast | Sonner |
 | Validation | Zod |
 | Email | Resend |
+| Offline Storage | Dexie.js (IndexedDB) |
+| PWA | Service Worker manual |
 
 ---
 
@@ -99,8 +101,7 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Badge status sync di toolbar POS (pending/gagal/tersinkron)
 - Auto-sync saat koneksi kembali online
 
-
-- CRUD pelanggan (nama, telepon, email)
+### 👤 Loyalitas Pelanggan
 - Sistem poin: dikonfigurasi per toko (default: 1 poin per Rp 10.000)
 - Redeem poin: dikonfigurasi per toko (default: 1 poin = Rp 100 diskon)
 - Pilih pelanggan langsung dari POS
@@ -210,6 +211,7 @@ src/
 │   ├── staff/               # Staff Form Modal
 │   ├── billing/             # Checkout Modal
 │   ├── transactions/        # Refund Modal
+│   ├── pwa/                 # PWA: OfflineIndicator, SyncStatus, PinModal, ConflictModal
 │   ├── super-admin/         # Super Admin components
 │   └── ui/                  # Shared: Toaster, Pagination, ImageUpload, NoTenant
 ├── lib/
@@ -230,8 +232,17 @@ src/
 │   └── utils.ts             # Helper functions
 ├── stores/
 │   └── cart-store.ts        # Zustand cart state
+├── hooks/
+│   ├── use-offline-sync.ts  # Sync produk+config ke IndexedDB
+│   └── use-offline-queue.ts # Manage offline transaction queue
 └── types/
     └── next-auth.d.ts       # NextAuth type extensions
+
+public/
+├── manifest.json            # PWA manifest
+├── sw.js                    # Service Worker manual
+├── offline.html             # Halaman fallback saat offline
+└── icons/                   # PWA icons (SVG, semua ukuran)
 ```
 
 ---
@@ -257,6 +268,9 @@ DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="your-secret-key-min-32-chars"
+# Diperlukan untuk npm start (production build lokal)
+AUTH_URL="http://localhost:3000"
+AUTH_TRUST_HOST=true
 
 # Tripay Payment Gateway
 TRIPAY_API_KEY="your-api-key"
@@ -564,7 +578,10 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Reset password (butuh email service)
 - Rate limiting endpoint
 - Audit log aktivitas
-- Offline mode / PWA
+- Varian produk (ukuran/warna/rasa)
+- Purchase order / penerimaan barang dari supplier
+- Promo rule otomatis (beli N gratis 1, diskon jika total > X)
+- Customer display (layar pelanggan)
 
 ---
 
