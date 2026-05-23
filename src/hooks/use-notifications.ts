@@ -18,7 +18,7 @@ interface UseNotificationsReturn {
   isLoading: boolean;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const POLL_INTERVAL_MS = 30_000; // 30 detik
@@ -49,6 +49,7 @@ export function useNotifications(): UseNotificationsReturn {
 
   // Initial fetch
   useEffect(() => {
+    // Reset mounted flag setiap kali effect berjalan (termasuk re-mount)
     mountedRef.current = true;
     setIsLoading(true);
     fetchNotifications().finally(() => {
@@ -60,7 +61,10 @@ export function useNotifications(): UseNotificationsReturn {
 
     return () => {
       mountedRef.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [fetchNotifications]);
 

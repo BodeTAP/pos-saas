@@ -86,7 +86,7 @@ export function notifyLowStock(
       title: isOut ? `Stok Habis: ${item.productName}` : `Stok Menipis: ${item.productName}`,
       message: isOut
         ? `Stok ${item.productName} di ${item.outletName} sudah habis.`
-        : `Stok ${item.productName} di ${item.outletName} tersisa ${item.stock} ${item.stock === 1 ? "unit" : "unit"} (min: ${item.minStock}).`,
+        : `Stok ${item.productName} di ${item.outletName} tersisa ${item.stock} unit (min: ${item.minStock}).`,
       link: "/dashboard/inventory",
     });
   }

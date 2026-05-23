@@ -40,17 +40,18 @@ function timeAgo(dateStr: string): string {
 function NotificationItem({
   notification,
   onRead,
+  onNavigate,
 }: {
   notification: AppNotification;
   onRead: (id: string) => void;
+  onNavigate: (link: string) => void;
 }) {
-  const router = useRouter();
   const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.SYSTEM;
   const Icon = config.icon;
 
   function handleClick() {
     if (!notification.isRead) onRead(notification.id);
-    if (notification.link) router.push(notification.link);
+    if (notification.link) onNavigate(notification.link);
   }
 
   return (
@@ -65,7 +66,7 @@ function NotificationItem({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm font-medium text-gray-900 leading-tight ${!notification.isRead ? "font-semibold" : ""}`}>
+          <p className={`text-sm leading-tight text-gray-900 ${!notification.isRead ? "font-semibold" : "font-medium"}`}>
             {notification.title}
           </p>
           {!notification.isRead && (
@@ -80,6 +81,7 @@ function NotificationItem({
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } = useNotifications();
@@ -113,7 +115,7 @@ export function NotificationBell() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-2">
@@ -162,8 +164,10 @@ export function NotificationBell() {
                   <NotificationItem
                     key={n.id}
                     notification={n}
-                    onRead={(id) => {
-                      markAsRead(id);
+                    onRead={markAsRead}
+                    onNavigate={(link) => {
+                      setOpen(false);
+                      router.push(link);
                     }}
                   />
                 ))}

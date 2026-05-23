@@ -404,35 +404,39 @@ export async function POST(req: NextRequest) {
         where: { id: activeOutletId },
         select: { name: true },
       });
+      const cashierName = session.user.name ?? "Kasir";
       createNotification({
         tenantId,
         type: "NEW_TRANSACTION",
         title: "Transaksi Baru",
-        message: `${session.user.name} menyelesaikan transaksi ${transaction.invoiceNumber} senilai Rp ${transaction.total.toLocaleString("id-ID")} di ${outlet?.name ?? "cabang"}.`,
+        message: `${cashierName} menyelesaikan transaksi ${transaction.invoiceNumber} senilai Rp ${transaction.total.toLocaleString("id-ID")} di ${outlet?.name ?? "cabang"}.`,
         link: "/dashboard/transactions",
       });
     }
 
     // Notifikasi stok menipis/habis setelah transaksi
-    // Cek stok produk yang baru saja dijual
+    // Cek stok produk yang baru saja dijual (hanya produk non-varian)
     const soldProductIds = transactionItems
       .filter((i) => !i.variantSkuId)
       .map((i) => i.productId);
 
     if (soldProductIds.length > 0) {
-      const lowStockItems = await prisma.outletStock.findMany({
+      // Ambil stok produk yang dijual, filter di JS karena Prisma tidak support
+      // column-to-column comparison (stock <= minStock) di where clause
+      const stockItems = await prisma.outletStock.findMany({
         where: {
           outletId: activeOutletId,
           productId: { in: soldProductIds },
-          // Stok <= minStock (termasuk 0)
         },
-        include: {
+        select: {
+          stock: true,
+          minStock: true,
           product: { select: { name: true } },
           outlet: { select: { name: true } },
         },
       });
 
-      const lowItems = lowStockItems
+      const lowItems = stockItems
         .filter((s) => s.stock <= s.minStock)
         .map((s) => ({
           productName: s.product.name,
