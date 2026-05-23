@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Category, Product } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 import {
   Plus, Search, Edit, Trash2, AlertTriangle, Package, Store,
 } from "lucide-react";
@@ -57,11 +58,23 @@ export function ProductsClient({
 
   async function handleDelete(id: string) {
     if (!confirm("Nonaktifkan produk ini?")) return;
+
+    // Optimistic update — langsung tandai inactive
+    const original = products.find((p) => p.id === id);
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isActive: false } : p))
+    );
+
     const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setProducts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, isActive: false } : p))
-      );
+      toast.success("Produk berhasil dinonaktifkan.");
+    } else {
+      // Rollback
+      if (original) {
+        setProducts((prev) => prev.map((p) => (p.id === id ? original : p)));
+      }
+      const data = await res.json();
+      toast.error(data.error || "Gagal menonaktifkan produk.");
     }
   }
 

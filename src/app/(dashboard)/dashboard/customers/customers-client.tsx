@@ -74,12 +74,24 @@ export function CustomersClient({ initialCustomers, initialTotal, pointsPerAmoun
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus pelanggan ini? Tindakan ini tidak bisa dibatalkan.")) return;
+
+    // Optimistic delete
+    const original = customers.find((c) => c.id === id);
+    const originalTotal = total;
+    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setTotal((t) => t - 1);
+
     const res = await fetch(`/api/customers/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setCustomers((prev) => prev.filter((c) => c.id !== id));
-      setTotal((t) => t - 1);
       toast.success("Pelanggan berhasil dihapus.");
     } else {
+      // Rollback
+      if (original) {
+        setCustomers((prev) => [...prev, original].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ));
+        setTotal(originalTotal);
+      }
       const data = await res.json();
       toast.error(data.error || "Gagal menghapus pelanggan.");
     }

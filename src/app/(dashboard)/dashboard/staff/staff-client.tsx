@@ -44,13 +44,21 @@ export function StaffClient({ initialStaff, maxCashiers, plan, outlets }: StaffC
 
   async function handleDeactivate(id: string) {
     if (!confirm("Nonaktifkan kasir ini? Mereka tidak akan bisa login lagi.")) return;
+
+    // Optimistic update
+    const original = staff.find((s) => s.id === id);
+    setStaff((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, isActive: false } : s))
+    );
+
     const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setStaff((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, isActive: false } : s))
-      );
       toast.success("Kasir berhasil dinonaktifkan.");
     } else {
+      // Rollback
+      if (original) {
+        setStaff((prev) => prev.map((s) => (s.id === id ? original : s)));
+      }
       const data = await res.json();
       toast.error(data.error || "Gagal menonaktifkan kasir.");
     }

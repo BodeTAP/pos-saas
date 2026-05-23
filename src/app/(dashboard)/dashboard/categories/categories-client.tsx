@@ -76,11 +76,21 @@ export function CategoriesClient({ initialCategories }: CategoriesClientProps) {
       return;
     }
     if (!confirm(`Hapus kategori "${cat.name}"?`)) return;
+
+    // Optimistic delete
+    const original = categories.find((c) => c.id === cat.id);
+    setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+
     const res = await fetch(`/api/categories/${cat.id}`, { method: "DELETE" });
     if (res.ok) {
-      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
       toast.success("Kategori berhasil dihapus.");
     } else {
+      // Rollback
+      if (original) {
+        setCategories((prev) =>
+          [...prev, original].sort((a, b) => a.name.localeCompare(b.name))
+        );
+      }
       const data = await res.json();
       toast.error(data.error || "Gagal menghapus kategori.");
     }

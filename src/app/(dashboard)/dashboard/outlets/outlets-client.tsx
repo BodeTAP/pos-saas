@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Edit, Trash2, Store, MapPin, Users, ShoppingBag, ArrowLeftRight } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { OutletFormModal, type OutletData } from "@/components/outlets/outlet-form-modal";
@@ -18,7 +17,6 @@ interface OutletsClientProps {
 }
 
 export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClientProps) {
-  const router = useRouter();
   const [outlets, setOutlets] = useState<OutletWithCount[]>(initialOutlets);
   const [showModal, setShowModal] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
@@ -47,13 +45,23 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
   async function handleDeactivate(id: string) {
     if (!confirm("Nonaktifkan cabang ini? Cabang tidak bisa dipakai untuk transaksi baru."))
       return;
+
+    // Optimistic update — langsung tandai sebagai nonaktif
+    const original = outlets.find((o) => o.id === id);
+    setOutlets((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, isActive: false } : o))
+    );
+
     const res = await fetch(`/api/outlets/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setOutlets((prev) =>
-        prev.map((o) => (o.id === id ? { ...o, isActive: false } : o))
-      );
       toast.success("Cabang berhasil dinonaktifkan.");
     } else {
+      // Rollback jika gagal
+      if (original) {
+        setOutlets((prev) =>
+          prev.map((o) => (o.id === id ? original : o))
+        );
+      }
       const data = await res.json();
       toast.error(data.error || "Gagal menonaktifkan cabang.");
     }
@@ -201,7 +209,8 @@ export function OutletsClient({ initialOutlets, maxOutlets, plan }: OutletsClien
           onClose={() => setShowTransfer(false)}
           onSuccess={() => {
             setShowTransfer(false);
-            router.refresh();
+            // Tidak perlu refresh — halaman outlets tidak menampilkan stok produk
+            // Stok yang berubah ada di halaman Inventaris/POS
           }}
         />
       )}

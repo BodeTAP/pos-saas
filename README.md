@@ -660,10 +660,20 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Production: pesan generik yang tidak bocorkan detail teknis
 
 ### ✅ Fase 15 — Loading State Skeleton
-- **`src/components/ui/skeleton.tsx`** — komponen skeleton reusable: `Skeleton`, `StatCardSkeleton`, `TableSkeleton`, `CardListSkeleton`, `PageHeaderSkeleton`, `FilterBarSkeleton`
+- **`src/components/ui/skeleton.tsx`** — komponen skeleton reusable: `Skeleton`, `StatCardSkeleton`, `TableSkeleton`, `CardListSkeleton`, `PageHeaderSkeleton`, `FilterBarSkeleton`, `SkeletonPulse`
 - **`loading.tsx`** di semua halaman dashboard: Dashboard, POS, Riwayat Shift, Produk, Kategori, Inventaris, Transaksi, Laporan, Karyawan, Pelanggan, Cabang, Pembelian (PO), Log Aktivitas, Billing, Pengaturan
 - Skeleton disesuaikan per halaman (POS punya grid produk + cart sidebar, Laporan punya chart placeholder, dll)
+- `animate-pulse` di container parent (bukan per-element) — satu animasi untuk seluruh blok skeleton
 - Next.js App Router otomatis wrap `loading.tsx` sebagai React Suspense boundary
+
+### ✅ Fase 16 — Optimistic Updates Konsisten
+- **Pattern optimistic + rollback** di semua mutasi delete/deactivate:
+  - Update state lokal langsung saat user klik (UI responsif)
+  - Jika API gagal, rollback state ke nilai sebelumnya + toast error
+- **Diterapkan di**: Produk (deactivate), Kategori (delete), Karyawan (deactivate), Pelanggan (delete), Cabang (deactivate)
+- **Sudah optimistic sebelumnya**: POS (stok setelah transaksi), Transaksi (refund mark CANCELLED), Purchase Order (status update)
+- **Hapus `router.refresh()` yang tidak perlu**: Transfer stok antar cabang tidak lagi reload halaman outlets (data outlet tidak berubah)
+- Hampir semua halaman tidak butuh `window.location.reload()` atau full page refresh setelah mutasi
 
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
