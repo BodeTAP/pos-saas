@@ -642,6 +642,14 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - API: `GET /api/notifications`, `PATCH /api/notifications/[id]/read`, `POST /api/notifications/read-all`
 - Hanya tampil untuk OWNER (kasir tidak perlu notifikasi manajemen)
 
+### ✅ Fase 13 — Dashboard Kasir
+- **Dashboard khusus kasir** di `/dashboard` — tampilan berbeda berdasarkan role
+- **Status shift aktif** — banner hijau/abu dengan durasi berjalan, waktu buka, kas awal, tombol langsung ke kasir
+- **4 summary cards**: Transaksi hari ini, Pendapatan hari ini, Item terjual, Rata-rata per transaksi
+- **Transaksi terbaru** — 5 transaksi terakhir milik kasir ini hari ini (waktu, item, metode bayar, total)
+- **Quick actions** — tombol Kasir (POS) dan Riwayat Shift
+- Data difilter per kasir (bukan semua transaksi toko)
+
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
