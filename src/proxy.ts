@@ -5,7 +5,7 @@ import { authConfig } from "@/lib/auth-config";
 // Edge-safe NextAuth instance (tanpa Prisma/bcrypt)
 const { auth } = NextAuth(authConfig);
 
-const publicRoutes = ["/login", "/register", "/api/auth", "/forgot-password", "/reset-password"];
+const publicRoutes = ["/login", "/register", "/api/auth", "/forgot-password", "/reset-password", "/verify-email"];
 
 // Route yang HANYA boleh diakses Owner (Kasir diblokir)
 const ownerOnlyRoutes = [

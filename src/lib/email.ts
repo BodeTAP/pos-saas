@@ -303,6 +303,43 @@ export async function sendLowStockEmail(opts: {
 }
 
 // ─────────────────────────────────────────────
+// 6. VERIFIKASI EMAIL
+// ─────────────────────────────────────────────
+
+export async function sendVerificationEmail(opts: {
+  to: string;
+  name: string;
+  verifyUrl: string;
+}): Promise<boolean> {
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Verifikasi Email Kamu</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:15px;line-height:1.6;">
+      Halo <strong>${opts.name}</strong>, terima kasih telah mendaftar di ${APP_NAME}.
+      Klik tombol di bawah untuk memverifikasi alamat email kamu.
+    </p>
+    <div style="text-align:center;margin:28px 0;">
+      ${btn("Verifikasi Email →", opts.verifyUrl)}
+    </div>
+    <div style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:20px;">
+      <p style="margin:0;color:#1e40af;font-size:13px;">
+        ⏱️ Link ini berlaku selama <strong>24 jam</strong>. Jika kamu tidak mendaftar, abaikan email ini.
+      </p>
+    </div>
+    ${divider()}
+    <p style="margin:0;color:#9ca3af;font-size:13px;">
+      Jika tombol tidak berfungsi, salin URL ini ke browser:<br/>
+      <a href="${opts.verifyUrl}" style="color:#6b7280;word-break:break-all;">${opts.verifyUrl}</a>
+    </p>
+  `);
+
+  return sendEmail({
+    to: opts.to,
+    subject: `Verifikasi email kamu di ${APP_NAME}`,
+    html,
+  });
+}
+
+// ─────────────────────────────────────────────
 // 5. RESET PASSWORD
 // ─────────────────────────────────────────────
 

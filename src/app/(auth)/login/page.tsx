@@ -5,6 +5,7 @@ interface SearchParams {
   callbackUrl?: string;
   error?: string;
   reason?: string;
+  registered?: string;
 }
 
 export default async function LoginPage({
@@ -27,6 +28,7 @@ export default async function LoginPage({
       callbackUrl={params.callbackUrl || "/dashboard"}
       errorParam={params.error}
       reason={params.reason}
+      registered={params.registered}
     />
   );
 }

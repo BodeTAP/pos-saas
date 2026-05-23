@@ -32,6 +32,7 @@ interface LoginClientProps {
   callbackUrl: string;
   errorParam?: string;
   reason?: string;
+  registered?: string;
 }
 
 function getRouteError(
@@ -61,7 +62,9 @@ export function LoginClient({
   callbackUrl,
   errorParam,
   reason,
+  registered,
 }: LoginClientProps) {
+  const params = { registered };
   const router = useRouter();
   const routeError = getRouteError(reason, errorParam);
 
@@ -138,6 +141,13 @@ export function LoginClient({
             >
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{displayError}</span>
+            </div>
+          )}
+
+          {/* Pesan sukses setelah register */}
+          {!displayError && params?.registered === "true" && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-lg mb-4 text-sm bg-green-50 border border-green-200 text-green-800">
+              <span>✅ Registrasi berhasil! Cek email kamu untuk verifikasi, lalu login.</span>
             </div>
           )}
 

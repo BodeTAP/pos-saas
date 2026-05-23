@@ -599,11 +599,8 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Sidebar: menu "Pembelian (PO)" dengan ikon Truck
 
 ### 🔄 Backlog
-- Konfirmasi email saat register (butuh email service)
 - Rate limiting endpoint
 - Audit log aktivitas
-- Varian produk (ukuran/warna/rasa)
-- Purchase order / penerimaan barang dari supplier
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
 - Customer display (layar pelanggan)
 

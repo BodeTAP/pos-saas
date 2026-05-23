@@ -4,13 +4,16 @@ import { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { UserRole } from "@prisma/client";
+import { EmailVerificationBanner } from "@/components/ui/email-verification-banner";
 
 interface DashboardShellProps {
   user: { name: string; email: string; role: UserRole };
   children: React.ReactNode;
+  emailVerified?: boolean;
+  userEmail?: string;
 }
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
+export function DashboardShell({ user, children, emailVerified = true, userEmail }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -22,7 +25,13 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header user={user} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          {/* Banner verifikasi email — hanya untuk OWNER yang belum verifikasi */}
+          {!emailVerified && user.role === "OWNER" && userEmail && (
+            <EmailVerificationBanner userEmail={userEmail} />
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );
