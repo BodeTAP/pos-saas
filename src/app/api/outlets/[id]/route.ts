@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, diffObjects } from "@/lib/audit";
 
 export async function PUT(
   req: NextRequest,
@@ -32,6 +33,22 @@ export async function PUT(
         isActive: isActive !== undefined ? isActive : existing.isActive,
       },
     });
+
+    const diff = diffObjects(
+      existing as unknown as Record<string, unknown>,
+      outlet as unknown as Record<string, unknown>
+    );
+    if (diff) {
+      logAudit({
+        action: "UPDATE",
+        entity: "Outlet",
+        entityId: id,
+        entityName: outlet.name,
+        changes: diff,
+        userId: session.user.id,
+        tenantId: session.user.tenantId,
+      });
+    }
 
     return NextResponse.json({ outlet });
   } catch (error) {
@@ -69,6 +86,15 @@ export async function DELETE(
     await prisma.outlet.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    logAudit({
+      action: "DELETE",
+      entity: "Outlet",
+      entityId: id,
+      entityName: existing.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
     });
 
     return NextResponse.json({ success: true });

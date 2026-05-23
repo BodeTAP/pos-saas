@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logAudit, diffObjects } from "@/lib/audit";
 
 // PUT — update kasir (nama, email, password optional, status aktif)
 export async function PUT(
@@ -101,6 +102,22 @@ export async function PUT(
       },
     });
 
+    const diff = diffObjects(
+      { name: existing.name, email: existing.email, isActive: existing.isActive, outletId: existing.outletId },
+      { name: updated.name, email: updated.email, isActive: updated.isActive, outletId: updated.outletId }
+    );
+    if (diff) {
+      logAudit({
+        action: "UPDATE",
+        entity: "Staff",
+        entityId: id,
+        entityName: updated.name,
+        changes: diff,
+        userId: session.user.id,
+        tenantId: session.user.tenantId,
+      });
+    }
+
     return NextResponse.json({ staff: updated });
   } catch (error) {
     console.error("Update staff error:", error);
@@ -139,6 +156,15 @@ export async function DELETE(
     await prisma.user.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    logAudit({
+      action: "DELETE",
+      entity: "Staff",
+      entityId: id,
+      entityName: existing.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
     });
 
     return NextResponse.json({ success: true });

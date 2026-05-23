@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getActiveOutletId } from "@/lib/active-outlet";
 import { parseBody, updateProductSchema } from "@/lib/schemas";
+import { logAudit, diffObjects } from "@/lib/audit";
 
 export async function PUT(
   req: NextRequest,
@@ -150,6 +151,23 @@ export async function PUT(
       outletStocks: undefined,
     };
 
+    // Audit log
+    const diff = diffObjects(
+      existing as unknown as Record<string, unknown>,
+      updatedProduct as unknown as Record<string, unknown>
+    );
+    if (diff) {
+      logAudit({
+        action: "UPDATE",
+        entity: "Product",
+        entityId: id,
+        entityName: updatedProduct.name,
+        changes: diff,
+        userId: session.user.id,
+        tenantId: session.user.tenantId,
+      });
+    }
+
     return NextResponse.json({ product });
   } catch (error) {
     console.error("Update product error:", error);
@@ -179,6 +197,15 @@ export async function DELETE(
     await prisma.product.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    logAudit({
+      action: "DELETE",
+      entity: "Product",
+      entityId: id,
+      entityName: existing.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
     });
 
     return NextResponse.json({ success: true });

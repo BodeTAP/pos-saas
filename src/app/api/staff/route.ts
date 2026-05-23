@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logAudit } from "@/lib/audit";
 
 // GET — list semua karyawan tenant ini
 export async function GET() {
@@ -130,6 +131,15 @@ export async function POST(req: NextRequest) {
         outletId: true,
         createdAt: true,
       },
+    });
+
+    logAudit({
+      action: "CREATE",
+      entity: "Staff",
+      entityId: newStaff.id,
+      entityName: newStaff.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
     });
 
     return NextResponse.json({ staff: newStaff }, { status: 201 });

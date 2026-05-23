@@ -170,6 +170,7 @@ model Tenant {
   cashierShifts CashierShift[]
   stockMutationVariants StockMutationVariant[]
   purchaseOrders PurchaseOrder[]
+  auditLogs     AuditLog[]
 
   @@map("tenants")
 }
@@ -257,6 +258,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   cashierShifts CashierShift[]
+  auditLogs     AuditLog[]
 
   @@map("users")
 }
@@ -754,4 +756,29 @@ model PurchaseOrderItem {
   @@index([purchaseOrderId])
   @@index([productId])
   @@map("purchase_order_items")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG (jejak aktivitas pengguna)
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  action     String  // e.g. "CREATE", "UPDATE", "DELETE"
+  entity     String  // e.g. "Product", "Category", "Staff", "Settings"
+  entityId   String? // ID record yang terpengaruh
+  entityName String? // Snapshot nama (e.g. nama produk saat dihapus)
+  changes    Json?   // { before: {...}, after: {...} } — hanya field yang berubah
+
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
 }

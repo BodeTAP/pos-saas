@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit, diffObjects } from "@/lib/audit";
 
 export async function PUT(
   req: NextRequest,
@@ -39,6 +40,20 @@ export async function PUT(
       data: { name },
       include: { _count: { select: { products: true } } },
     });
+
+    const diff = diffObjects({ name: existing.name }, { name });
+    if (diff) {
+      logAudit({
+        action: "UPDATE",
+        entity: "Category",
+        entityId: id,
+        entityName: name,
+        changes: diff,
+        userId: session.user.id,
+        tenantId: session.user.tenantId,
+      });
+    }
+
     return NextResponse.json({ category });
   } catch (error) {
     console.error("Update category error:", error);
@@ -70,6 +85,16 @@ export async function DELETE(
       );
     }
     await prisma.category.delete({ where: { id } });
+
+    logAudit({
+      action: "DELETE",
+      entity: "Category",
+      entityId: id,
+      entityName: existing.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete category error:", error);

@@ -6,7 +6,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, BarChart3, Settings,
   Users, UserCircle, CreditCard, ShoppingBag, Store, Tag,
   ChevronLeft, ChevronRight, History, X, Warehouse, Truck,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, ClipboardList,
 } from "lucide-react";
 import { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ const tenantNavItems: NavItem[] = [
   { label: "Pembelian (PO)", href: "/dashboard/purchase-orders", icon: Truck, roles: ["OWNER"] },
   { label: "Transaksi", href: "/dashboard/transactions", icon: ShoppingBag, roles: ["OWNER"] },
   { label: "Laporan", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER"] },
+  { label: "Log Aktivitas", href: "/dashboard/audit-log", icon: ClipboardList, roles: ["OWNER"] },
   { label: "Karyawan", href: "/dashboard/staff", icon: Users, roles: ["OWNER"] },
   { label: "Pelanggan", href: "/dashboard/customers", icon: UserCircle, roles: ["OWNER"] },
   { label: "Cabang", href: "/dashboard/outlets", icon: Store, roles: ["OWNER"] },

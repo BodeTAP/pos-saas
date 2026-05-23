@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -41,6 +42,16 @@ export async function POST(req: NextRequest) {
       data: { name, tenantId: session.user.tenantId },
       include: { _count: { select: { products: true } } },
     });
+
+    logAudit({
+      action: "CREATE",
+      entity: "Category",
+      entityId: category.id,
+      entityName: category.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
+    });
+
     return NextResponse.json({ category }, { status: 201 });
   } catch (error) {
     console.error("Create category error:", error);

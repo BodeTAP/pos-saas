@@ -622,8 +622,17 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Ringkasan export juga mencantumkan total HPP, laba kotor, dan margin %
 - Mendukung produk varian (buyPrice per SKU di-snapshot)
 
+### ✅ Fase 11 — Audit Log
+- **Model `AuditLog`** di database — action, entity, entityId, entityName, changes (JSON diff), userId, tenantId
+- **`src/lib/audit.ts`** — helper `logAudit()` fire-and-forget + `diffObjects()` untuk diff field yang berubah
+- **Audit dicatat di**: Produk (create/update/delete), Kategori (create/update/delete), Karyawan (create/update/delete), Cabang (create/update/delete), Pengaturan toko (update)
+- **Halaman `/dashboard/audit-log`** — tabel paginated dengan filter aksi, entitas, pengguna, dan rentang tanggal
+- Detail perubahan UPDATE bisa di-expand: field apa yang berubah, nilai sebelum dan sesudah
+- Menu "Log Aktivitas" di sidebar (OWNER only)
+- API `GET /api/audit-log` dengan filter lengkap
+
 ### 🔄 Backlog
-- Audit log aktivitas
+- Audit log aktivitas transaksi (sudah ada StockMutation sebagai pengganti)
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
 - Customer display (layar pelanggan)
 

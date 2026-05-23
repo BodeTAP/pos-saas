@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generateSKUPrefix, formatSKUNumber } from "@/lib/utils";
 import { parseBody, createProductSchema } from "@/lib/schemas";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Generate SKU otomatis berdasarkan nama produk dan urutan per prefix.
@@ -274,6 +275,15 @@ export async function POST(req: NextRequest) {
         displayMinStock = outletStock.minStock;
       }
     }
+
+    logAudit({
+      action: "CREATE",
+      entity: "Product",
+      entityId: product.product.id,
+      entityName: product.product.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId!,
+    });
 
     return NextResponse.json(
       {

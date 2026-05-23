@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -93,6 +94,15 @@ export async function POST(req: NextRequest) {
       }
 
       return newOutlet;
+    });
+
+    logAudit({
+      action: "CREATE",
+      entity: "Outlet",
+      entityId: outlet.id,
+      entityName: outlet.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId!,
     });
 
     return NextResponse.json({ outlet }, { status: 201 });

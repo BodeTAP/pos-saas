@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { parseBody, settingsSchema } from "@/lib/schemas";
+import { logAudit } from "@/lib/audit";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -52,6 +53,15 @@ export async function PUT(req: NextRequest) {
           ? JSON.stringify(activePaymentMethods)
           : undefined,
       },
+    });
+
+    logAudit({
+      action: "UPDATE",
+      entity: "Settings",
+      entityId: session.user.tenantId,
+      entityName: tenant.name,
+      userId: session.user.id,
+      tenantId: session.user.tenantId,
     });
 
     return NextResponse.json({ tenant });
