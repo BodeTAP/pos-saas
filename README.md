@@ -651,13 +651,19 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Data difilter per kasir (bukan semua transaksi toko)
 
 ### ✅ Fase 14 — Error Boundary
-- **`src/app/error.tsx`** — global error boundary (catch-all, render `<html>` sendiri)
+- **`src/app/global-error.tsx`** — global error boundary (catch-all untuk root layout, inline styles karena Tailwind tidak tersedia)
 - **`src/app/(dashboard)/error.tsx`** — error boundary area dashboard, sidebar tetap terlihat
 - **`src/app/(super-admin)/error.tsx`** — error boundary area panel admin
 - **`src/app/not-found.tsx`** — halaman 404 yang proper dengan tombol Dashboard dan Kembali
 - Semua error boundary: tombol "Coba Lagi" (`reset()`), link kembali ke halaman aman
 - Dev mode: tampilkan pesan error dan digest untuk debugging
 - Production: pesan generik yang tidak bocorkan detail teknis
+
+### ✅ Fase 15 — Loading State Skeleton
+- **`src/components/ui/skeleton.tsx`** — komponen skeleton reusable: `Skeleton`, `StatCardSkeleton`, `TableSkeleton`, `CardListSkeleton`, `PageHeaderSkeleton`, `FilterBarSkeleton`
+- **`loading.tsx`** di semua halaman dashboard: Dashboard, POS, Riwayat Shift, Produk, Kategori, Inventaris, Transaksi, Laporan, Karyawan, Pelanggan, Cabang, Pembelian (PO), Log Aktivitas, Billing, Pengaturan
+- Skeleton disesuaikan per halaman (POS punya grid produk + cart sidebar, Laporan punya chart placeholder, dll)
+- Next.js App Router otomatis wrap `loading.tsx` sebagai React Suspense boundary
 
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
