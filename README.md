@@ -631,8 +631,19 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Menu "Log Aktivitas" di sidebar (OWNER only)
 - API `GET /api/audit-log` dengan filter lengkap
 
+### ✅ Fase 12 — Notifikasi In-App
+- **Model `AppNotification`** — type (LOW_STOCK/NEW_TRANSACTION/SYSTEM), title, message, isRead, link, tenantId
+- **`src/lib/notifications.ts`** — `createNotification()` fire-and-forget + `notifyLowStock()` helper
+- **Trigger otomatis**: transaksi baru oleh kasir → notifikasi ke Owner; stok produk turun di bawah minStock setelah transaksi → notifikasi LOW_STOCK
+- **Deduplication**: notifikasi LOW_STOCK yang sama tidak dibuat ulang dalam 1 jam
+- **Polling 30 detik** via hook `useNotifications` — fetch `/api/notifications`
+- **`NotificationBell`** di header — badge merah unread count, dropdown list notifikasi, klik untuk navigasi
+- Tandai satu / semua notifikasi sebagai dibaca (optimistic update)
+- API: `GET /api/notifications`, `PATCH /api/notifications/[id]/read`, `POST /api/notifications/read-all`
+- Hanya tampil untuk OWNER (kasir tidak perlu notifikasi manajemen)
+
 ### 🔄 Backlog
-- Audit log aktivitas transaksi (sudah ada StockMutation sebagai pengganti)
+- Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
 - Customer display (layar pelanggan)
 

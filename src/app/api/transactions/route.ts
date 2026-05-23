@@ -5,6 +5,7 @@ import { getActiveOutletId } from "@/lib/active-outlet";
 import { parseBody, createTransactionSchema } from "@/lib/schemas";
 import { generateInvoiceNumber } from "@/lib/utils";
 import { Prisma } from "@prisma/client";
+import { createNotification, notifyLowStock } from "@/lib/notifications";
 
 const POINT_VALUE = 100; // default
 const POINT_PER_AMOUNT = 10000; // default
@@ -394,6 +395,55 @@ export async function POST(req: NextRequest) {
 
     if (!transaction) {
       throw new Error("Gagal membuat nomor invoice transaksi.");
+    }
+
+    // Notifikasi in-app: transaksi baru (hanya untuk OWNER, bukan kasir sendiri)
+    // Hanya buat notifikasi jika yang transaksi adalah kasir (bukan owner)
+    if (session.user.role === "KASIR") {
+      const outlet = await prisma.outlet.findUnique({
+        where: { id: activeOutletId },
+        select: { name: true },
+      });
+      createNotification({
+        tenantId,
+        type: "NEW_TRANSACTION",
+        title: "Transaksi Baru",
+        message: `${session.user.name} menyelesaikan transaksi ${transaction.invoiceNumber} senilai Rp ${transaction.total.toLocaleString("id-ID")} di ${outlet?.name ?? "cabang"}.`,
+        link: "/dashboard/transactions",
+      });
+    }
+
+    // Notifikasi stok menipis/habis setelah transaksi
+    // Cek stok produk yang baru saja dijual
+    const soldProductIds = transactionItems
+      .filter((i) => !i.variantSkuId)
+      .map((i) => i.productId);
+
+    if (soldProductIds.length > 0) {
+      const lowStockItems = await prisma.outletStock.findMany({
+        where: {
+          outletId: activeOutletId,
+          productId: { in: soldProductIds },
+          // Stok <= minStock (termasuk 0)
+        },
+        include: {
+          product: { select: { name: true } },
+          outlet: { select: { name: true } },
+        },
+      });
+
+      const lowItems = lowStockItems
+        .filter((s) => s.stock <= s.minStock)
+        .map((s) => ({
+          productName: s.product.name,
+          stock: s.stock,
+          minStock: s.minStock,
+          outletName: s.outlet.name,
+        }));
+
+      if (lowItems.length > 0) {
+        notifyLowStock(tenantId, lowItems);
+      }
     }
 
     return NextResponse.json(

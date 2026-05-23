@@ -171,6 +171,7 @@ model Tenant {
   stockMutationVariants StockMutationVariant[]
   purchaseOrders PurchaseOrder[]
   auditLogs     AuditLog[]
+  notifications AppNotification[]
 
   @@map("tenants")
 }
@@ -781,4 +782,32 @@ model AuditLog {
   @@index([userId])
   @@index([tenantId, createdAt])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFIKASI IN-APP
+// ─────────────────────────────────────────────
+
+enum NotificationType {
+  LOW_STOCK       // Stok produk menipis / habis
+  NEW_TRANSACTION // Transaksi baru selesai
+  SYSTEM          // Pesan sistem (trial, billing, dll)
+}
+
+model AppNotification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?          // URL tujuan saat notifikasi diklik
+
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, isRead])
+  @@index([tenantId, createdAt])
+  @@map("app_notifications")
 }
