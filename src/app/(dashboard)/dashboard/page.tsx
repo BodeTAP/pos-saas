@@ -6,6 +6,7 @@ import {
   Users, Store, Clock, ShoppingCart, Timer, Banknote, BarChart3,
 } from "lucide-react";
 import Link from "next/link";
+import { TodayDate } from "@/components/ui/today-date";
 
 // ─────────────────────────────────────────────
 // DATA FETCHERS
@@ -38,8 +39,9 @@ async function getOwnerDashboardData(tenantId: string, outletId: string | null) 
           take: 50,
         })
       : Promise.resolve([]),
+    // Transaksi terbaru hari ini (bukan sepanjang waktu)
     prisma.transaction.findMany({
-      where: txWhere,
+      where: { ...txWhere, createdAt: { gte: today, lt: tomorrow } },
       take: 5,
       orderBy: { createdAt: "desc" },
       include: { cashier: { select: { name: true } } },
@@ -57,7 +59,6 @@ async function getOwnerDashboardData(tenantId: string, outletId: string | null) 
     recentTransactions: recentTx,
   };
 }
-
 async function getCashierDashboardData(cashierId: string, tenantId: string, outletId: string | null) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -211,6 +212,7 @@ export default async function DashboardPage() {
           const diffMs = Date.now() - new Date(data.activeShift.openedAt).getTime();
           const h = Math.floor(diffMs / 3600000);
           const m = Math.floor((diffMs % 3600000) / 60000);
+          if (diffMs < 60000) return "Baru dibuka";
           return h > 0 ? `${h}j ${m}m` : `${m} menit`;
         })()
       : null;
@@ -221,10 +223,10 @@ export default async function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl lg:text-2xl font-bold text-gray-900">
-              Selamat datang, {session.user.name?.split(" ")[0] ?? "Kasir"} 👋
+              Selamat datang, {session.user.name?.split(" ")[0] || "Kasir"} 👋
             </h1>
             <p className="text-gray-500 mt-0.5 text-sm">
-              {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              <TodayDate />
             </p>
           </div>
           <Link
