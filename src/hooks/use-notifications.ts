@@ -47,7 +47,7 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch + polling
   useEffect(() => {
     // Reset mounted flag setiap kali effect berjalan (termasuk re-mount)
     mountedRef.current = true;
@@ -56,8 +56,33 @@ export function useNotifications(): UseNotificationsReturn {
       if (mountedRef.current) setIsLoading(false);
     });
 
-    // Polling
-    intervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL_MS);
+    // Polling — hanya saat tab aktif (Page Visibility API)
+    function startPolling() {
+      if (intervalRef.current) return;
+      intervalRef.current = setInterval(() => {
+        // Skip jika tab tidak visible
+        if (document.visibilityState === "visible") {
+          fetchNotifications();
+        }
+      }, POLL_INTERVAL_MS);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        // Tab kembali aktif — fetch langsung + restart polling
+        fetchNotifications();
+        startPolling();
+      } else {
+        // Tab tidak aktif — hentikan polling untuk hemat resource
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      }
+    }
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mountedRef.current = false;
@@ -65,6 +90,7 @@ export function useNotifications(): UseNotificationsReturn {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchNotifications]);
 
