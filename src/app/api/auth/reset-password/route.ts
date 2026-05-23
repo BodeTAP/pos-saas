@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { token, password } = body as { token: string; password: string };
 
-    if (!token || typeof token !== "string") {
+    if (!token || typeof token !== "string" || token.length !== 64) {
       return NextResponse.json({ error: "Token tidak valid." }, { status: 400 });
     }
 
@@ -93,6 +93,11 @@ export async function GET(req: NextRequest) {
 
     if (!token) {
       return NextResponse.json({ valid: false, error: "Token tidak ditemukan." });
+    }
+
+    // Validasi format token (64 hex chars = 32 bytes)
+    if (token.length !== 64 || !/^[a-f0-9]+$/.test(token)) {
+      return NextResponse.json({ valid: false, error: "Token tidak valid." });
     }
 
     const resetToken = await prisma.passwordResetToken.findUnique({
