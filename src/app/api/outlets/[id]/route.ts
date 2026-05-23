@@ -35,8 +35,8 @@ export async function PUT(
     });
 
     const diff = diffObjects(
-      existing as unknown as Record<string, unknown>,
-      outlet as unknown as Record<string, unknown>
+      { name: existing.name, address: existing.address, phone: existing.phone, isActive: existing.isActive },
+      { name: outlet.name, address: outlet.address, phone: outlet.phone, isActive: outlet.isActive }
     );
     if (diff) {
       logAudit({

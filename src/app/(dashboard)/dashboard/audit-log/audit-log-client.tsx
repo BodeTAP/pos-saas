@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatCurrency } from "@/lib/utils";
 import { ClipboardList, Filter, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 
 interface AuditLogEntry {
@@ -66,11 +65,7 @@ const ACTIONS = ["CREATE", "UPDATE", "DELETE"];
 function formatValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
   if (typeof val === "boolean") return val ? "Aktif" : "Nonaktif";
-  if (typeof val === "number") {
-    // Heuristic: jika besar kemungkinan harga
-    if (val > 1000) return formatCurrency(val);
-    return String(val);
-  }
+  if (typeof val === "number") return String(val);
   return String(val);
 }
 
@@ -80,8 +75,8 @@ function ChangesDetail({ changes }: { changes: Record<string, unknown> | null })
 
   const before = (changes.before as Record<string, unknown>) || {};
   const after = (changes.after as Record<string, unknown>) || {};
-  const keys = Object.keys(after);
-  if (keys.length === 0) return null;
+  // Union keys dari before dan after agar field yang dihapus juga tampil
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])];
 
   const FIELD_LABELS: Record<string, string> = {
     name: "Nama", sellPrice: "Harga Jual", buyPrice: "Harga Beli",

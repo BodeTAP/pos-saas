@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { parseBody, settingsSchema } from "@/lib/schemas";
-import { logAudit } from "@/lib/audit";
+import { logAudit, diffObjects } from "@/lib/audit";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -32,6 +32,17 @@ export async function PUT(req: NextRequest) {
       activePaymentMethods,
     } = parsed.data;
 
+    // Ambil data sebelum update untuk diff
+    const beforeTenant = await prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: {
+        name: true, phone: true, address: true, city: true,
+        taxRate: true, receiptNote: true, receiptHeader: true,
+        receiptWidth: true, invoicePrefix: true,
+        pointsPerAmount: true, pointValue: true, activePaymentMethods: true,
+      },
+    });
+
     const tenant = await prisma.tenant.update({
       where: { id: session.user.tenantId },
       data: {
@@ -55,11 +66,27 @@ export async function PUT(req: NextRequest) {
       },
     });
 
+    const afterData = {
+      name: tenant.name, phone: tenant.phone, address: tenant.address, city: tenant.city,
+      taxRate: tenant.taxRate, receiptNote: tenant.receiptNote, receiptHeader: tenant.receiptHeader,
+      receiptWidth: tenant.receiptWidth, invoicePrefix: tenant.invoicePrefix,
+      pointsPerAmount: tenant.pointsPerAmount, pointValue: tenant.pointValue,
+      activePaymentMethods: tenant.activePaymentMethods,
+    };
+
+    const diff = beforeTenant
+      ? diffObjects(
+          beforeTenant as unknown as Record<string, unknown>,
+          afterData as unknown as Record<string, unknown>
+        )
+      : null;
+
     logAudit({
       action: "UPDATE",
       entity: "Settings",
       entityId: session.user.tenantId,
       entityName: tenant.name,
+      changes: diff ?? undefined,
       userId: session.user.id,
       tenantId: session.user.tenantId,
     });

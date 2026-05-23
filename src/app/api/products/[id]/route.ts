@@ -151,10 +151,15 @@ export async function PUT(
       outletStocks: undefined,
     };
 
-    // Audit log
+    // Audit log — diff hanya field produk yang relevan (bukan nested relations)
+    const PRODUCT_AUDIT_FIELDS = ["name", "sku", "barcode", "buyPrice", "sellPrice", "minStock", "unit", "isActive", "categoryId", "hasVariants", "description"] as const;
+    type ProductAuditField = typeof PRODUCT_AUDIT_FIELDS[number];
+    const pickFields = (obj: Record<string, unknown>) =>
+      Object.fromEntries(PRODUCT_AUDIT_FIELDS.map((k) => [k, obj[k as ProductAuditField]]));
+
     const diff = diffObjects(
-      existing as unknown as Record<string, unknown>,
-      updatedProduct as unknown as Record<string, unknown>
+      pickFields(existing as unknown as Record<string, unknown>),
+      pickFields(updatedProduct as unknown as Record<string, unknown>)
     );
     if (diff) {
       logAudit({

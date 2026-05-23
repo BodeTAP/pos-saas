@@ -23,7 +23,7 @@ export default async function AuditLogPage({
   if (session.user.role !== "OWNER") redirect("/dashboard");
 
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page || "1"));
+  const page = Math.max(1, parseInt(params.page || "1") || 1);
   const limit = 50;
   const skip = (page - 1) * limit;
 
