@@ -1,6 +1,10 @@
 /**
  * Komponen skeleton reusable untuk loading state.
  * Dipakai di semua loading.tsx halaman dashboard.
+ *
+ * PENTING: animate-pulse dipasang di container level, bukan per-element,
+ * agar browser hanya menjalankan SATU animasi CSS per blok skeleton.
+ * Ini mencegah jank dari puluhan animasi paralel.
  */
 
 import { cn } from "@/lib/utils";
@@ -9,12 +13,17 @@ import { cn } from "@/lib/utils";
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "animate-pulse rounded-md bg-gray-200",
-        className
-      )}
-    />
+    <div className={cn("rounded-md bg-gray-200", className)} />
+  );
+}
+
+// ─── Pulse Wrapper — satu animasi untuk semua children ───
+
+export function SkeletonPulse({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("animate-pulse", className)}>
+      {children}
+    </div>
   );
 }
 
@@ -22,13 +31,13 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function StatCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <SkeletonPulse className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-3">
         <Skeleton className="w-10 h-10 rounded-lg" />
       </div>
       <Skeleton className="h-8 w-24 mb-2" />
       <Skeleton className="h-4 w-32" />
-    </div>
+    </SkeletonPulse>
   );
 }
 
@@ -49,7 +58,7 @@ export function TableRowSkeleton({ cols = 5 }: { cols?: number }) {
 // ─── Table Skeleton ──────────────────────────
 
 export function TableSkeleton({
-  rows = 8,
+  rows = 5,
   cols = 5,
   title,
   hasAction = true,
@@ -65,11 +74,12 @@ export function TableSkeleton({
         {title ? (
           <span className="font-semibold text-gray-900">{title}</span>
         ) : (
-          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-32 animate-pulse" />
         )}
-        {hasAction && <Skeleton className="h-8 w-24 rounded-lg" />}
+        {hasAction && <Skeleton className="h-8 w-24 rounded-lg animate-pulse" />}
       </div>
-      <div className="overflow-x-auto">
+      {/* Satu animate-pulse untuk seluruh tabel */}
+      <SkeletonPulse className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -86,20 +96,20 @@ export function TableSkeleton({
             ))}
           </tbody>
         </table>
-      </div>
+      </SkeletonPulse>
     </div>
   );
 }
 
 // ─── Card List Skeleton ───────────────────────
 
-export function CardListSkeleton({ count = 5 }: { count?: number }) {
+export function CardListSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100">
-        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-5 w-40 animate-pulse" />
       </div>
-      <div className="divide-y divide-gray-100">
+      <SkeletonPulse className="divide-y divide-gray-100">
         {Array.from({ length: count }).map((_, i) => (
           <div key={i} className="flex items-center justify-between px-5 py-3">
             <div className="space-y-1.5 flex-1">
@@ -109,7 +119,7 @@ export function CardListSkeleton({ count = 5 }: { count?: number }) {
             <Skeleton className="h-5 w-20" />
           </div>
         ))}
-      </div>
+      </SkeletonPulse>
     </div>
   );
 }
@@ -118,13 +128,13 @@ export function CardListSkeleton({ count = 5 }: { count?: number }) {
 
 export function PageHeaderSkeleton({ hasButton = true }: { hasButton?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
+    <SkeletonPulse className="flex items-center justify-between">
       <div className="space-y-2">
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-64" />
       </div>
       {hasButton && <Skeleton className="h-9 w-28 rounded-xl" />}
-    </div>
+    </SkeletonPulse>
   );
 }
 
@@ -132,13 +142,13 @@ export function PageHeaderSkeleton({ hasButton = true }: { hasButton?: boolean }
 
 export function FilterBarSkeleton({ inputs = 3 }: { inputs?: number }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <SkeletonPulse className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="flex flex-wrap gap-3">
         {Array.from({ length: inputs }).map((_, i) => (
           <Skeleton key={i} className="h-9 w-40 rounded-lg" />
         ))}
         <Skeleton className="h-9 w-24 rounded-lg" />
       </div>
-    </div>
+    </SkeletonPulse>
   );
 }

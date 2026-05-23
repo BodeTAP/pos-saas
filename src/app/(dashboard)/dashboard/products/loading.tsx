@@ -5,7 +5,7 @@ export default function ProductsLoading() {
     <div className="space-y-5">
       <PageHeaderSkeleton />
       <FilterBarSkeleton inputs={3} />
-      <TableSkeleton rows={10} cols={6} />
+      <TableSkeleton rows={6} cols={6} />
     </div>
   );
 }

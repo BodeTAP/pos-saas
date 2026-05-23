@@ -5,7 +5,7 @@ export default function TransactionsLoading() {
     <div className="space-y-5">
       <PageHeaderSkeleton hasButton={false} />
       <FilterBarSkeleton inputs={4} />
-      <TableSkeleton rows={10} cols={6} hasAction={false} />
+      <TableSkeleton rows={6} cols={6} hasAction={false} />
     </div>
   );
 }
