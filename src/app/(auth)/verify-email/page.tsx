@@ -46,9 +46,19 @@ function VerifyEmailContent() {
       action: { href: "/login", label: "Kembali ke Login" },
       actionClass: "bg-blue-600 hover:bg-blue-700 text-white",
     },
+    // Fallback jika tidak ada status param (akses langsung ke /verify-email)
+    default: {
+      icon: CheckCircle,
+      iconBg: "bg-blue-100",
+      iconColor: "text-blue-600",
+      title: "Verifikasi Email",
+      message: "Klik link verifikasi yang dikirim ke email kamu untuk mengaktifkan akun.",
+      action: { href: "/dashboard", label: "Buka Dashboard" },
+      actionClass: "bg-blue-600 hover:bg-blue-700 text-white",
+    },
   };
 
-  const current = config[status as keyof typeof config] || config.invalid;
+  const current = (status && config[status as keyof typeof config]) || config.default;
   const Icon = current.icon;
 
   return (

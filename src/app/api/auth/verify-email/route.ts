@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import crypto from "crypto";
-import { sendVerificationEmail } from "@/lib/email";
+import { sendEmailVerification } from "@/lib/email-verification";
 import { auth } from "@/lib/auth";
 
 const TOKEN_EXPIRY_HOURS = 24;
@@ -20,7 +19,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Cari token di VerificationToken (pakai identifier = "email-verify")
     const verificationToken = await prisma.verificationToken.findUnique({
       where: { token },
     });
@@ -32,14 +30,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (verificationToken.expires < new Date()) {
-      // Hapus token expired
       await prisma.verificationToken.delete({ where: { token } }).catch(() => {});
       return NextResponse.redirect(
         new URL("/verify-email?status=expired", req.url)
       );
     }
 
-    // Tandai email sebagai verified
     const email = verificationToken.identifier;
 
     await prisma.$transaction([
@@ -50,6 +46,7 @@ export async function GET(req: NextRequest) {
       prisma.verificationToken.delete({ where: { token } }),
     ]);
 
+    // Redirect ke success page — Next.js akan revalidate layout saat navigasi
     return NextResponse.redirect(
       new URL("/verify-email?status=success", req.url)
     );
@@ -102,58 +99,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hapus token lama
-    await prisma.verificationToken.deleteMany({
-      where: { identifier: user.email },
-    });
-
-    // Buat token baru
-    const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
-
-    await prisma.verificationToken.create({
-      data: { identifier: user.email, token, expires },
-    });
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const verifyUrl = `${appUrl}/api/auth/verify-email?token=${token}`;
-
-    sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      verifyUrl,
-    }).catch((err) => console.error("Verification email error:", err));
+    await sendEmailVerification(user.email, user.name);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Resend verification error:", error);
     return NextResponse.json({ error: "Terjadi kesalahan server." }, { status: 500 });
-  }
-}
-
-/**
- * Helper: kirim email verifikasi saat registrasi baru.
- * Dipanggil dari register route.
- */
-export async function sendEmailVerification(email: string, name: string): Promise<void> {
-  try {
-    // Hapus token lama jika ada
-    await prisma.verificationToken.deleteMany({ where: { identifier: email } });
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
-
-    await prisma.verificationToken.create({
-      data: { identifier: email, token, expires },
-    });
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const verifyUrl = `${appUrl}/api/auth/verify-email?token=${token}`;
-
-    sendVerificationEmail({ to: email, name, verifyUrl }).catch(
-      (err) => console.error("Verification email error:", err)
-    );
-  } catch (err) {
-    console.error("sendEmailVerification error:", err);
   }
 }

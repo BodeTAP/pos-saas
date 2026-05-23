@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MailCheck, X, Loader2, CheckCircle } from "lucide-react";
+import { MailCheck, X, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface EmailVerificationBannerProps {
   userEmail: string;
@@ -11,16 +11,26 @@ export function EmailVerificationBanner({ userEmail }: EmailVerificationBannerPr
   const [dismissed, setDismissed] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resendError, setResendError] = useState("");
 
   if (dismissed) return null;
 
   async function handleResend() {
     setIsSending(true);
+    setResendError("");
     try {
       const res = await fetch("/api/auth/verify-email", { method: "POST" });
-      if (res.ok) setSent(true);
-    } catch { /* ignore */ }
-    finally { setIsSending(false); }
+      const data = await res.json();
+      if (res.ok) {
+        setSent(true);
+      } else {
+        setResendError(data.error || "Gagal mengirim email.");
+      }
+    } catch {
+      setResendError("Terjadi kesalahan. Coba lagi.");
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (
@@ -31,6 +41,17 @@ export function EmailVerificationBanner({ userEmail }: EmailVerificationBannerPr
         <span className="flex items-center gap-1 text-green-700 truncate">
           <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
           Email verifikasi dikirim ke {userEmail}
+        </span>
+      ) : resendError ? (
+        <span className="flex items-center gap-1.5 text-red-700 truncate flex-1">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+          {resendError}
+          <button
+            onClick={() => setResendError("")}
+            className="underline font-medium hover:text-red-900 flex-shrink-0"
+          >
+            Coba lagi
+          </button>
         </span>
       ) : (
         <>

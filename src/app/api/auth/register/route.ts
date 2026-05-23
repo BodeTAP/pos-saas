@@ -5,7 +5,7 @@ import { generateSlug } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
 import { getPlatformConfig, PLATFORM_CONFIG_KEYS } from "@/lib/platform-config";
 import { sendWelcomeEmail } from "@/lib/email";
-import { sendEmailVerification } from "@/app/api/auth/verify-email/route";
+import { sendEmailVerification } from "@/lib/email-verification";
 
 export async function POST(req: NextRequest) {
   try {
