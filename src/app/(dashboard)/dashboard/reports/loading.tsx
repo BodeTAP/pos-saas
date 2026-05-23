@@ -1,4 +1,4 @@
-import { StatCardSkeleton, FilterBarSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { FilterBarSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 export default function ReportsLoading() {
   return (

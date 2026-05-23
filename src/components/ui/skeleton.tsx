@@ -52,10 +52,12 @@ export function TableSkeleton({
   rows = 8,
   cols = 5,
   title,
+  hasAction = true,
 }: {
   rows?: number;
   cols?: number;
   title?: string;
+  hasAction?: boolean;
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -65,7 +67,7 @@ export function TableSkeleton({
         ) : (
           <Skeleton className="h-5 w-32" />
         )}
-        <Skeleton className="h-8 w-24 rounded-lg" />
+        {hasAction && <Skeleton className="h-8 w-24 rounded-lg" />}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

@@ -5,7 +5,7 @@ export default function AuditLogLoading() {
     <div className="space-y-5">
       <PageHeaderSkeleton hasButton={false} />
       <FilterBarSkeleton inputs={5} />
-      <TableSkeleton rows={10} cols={5} />
+      <TableSkeleton rows={10} cols={5} hasAction={false} />
     </div>
   );
 }
