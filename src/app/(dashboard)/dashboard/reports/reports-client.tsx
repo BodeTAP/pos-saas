@@ -138,9 +138,9 @@ export function ReportsClient({
     }
   }
 
-  // hasCogs: true jika ada transaksi dengan buyPrice > 0 (ada data harga beli)
-  // Jika semua buyPrice = 0, tetap tampilkan tapi dengan nilai 0
-  const hasCogs = summary.totalTransactions > 0 && summary.totalCogs >= 0;
+  // hasCogs: true hanya jika ada transaksi dengan buyPrice > 0
+  // Jika semua buyPrice = 0, berarti data harga beli belum diisi (transaksi lama)
+  const hasCogs = summary.totalCogs > 0;
 
   return (
     <div className="space-y-6">
@@ -279,32 +279,33 @@ export function ReportsClient({
             <p className="text-xs text-gray-500">HPP</p>
           </div>
           <p className="text-lg font-bold text-gray-900 truncate">
-            {summary.totalTransactions > 0
+            {hasCogs
               ? formatCurrency(summary.totalCogs)
-              : <span className="text-sm text-gray-400 font-normal">—</span>
+              : <span className="text-sm text-gray-400 font-normal">Belum ada data</span>
             }
           </p>
         </div>
 
         <div className={`bg-white rounded-xl border p-4 ${
-          summary.totalGrossProfit >= 0 ? "border-gray-200" : "border-red-200 bg-red-50"
+          hasCogs && summary.totalGrossProfit < 0 ? "border-red-200 bg-red-50" : "border-gray-200"
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-              summary.totalGrossProfit >= 0 ? "bg-emerald-50" : "bg-red-100"
+              hasCogs && summary.totalGrossProfit < 0 ? "bg-red-100" : "bg-emerald-50"
             }`}>
               <DollarSign className={`w-4 h-4 ${
-                summary.totalGrossProfit >= 0 ? "text-emerald-600" : "text-red-600"
+                hasCogs && summary.totalGrossProfit < 0 ? "text-red-600" : "text-emerald-600"
               }`} />
             </div>
             <p className="text-xs text-gray-500">Laba Kotor</p>
           </div>
           <p className={`text-lg font-bold truncate ${
+            !hasCogs ? "text-gray-400" :
             summary.totalGrossProfit >= 0 ? "text-emerald-700" : "text-red-600"
           }`}>
-            {summary.totalTransactions > 0
+            {hasCogs
               ? formatCurrency(summary.totalGrossProfit)
-              : <span className="text-sm text-gray-400 font-normal">—</span>
+              : <span className="text-sm font-normal">Belum ada data</span>
             }
           </p>
         </div>
@@ -317,11 +318,12 @@ export function ReportsClient({
             <p className="text-xs text-gray-500">Margin</p>
           </div>
           <p className={`text-lg font-bold ${
+            !hasCogs ? "text-gray-400" :
             summary.totalMarginPct >= 20 ? "text-emerald-700" :
             summary.totalMarginPct >= 10 ? "text-amber-600" :
-            summary.totalMarginPct > 0 ? "text-orange-600" : "text-gray-400"
+            summary.totalMarginPct > 0 ? "text-orange-600" : "text-red-600"
           }`}>
-            {summary.totalTransactions > 0
+            {hasCogs
               ? `${summary.totalMarginPct.toFixed(1)}%`
               : <span className="text-sm font-normal">—</span>
             }
@@ -508,9 +510,11 @@ export function ReportsClient({
               <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <DollarSign className="w-7 h-7 text-amber-500" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Belum Ada Data Transaksi</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Data Harga Beli Belum Tersedia</h3>
               <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                Belum ada transaksi selesai pada periode ini. Lakukan transaksi terlebih dahulu untuk melihat laporan laba kotor.
+                Laporan laba kotor membutuhkan data harga beli produk. Pastikan field{" "}
+                <strong>Harga Beli</strong> sudah diisi di halaman Produk, lalu lakukan transaksi baru.
+                Transaksi lama tidak memiliki snapshot harga beli.
               </p>
             </div>
           ) : (
