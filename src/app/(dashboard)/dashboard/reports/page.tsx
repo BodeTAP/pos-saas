@@ -42,7 +42,7 @@ export default async function ReportsPage({
     await Promise.all([
       prisma.transaction.aggregate({
         where: baseTxWhere,
-        _sum: { total: true },
+        _sum: { total: true, subtotal: true },
         _count: true,
         _avg: { total: true },
       }),
@@ -65,11 +65,12 @@ export default async function ReportsPage({
         _count: true,
         _avg: { total: true },
       }),
-      // Laba kotor per produk: groupBy productId, sum subtotal & (buyPrice * quantity)
+      // Laba kotor per produk: groupBy productId, sum subtotal
+      // HPP dihitung via raw query terpisah karena Prisma tidak support SUM(a*b)
       prisma.transactionItem.groupBy({
         by: ["productId", "productName"],
         where: { transaction: baseTxWhere },
-        _sum: { quantity: true, subtotal: true, buyPrice: true },
+        _sum: { quantity: true, subtotal: true },
         orderBy: { _sum: { subtotal: "desc" } },
         take: 20,
       }),
@@ -124,29 +125,18 @@ export default async function ReportsPage({
     revenue: p._sum.subtotal || 0,
   }));
 
-  // Hitung laba kotor per produk
-  // buyPrice di groupBy adalah SUM(buyPrice) per baris item — bukan per unit.
-  // Kita perlu HPP = buyPrice * quantity per item.
-  // Karena groupBy tidak bisa sum(buyPrice * quantity) langsung,
-  // kita ambil raw data untuk laba kotor (max 20 produk teratas sudah cukup).
-  const grossProfitData = grossProfitItems.map((p) => {
-    const revenue = p._sum.subtotal || 0;
-    // _sum.buyPrice = SUM(buyPrice per item row), bukan HPP total.
-    // HPP yang benar = SUM(buyPrice * quantity) — perlu raw query.
-    // Untuk sementara kita gunakan pendekatan: ambil dari raw items.
-    // Ini akan di-override dengan raw query di bawah.
-    return {
-      productId: p.productId,
-      productName: p.productName,
-      quantity: p._sum.quantity || 0,
-      revenue,
-      cogs: 0, // akan diisi dari raw query
-      grossProfit: 0,
-      marginPct: 0,
-    };
-  });
+  // Hitung laba kotor per produk via raw query (HPP = SUM(buyPrice * quantity))
+  // Prisma groupBy tidak support SUM(a*b), jadi kita ambil raw items
+  const grossProfitData = grossProfitItems.map((p) => ({
+    productId: p.productId,
+    productName: p.productName,
+    quantity: p._sum.quantity || 0,
+    revenue: p._sum.subtotal || 0,
+    cogs: 0,
+    grossProfit: 0,
+    marginPct: 0,
+  }));
 
-  // Raw query untuk HPP yang akurat: SUM(buyPrice * quantity)
   if (grossProfitData.length > 0) {
     const productIds = grossProfitData.map((p) => p.productId);
     const rawItems = await prisma.transactionItem.findMany({
@@ -157,7 +147,6 @@ export default async function ReportsPage({
       select: { productId: true, buyPrice: true, quantity: true },
     });
 
-    // Aggregate HPP per productId
     const cogsMap = new Map<string, number>();
     for (const item of rawItems) {
       const current = cogsMap.get(item.productId) || 0;
@@ -172,15 +161,19 @@ export default async function ReportsPage({
     }
   }
 
-  // Hitung total laba kotor keseluruhan
+  // Total laba kotor: gunakan subtotal transaksi (sebelum pajak) sebagai revenue
+  // agar konsisten dengan HPP yang dihitung dari item subtotal
   const totalRevenue = summary._sum.total || 0;
+  const totalSubtotal = summary._sum.subtotal || 0;
   const allRawItems = await prisma.transactionItem.findMany({
     where: { transaction: baseTxWhere },
     select: { buyPrice: true, quantity: true },
   });
   const totalCogs = allRawItems.reduce((sum, i) => sum + i.buyPrice * i.quantity, 0);
-  const totalGrossProfit = totalRevenue - totalCogs;
-  const totalMarginPct = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+  // Laba kotor dihitung dari subtotal (sebelum pajak & diskon transaksi)
+  // karena HPP tidak terpengaruh pajak
+  const totalGrossProfit = totalSubtotal - totalCogs;
+  const totalMarginPct = totalSubtotal > 0 ? (totalGrossProfit / totalSubtotal) * 100 : 0;
 
   return (
     <ReportsClient

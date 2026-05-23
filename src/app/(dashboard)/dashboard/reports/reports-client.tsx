@@ -138,7 +138,9 @@ export function ReportsClient({
     }
   }
 
-  const hasCogs = summary.totalCogs > 0;
+  // hasCogs: true jika ada transaksi dengan buyPrice > 0 (ada data harga beli)
+  // Jika semua buyPrice = 0, tetap tampilkan tapi dengan nilai 0
+  const hasCogs = summary.totalTransactions > 0 && summary.totalCogs >= 0;
 
   return (
     <div className="space-y-6">
@@ -277,9 +279,10 @@ export function ReportsClient({
             <p className="text-xs text-gray-500">HPP</p>
           </div>
           <p className="text-lg font-bold text-gray-900 truncate">
-            {hasCogs ? formatCurrency(summary.totalCogs) : (
-              <span className="text-sm text-gray-400 font-normal">Belum ada data</span>
-            )}
+            {summary.totalTransactions > 0
+              ? formatCurrency(summary.totalCogs)
+              : <span className="text-sm text-gray-400 font-normal">—</span>
+            }
           </p>
         </div>
 
@@ -299,9 +302,10 @@ export function ReportsClient({
           <p className={`text-lg font-bold truncate ${
             summary.totalGrossProfit >= 0 ? "text-emerald-700" : "text-red-600"
           }`}>
-            {hasCogs ? formatCurrency(summary.totalGrossProfit) : (
-              <span className="text-sm text-gray-400 font-normal">Belum ada data</span>
-            )}
+            {summary.totalTransactions > 0
+              ? formatCurrency(summary.totalGrossProfit)
+              : <span className="text-sm text-gray-400 font-normal">—</span>
+            }
           </p>
         </div>
 
@@ -314,11 +318,13 @@ export function ReportsClient({
           </div>
           <p className={`text-lg font-bold ${
             summary.totalMarginPct >= 20 ? "text-emerald-700" :
-            summary.totalMarginPct >= 10 ? "text-amber-600" : "text-red-600"
+            summary.totalMarginPct >= 10 ? "text-amber-600" :
+            summary.totalMarginPct > 0 ? "text-orange-600" : "text-gray-400"
           }`}>
-            {hasCogs ? `${summary.totalMarginPct.toFixed(1)}%` : (
-              <span className="text-sm text-gray-400 font-normal">—</span>
-            )}
+            {summary.totalTransactions > 0
+              ? `${summary.totalMarginPct.toFixed(1)}%`
+              : <span className="text-sm font-normal">—</span>
+            }
           </p>
         </div>
       </div>
@@ -502,10 +508,9 @@ export function ReportsClient({
               <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <DollarSign className="w-7 h-7 text-amber-500" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Data Harga Beli Belum Tersedia</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Belum Ada Data Transaksi</h3>
               <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                Laporan laba kotor membutuhkan data harga beli produk. Pastikan field{" "}
-                <strong>Harga Beli</strong> sudah diisi di halaman Produk, lalu lakukan transaksi baru.
+                Belum ada transaksi selesai pada periode ini. Lakukan transaksi terlebih dahulu untuk melihat laporan laba kotor.
               </p>
             </div>
           ) : (
@@ -516,6 +521,9 @@ export function ReportsClient({
                 <span>
                   Laba kotor = Pendapatan − HPP (Harga Pokok Penjualan). HPP dihitung dari harga beli
                   produk saat transaksi terjadi. Diskon transaksi tidak dikurangi dari HPP.
+                  {grossProfitData.some((p) => p.cogs === 0) && (
+                    <> Produk dengan HPP <strong>—</strong> belum memiliki harga beli — isi di halaman Produk.</>
+                  )}
                 </span>
               </div>
 

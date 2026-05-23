@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
         const productIds = [...new Set(payload.items.map((i) => i.productId))];
         const ownedProducts = await prisma.product.findMany({
           where: { id: { in: productIds }, tenantId: session.user.tenantId, isActive: true },
-          select: { id: true, name: true, sku: true, sellPrice: true },
+          select: { id: true, name: true, sku: true, sellPrice: true, buyPrice: true },
         });
 
         if (ownedProducts.length !== productIds.length) {
@@ -143,11 +143,11 @@ export async function POST(req: NextRequest) {
           .map((i) => i.variantSkuId)
           .filter(Boolean) as string[];
 
-        const variantSkusById = new Map<string, { id: string; price: number; sku: string | null; productId: string }>();
+        const variantSkusById = new Map<string, { id: string; price: number; buyPrice: number; sku: string | null; productId: string }>();
         if (variantSkuIds.length > 0) {
           const variantSkus = await prisma.productVariantSKU.findMany({
             where: { id: { in: variantSkuIds }, productId: { in: productIds }, isActive: true },
-            select: { id: true, price: true, sku: true, productId: true },
+            select: { id: true, price: true, buyPrice: true, sku: true, productId: true },
           });
           if (variantSkus.length !== variantSkuIds.length) {
             results.push({ localId: tx.localId, status: "FAILED", error: "Satu atau lebih varian tidak valid." });
@@ -198,6 +198,7 @@ export async function POST(req: NextRequest) {
                       // Bug 4 fix: pakai harga varian dari DB, bukan harga produk dasar
                       const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
                       const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+                      const buyPrice = variantSku ? variantSku.buyPrice : product.buyPrice;
                       const itemSku = variantSku?.sku ?? product.sku;
                       return {
                         productId: item.productId,
@@ -205,6 +206,7 @@ export async function POST(req: NextRequest) {
                         productSku: itemSku || null,
                         quantity: item.quantity,
                         unitPrice,
+                        buyPrice,
                         discount: item.discount || 0,
                         subtotal: unitPrice * item.quantity - (item.discount || 0),
                         variantSkuId: item.variantSkuId || null,

@@ -143,14 +143,16 @@ export async function GET(req: NextRequest) {
 
     // Hitung ringkasan
     const totalRevenue = transactions.reduce((s, t) => s + t.total, 0);
+    const totalSubtotal = transactions.reduce((s, t) => s + t.subtotal, 0);
     const totalDiscount = transactions.reduce((s, t) => s + t.discount, 0);
     const totalTax = transactions.reduce((s, t) => s + t.tax, 0);
     const totalCogs = transactions.reduce(
       (s, t) => s + t.items.reduce((si, i) => si + i.buyPrice * i.quantity, 0),
       0
     );
-    const totalGrossProfit = totalRevenue - totalCogs;
-    const totalMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+    // Laba kotor dihitung dari subtotal (sebelum pajak) agar konsisten dengan HPP item
+    const totalGrossProfit = totalSubtotal - totalCogs;
+    const totalMargin = totalSubtotal > 0 ? (totalGrossProfit / totalSubtotal) * 100 : 0;
 
     const summaryRows = [
       {
