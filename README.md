@@ -600,7 +600,6 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 
 ### 🔄 Backlog
 - Konfirmasi email saat register (butuh email service)
-- Reset password (butuh email service)
 - Rate limiting endpoint
 - Audit log aktivitas
 - Varian produk (ukuran/warna/rasa)

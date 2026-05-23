@@ -306,6 +306,23 @@ model VerificationToken {
 }
 
 // ─────────────────────────────────────────────
+// PASSWORD RESET TOKEN
+// ─────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
+
+// ─────────────────────────────────────────────
 // KATEGORI PRODUK
 // ─────────────────────────────────────────────
 

@@ -254,7 +254,41 @@ export async function sendTrialEndingEmail(opts: {
 }
 
 // ─────────────────────────────────────────────
-// 4. LOW STOCK ALERT
+// 5. RESET PASSWORD
+// ─────────────────────────────────────────────
+
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}): Promise<boolean> {
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Reset Password</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:15px;line-height:1.6;">
+      Halo <strong>${opts.name}</strong>, kami menerima permintaan untuk mereset password akun kamu.
+      Klik tombol di bawah untuk membuat password baru.
+    </p>
+    <div style="text-align:center;margin:28px 0;">
+      ${btn("Reset Password →", opts.resetUrl)}
+    </div>
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:20px;">
+      <p style="margin:0;color:#92400e;font-size:13px;">
+        ⏱️ Link ini hanya berlaku selama <strong>1 jam</strong>. Jika kamu tidak meminta reset password, abaikan email ini.
+      </p>
+    </div>
+    ${divider()}
+    <p style="margin:0;color:#9ca3af;font-size:13px;">
+      Jika tombol tidak berfungsi, salin dan tempel URL ini ke browser:<br/>
+      <a href="${opts.resetUrl}" style="color:#6b7280;word-break:break-all;">${opts.resetUrl}</a>
+    </p>
+  `);
+
+  return sendEmail({
+    to: opts.to,
+    subject: `Reset Password ${APP_NAME}`,
+    html,
+  });
+}
 // ─────────────────────────────────────────────
 
 export async function sendLowStockEmail(opts: {
