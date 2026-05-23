@@ -650,6 +650,15 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - **Quick actions** — tombol Kasir (POS) dan Riwayat Shift
 - Data difilter per kasir (bukan semua transaksi toko)
 
+### ✅ Fase 14 — Error Boundary
+- **`src/app/error.tsx`** — global error boundary (catch-all, render `<html>` sendiri)
+- **`src/app/(dashboard)/error.tsx`** — error boundary area dashboard, sidebar tetap terlihat
+- **`src/app/(super-admin)/error.tsx`** — error boundary area panel admin
+- **`src/app/not-found.tsx`** — halaman 404 yang proper dengan tombol Dashboard dan Kembali
+- Semua error boundary: tombol "Coba Lagi" (`reset()`), link kembali ke halaman aman
+- Dev mode: tampilkan pesan error dan digest untuk debugging
+- Production: pesan generik yang tidak bocorkan detail teknis
+
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
