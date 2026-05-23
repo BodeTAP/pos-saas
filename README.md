@@ -114,7 +114,10 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Tabel performa per kasir (transaksi, rata-rata, total pendapatan)
 - Filter tanggal custom + quick preset (7/30/90 hari)
 - Filter per cabang
-- Ekspor laporan ke **Excel** (multi-sheet: Ringkasan, Transaksi, Detail Item) atau **CSV**
+- **Laporan Laba Kotor** — tab terpisah dengan tabel per produk: pendapatan, HPP, laba kotor, margin %
+- Summary cards laba kotor: HPP total, laba kotor total, margin % keseluruhan (warna dinamis)
+- `buyPrice` di-snapshot ke `TransactionItem` saat transaksi dibuat (akurat meski harga beli berubah)
+- Ekspor laporan ke **Excel** (multi-sheet: Ringkasan, Transaksi, Detail Item, Laba Kotor) atau **CSV**
 
 ### 💳 Billing & Langganan (Tripay)
 - 3 paket: Gratis, Pro, Enterprise — harga & fitur dikelola Super Admin dari database
@@ -610,6 +613,14 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
   - Forgot password: 5 request per IP per 15 menit + 3 per email per 15 menit (via DB)
   - Reset password: 10 percobaan per IP per 15 menit
   - Validasi token: 20 request per IP per 15 menit (soft limit)
+
+### ✅ Fase 10 — Laporan Laba Kotor
+- **`buyPrice` snapshot di `TransactionItem`** — harga beli di-capture saat transaksi dibuat, akurat meski harga beli produk berubah kemudian
+- **Tab Laba Kotor** di halaman Laporan — tabel per produk: pendapatan, HPP, laba kotor, margin % dengan badge warna
+- **6 summary cards** — Pendapatan, Transaksi, Rata-rata, HPP, Laba Kotor, Margin %
+- **Export Excel** — sheet baru "Laba Kotor" + kolom HPP/Laba/Margin di sheet "Detail Item"
+- Ringkasan export juga mencantumkan total HPP, laba kotor, dan margin %
+- Mendukung produk varian (buyPrice per SKU di-snapshot)
 
 ### 🔄 Backlog
 - Audit log aktivitas

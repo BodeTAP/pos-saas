@@ -38,33 +38,42 @@ export default async function ReportsPage({
     ...(outletId && { outletId }),
   };
 
-  const [summary, topProducts, dailyTransactions, cashierStats] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: baseTxWhere,
-      _sum: { total: true },
-      _count: true,
-      _avg: { total: true },
-    }),
-    prisma.transactionItem.groupBy({
-      by: ["productId", "productName"],
-      where: { transaction: baseTxWhere },
-      _sum: { quantity: true, subtotal: true },
-      orderBy: { _sum: { quantity: "desc" } },
-      take: 10,
-    }),
-    prisma.transaction.findMany({
-      where: baseTxWhere,
-      select: { total: true, createdAt: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.transaction.groupBy({
-      by: ["cashierId"],
-      where: baseTxWhere,
-      _sum: { total: true },
-      _count: true,
-      _avg: { total: true },
-    }),
-  ]);
+  const [summary, topProducts, dailyTransactions, cashierStats, grossProfitItems] =
+    await Promise.all([
+      prisma.transaction.aggregate({
+        where: baseTxWhere,
+        _sum: { total: true },
+        _count: true,
+        _avg: { total: true },
+      }),
+      prisma.transactionItem.groupBy({
+        by: ["productId", "productName"],
+        where: { transaction: baseTxWhere },
+        _sum: { quantity: true, subtotal: true },
+        orderBy: { _sum: { quantity: "desc" } },
+        take: 10,
+      }),
+      prisma.transaction.findMany({
+        where: baseTxWhere,
+        select: { total: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.transaction.groupBy({
+        by: ["cashierId"],
+        where: baseTxWhere,
+        _sum: { total: true },
+        _count: true,
+        _avg: { total: true },
+      }),
+      // Laba kotor per produk: groupBy productId, sum subtotal & (buyPrice * quantity)
+      prisma.transactionItem.groupBy({
+        by: ["productId", "productName"],
+        where: { transaction: baseTxWhere },
+        _sum: { quantity: true, subtotal: true, buyPrice: true },
+        orderBy: { _sum: { subtotal: "desc" } },
+        take: 20,
+      }),
+    ]);
 
   // Ambil nama kasir
   const cashierIds = cashierStats.map((c) => c.cashierId);
@@ -115,16 +124,78 @@ export default async function ReportsPage({
     revenue: p._sum.subtotal || 0,
   }));
 
+  // Hitung laba kotor per produk
+  // buyPrice di groupBy adalah SUM(buyPrice) per baris item — bukan per unit.
+  // Kita perlu HPP = buyPrice * quantity per item.
+  // Karena groupBy tidak bisa sum(buyPrice * quantity) langsung,
+  // kita ambil raw data untuk laba kotor (max 20 produk teratas sudah cukup).
+  const grossProfitData = grossProfitItems.map((p) => {
+    const revenue = p._sum.subtotal || 0;
+    // _sum.buyPrice = SUM(buyPrice per item row), bukan HPP total.
+    // HPP yang benar = SUM(buyPrice * quantity) — perlu raw query.
+    // Untuk sementara kita gunakan pendekatan: ambil dari raw items.
+    // Ini akan di-override dengan raw query di bawah.
+    return {
+      productId: p.productId,
+      productName: p.productName,
+      quantity: p._sum.quantity || 0,
+      revenue,
+      cogs: 0, // akan diisi dari raw query
+      grossProfit: 0,
+      marginPct: 0,
+    };
+  });
+
+  // Raw query untuk HPP yang akurat: SUM(buyPrice * quantity)
+  if (grossProfitData.length > 0) {
+    const productIds = grossProfitData.map((p) => p.productId);
+    const rawItems = await prisma.transactionItem.findMany({
+      where: {
+        transaction: baseTxWhere,
+        productId: { in: productIds },
+      },
+      select: { productId: true, buyPrice: true, quantity: true },
+    });
+
+    // Aggregate HPP per productId
+    const cogsMap = new Map<string, number>();
+    for (const item of rawItems) {
+      const current = cogsMap.get(item.productId) || 0;
+      cogsMap.set(item.productId, current + item.buyPrice * item.quantity);
+    }
+
+    for (const p of grossProfitData) {
+      const cogs = cogsMap.get(p.productId) || 0;
+      p.cogs = cogs;
+      p.grossProfit = p.revenue - cogs;
+      p.marginPct = p.revenue > 0 ? (p.grossProfit / p.revenue) * 100 : 0;
+    }
+  }
+
+  // Hitung total laba kotor keseluruhan
+  const totalRevenue = summary._sum.total || 0;
+  const allRawItems = await prisma.transactionItem.findMany({
+    where: { transaction: baseTxWhere },
+    select: { buyPrice: true, quantity: true },
+  });
+  const totalCogs = allRawItems.reduce((sum, i) => sum + i.buyPrice * i.quantity, 0);
+  const totalGrossProfit = totalRevenue - totalCogs;
+  const totalMarginPct = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+
   return (
     <ReportsClient
       summary={{
-        totalRevenue: summary._sum.total || 0,
+        totalRevenue,
         totalTransactions: summary._count,
         avgTransaction: summary._avg.total || 0,
+        totalCogs,
+        totalGrossProfit,
+        totalMarginPct,
       }}
       dailyData={dailyData}
       topProducts={topProductsData}
       cashierData={cashierData}
+      grossProfitData={grossProfitData}
       startDate={startDate.toISOString().slice(0, 10)}
       endDate={endDate.toISOString().slice(0, 10)}
     />

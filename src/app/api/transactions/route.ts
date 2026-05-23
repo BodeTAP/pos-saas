@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     const productIds = [...new Set(items.map((item) => item.productId))];
     const ownedProducts = await prisma.product.findMany({
       where: { id: { in: productIds }, tenantId, isActive: true },
-      select: { id: true, name: true, sku: true, sellPrice: true, hasVariants: true },
+      select: { id: true, name: true, sku: true, sellPrice: true, buyPrice: true, hasVariants: true },
     });
     if (ownedProducts.length !== productIds.length) {
       return NextResponse.json(
@@ -144,11 +144,11 @@ export async function POST(req: NextRequest) {
       .map((i) => i.variantSkuId)
       .filter(Boolean) as string[];
 
-    const variantSkusById = new Map<string, { id: string; price: number; sku: string | null; productId: string }>();
+    const variantSkusById = new Map<string, { id: string; price: number; buyPrice: number; sku: string | null; productId: string }>();
     if (variantSkuIds.length > 0) {
       const variantSkus = await prisma.productVariantSKU.findMany({
         where: { id: { in: variantSkuIds }, productId: { in: productIds }, isActive: true },
-        select: { id: true, price: true, sku: true, productId: true },
+        select: { id: true, price: true, buyPrice: true, sku: true, productId: true },
       });
       variantSkus.forEach((vs) => variantSkusById.set(vs.id, vs));
     }
@@ -192,6 +192,7 @@ export async function POST(req: NextRequest) {
       const product = productsById.get(item.productId)!;
       const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
       const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+      const buyPrice = variantSku ? variantSku.buyPrice : product.buyPrice;
       const itemGross = unitPrice * item.quantity;
       const itemDiscount = item.discount ?? 0;
 
@@ -201,6 +202,7 @@ export async function POST(req: NextRequest) {
         productSku: variantSku?.sku ?? product.sku,
         quantity: item.quantity,
         unitPrice,
+        buyPrice,
         discount: itemDiscount,
         subtotal: itemGross - itemDiscount,
         variantSkuId: item.variantSkuId ?? null,
@@ -269,6 +271,7 @@ export async function POST(req: NextRequest) {
                 productSku: item.productSku || null,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                buyPrice: item.buyPrice,
                 discount: item.discount ?? 0,
                 subtotal: item.subtotal,
                 variantSkuId: item.variantSkuId || null,

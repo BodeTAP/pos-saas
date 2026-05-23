@@ -581,7 +581,8 @@ model Transaction {
 model TransactionItem {
   id        String @id @default(cuid())
   quantity  Int
-  unitPrice Float  // Harga saat transaksi (snapshot)
+  unitPrice Float  // Harga jual saat transaksi (snapshot)
+  buyPrice  Float  @default(0) // Harga beli saat transaksi (snapshot, untuk laba kotor)
   discount  Float  @default(0)
   subtotal  Float  // quantity * unitPrice - discount
 

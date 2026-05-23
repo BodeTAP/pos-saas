@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
         items: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 10000, // Safety limit to prevent memory exhaustion
+      take: 10000,
     });
 
     const isTruncated = transactions.length === 10000;
@@ -76,27 +76,82 @@ export async function GET(req: NextRequest) {
       Catatan: tx.note || "",
     }));
 
-    // Sheet 2: Detail Item Transaksi
+    // Sheet 2: Detail Item Transaksi (dengan kolom laba)
     const itemsRows: Record<string, string | number>[] = [];
     for (const tx of transactions) {
       for (const item of tx.items) {
+        const hpp = item.buyPrice * item.quantity;
+        const labaKotor = item.subtotal - hpp;
+        const margin = item.subtotal > 0 ? (labaKotor / item.subtotal) * 100 : 0;
         itemsRows.push({
           "No. Invoice": tx.invoiceNumber,
           Tanggal: tx.createdAt.toLocaleDateString("id-ID"),
           Produk: item.productName,
+          Varian: item.variantLabel || "",
           SKU: item.productSku || "",
           Qty: item.quantity,
-          "Harga Satuan": item.unitPrice,
+          "Harga Jual": item.unitPrice,
+          "Harga Beli": item.buyPrice,
           Diskon: item.discount,
           Subtotal: item.subtotal,
+          HPP: hpp,
+          "Laba Kotor": labaKotor,
+          "Margin (%)": parseFloat(margin.toFixed(2)),
         });
       }
     }
+
+    // Sheet 3: Laba Kotor per Produk
+    const profitByProduct = new Map<string, {
+      name: string;
+      quantity: number;
+      revenue: number;
+      cogs: number;
+    }>();
+    for (const tx of transactions) {
+      for (const item of tx.items) {
+        const key = item.productId;
+        const existing = profitByProduct.get(key);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.revenue += item.subtotal;
+          existing.cogs += item.buyPrice * item.quantity;
+        } else {
+          profitByProduct.set(key, {
+            name: item.productName,
+            quantity: item.quantity,
+            revenue: item.subtotal,
+            cogs: item.buyPrice * item.quantity,
+          });
+        }
+      }
+    }
+    const profitRows = Array.from(profitByProduct.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .map((p) => {
+        const labaKotor = p.revenue - p.cogs;
+        const margin = p.revenue > 0 ? (labaKotor / p.revenue) * 100 : 0;
+        return {
+          Produk: p.name,
+          "Qty Terjual": p.quantity,
+          Pendapatan: p.revenue,
+          HPP: p.cogs,
+          "Laba Kotor": labaKotor,
+          "Margin (%)": parseFloat(margin.toFixed(2)),
+        };
+      });
 
     // Hitung ringkasan
     const totalRevenue = transactions.reduce((s, t) => s + t.total, 0);
     const totalDiscount = transactions.reduce((s, t) => s + t.discount, 0);
     const totalTax = transactions.reduce((s, t) => s + t.tax, 0);
+    const totalCogs = transactions.reduce(
+      (s, t) => s + t.items.reduce((si, i) => si + i.buyPrice * i.quantity, 0),
+      0
+    );
+    const totalGrossProfit = totalRevenue - totalCogs;
+    const totalMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+
     const summaryRows = [
       {
         Metrik: "Periode",
@@ -106,6 +161,9 @@ export async function GET(req: NextRequest) {
       { Metrik: "Total Pendapatan", Nilai: totalRevenue },
       { Metrik: "Total Diskon", Nilai: totalDiscount },
       { Metrik: "Total PPN", Nilai: totalTax },
+      { Metrik: "Total HPP", Nilai: totalCogs },
+      { Metrik: "Laba Kotor", Nilai: totalGrossProfit },
+      { Metrik: "Margin Kotor (%)", Nilai: parseFloat(totalMargin.toFixed(2)) },
       {
         Metrik: "Rata-rata per Transaksi",
         Nilai: transactions.length > 0 ? totalRevenue / transactions.length : 0,
@@ -118,7 +176,6 @@ export async function GET(req: NextRequest) {
     const fileName = `laporan-${new Date().toISOString().slice(0, 10)}`;
 
     if (format === "csv") {
-      // CSV: gabung semua transaksi jadi satu file
       const ws = XLSX.utils.json_to_sheet(transactionsRows);
       const csv = XLSX.utils.sheet_to_csv(ws);
 
@@ -133,13 +190,10 @@ export async function GET(req: NextRequest) {
 
     // Excel: multi-sheet
     const wb = XLSX.utils.book_new();
-    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-    const wsTransactions = XLSX.utils.json_to_sheet(transactionsRows);
-    const wsItems = XLSX.utils.json_to_sheet(itemsRows);
-
-    XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan");
-    XLSX.utils.book_append_sheet(wb, wsTransactions, "Transaksi");
-    XLSX.utils.book_append_sheet(wb, wsItems, "Detail Item");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Ringkasan");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transactionsRows), "Transaksi");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(itemsRows), "Detail Item");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(profitRows), "Laba Kotor");
 
     const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
