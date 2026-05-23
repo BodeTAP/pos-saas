@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return rateLimitResponse(
         rlResult.resetIn,
         `Terlalu banyak percobaan registrasi. Coba lagi dalam ${rlResult.resetIn} detik.`
-      ) as NextResponse;
+      );
     }
 
     const body = await req.json();

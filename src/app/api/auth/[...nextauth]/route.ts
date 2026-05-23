@@ -1,5 +1,5 @@
 import { handlers } from "@/lib/auth";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
   rateLimit,
   getClientIp,
@@ -27,7 +27,7 @@ async function POST(req: NextRequest) {
       return rateLimitResponse(
         ipResult.resetIn,
         `Terlalu banyak percobaan login. Coba lagi dalam ${ipResult.resetIn} detik.`
-      ) as NextResponse;
+      );
     }
 
     // Rate limit per email (cek body tanpa consume stream)
@@ -38,11 +38,11 @@ async function POST(req: NextRequest) {
 
       if (email) {
         const emailResult = rateLimit(`login:email:${email}`, LOGIN_EMAIL_RATE_LIMIT);
-        if (!emailResult.success) {
+        if (emailResult.success === false) {
           return rateLimitResponse(
             emailResult.resetIn,
             `Terlalu banyak percobaan untuk email ini. Coba lagi dalam ${emailResult.resetIn} detik.`
-          ) as NextResponse;
+          );
         }
       }
     } catch {

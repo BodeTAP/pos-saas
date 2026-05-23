@@ -89,6 +89,13 @@ export function LoginClient({
         redirect: false,
       });
 
+      // Tangani rate limit (429) — NextAuth return ok: false, status: 429
+      if (result?.status === 429) {
+        setError("Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.");
+        setErrorType("error");
+        return;
+      }
+
       if (result?.error) {
         const mapped = ERROR_MESSAGES[result.error] || ERROR_MESSAGES.default;
         setError(mapped.message);
@@ -97,8 +104,14 @@ export function LoginClient({
         router.push(callbackUrl);
         router.refresh();
       }
-    } catch {
-      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } catch (err: unknown) {
+      // Fallback: NextAuth kadang throw saat server error
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("429") || msg.toLowerCase().includes("too many")) {
+        setError("Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.");
+      } else {
+        setError("Terjadi kesalahan. Silakan coba lagi.");
+      }
       setErrorType("error");
     } finally {
       setIsLoading(false);

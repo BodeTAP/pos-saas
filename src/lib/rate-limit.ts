@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 /**
  * In-memory rate limiter menggunakan sliding window algorithm.
  *
@@ -17,13 +19,19 @@ interface RateLimitEntry {
 const store = new Map<string, RateLimitEntry>();
 
 // Cleanup expired entries setiap 5 menit agar tidak memory leak
-if (typeof setInterval !== "undefined") {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of store.entries()) {
-      if (entry.resetAt <= now) store.delete(key);
-    }
-  }, 5 * 60 * 1000);
+// Guard: hanya jalankan di Node.js runtime (bukan edge), dan hanya sekali
+if (typeof setInterval !== "undefined" && typeof globalThis !== "undefined") {
+  // Gunakan symbol di globalThis agar tidak double-register saat hot reload
+  const CLEANUP_KEY = Symbol.for("__rate_limit_cleanup__");
+  if (!(globalThis as Record<symbol, unknown>)[CLEANUP_KEY]) {
+    (globalThis as Record<symbol, unknown>)[CLEANUP_KEY] = true;
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of store.entries()) {
+        if (entry.resetAt <= now) store.delete(key);
+      }
+    }, 5 * 60 * 1000);
+  }
 }
 
 export interface RateLimitConfig {
@@ -93,16 +101,16 @@ export function getClientIp(req: Request): string {
 
 /**
  * Buat response 429 Too Many Requests yang konsisten.
+ * Return NextResponse agar kompatibel dengan Next.js route handlers.
  */
-export function rateLimitResponse(resetIn: number, message?: string) {
-  return new Response(
-    JSON.stringify({
+export function rateLimitResponse(resetIn: number, message?: string): NextResponse {
+  return NextResponse.json(
+    {
       error: message || `Terlalu banyak percobaan. Coba lagi dalam ${resetIn} detik.`,
-    }),
+    },
     {
       status: 429,
       headers: {
-        "Content-Type": "application/json",
         "Retry-After": String(resetIn),
         "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + resetIn),
       },
