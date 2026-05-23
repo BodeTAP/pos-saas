@@ -675,8 +675,19 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - **Hapus `router.refresh()` yang tidak perlu**: Transfer stok antar cabang tidak lagi reload halaman outlets (data outlet tidak berubah)
 - Hampir semua halaman tidak butuh `window.location.reload()` atau full page refresh setelah mutasi
 
+### ✅ Fase 17 — Kompresi Gambar Otomatis
+- **`src/lib/image-compression.ts`** — kompresi di client-side via Canvas API (tanpa dependency tambahan)
+- **Resize otomatis**: gambar > 1200px (long edge) di-resize, mempertahankan aspect ratio
+- **Konversi format**: ke WebP (40-60% lebih kecil dari JPEG kualitas sama), fallback JPEG quality 0.85
+- **Skip kompresi** jika file < 100KB DAN dimensi < 1200px (sudah optimal)
+- **Skip kompresi** untuk GIF (preserve animasi) dan SVG
+- **Smart fallback** — jika hasil kompresi malah lebih besar, pakai original
+- Toast info ke user: "Gambar dikompres: 4.5MB → 280KB"
+- Limit upload server dinaikkan dari 2MB → 5MB (safety setelah kompresi)
+
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
+- Landing page marketing (publik, bukan area auth)
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
 - Customer display (layar pelanggan)
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 
-const MAX_SIZE_MB = 2;
+const MAX_SIZE_MB = 5; // Safety limit setelah kompresi client (biasanya jadi <500KB)
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_FOLDERS = ["products", "logos", "avatars"] as const;
 const FILE_EXTENSIONS: Record<(typeof ALLOWED_TYPES)[number], string> = {

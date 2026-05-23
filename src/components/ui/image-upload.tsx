@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2, ImageIcon } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
+import { compressImage, formatFileSize } from "@/lib/image-compression";
 
 interface ImageUploadProps {
   value?: string | null;
@@ -37,10 +38,33 @@ export function ImageUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validasi awal — sebelum kompresi (cek ukuran asli max 10MB agar tidak crash browser)
+    const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_ORIGINAL_SIZE) {
+      toast.error("Ukuran file terlalu besar. Maksimal 10MB sebelum kompresi.");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
     setIsUploading(true);
     try {
+      // Kompresi di client sebelum upload
+      const originalSize = file.size;
+      const compressed = await compressImage(file, {
+        maxDimension: 1200,
+        quality: 0.85,
+      });
+
+      const savedKb = (originalSize - compressed.size) / 1024;
+      if (savedKb > 50) {
+        // Hanya tampilkan info kompresi jika hemat > 50KB
+        toast.success(
+          `Gambar dikompres: ${formatFileSize(originalSize)} → ${formatFileSize(compressed.size)}`
+        );
+      }
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", compressed);
       formData.append("folder", folder);
 
       const res = await fetch("/api/upload", {
@@ -55,7 +79,9 @@ export function ImageUpload({
       }
 
       onChange(data.url);
-      toast.success("Gambar berhasil diupload.");
+      if (savedKb <= 50) {
+        toast.success("Gambar berhasil diupload.");
+      }
     } catch {
       toast.error("Terjadi kesalahan saat mengupload.");
     } finally {
@@ -115,7 +141,7 @@ export function ImageUpload({
       />
 
       <p className="text-xs text-gray-400 text-center">
-        JPG, PNG, WebP · Maks 2MB
+        JPG, PNG, WebP · Otomatis dikompres
       </p>
     </div>
   );
