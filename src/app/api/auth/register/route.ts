@@ -6,9 +6,20 @@ import { isValidEmail } from "@/lib/validation";
 import { getPlatformConfig, PLATFORM_CONFIG_KEYS } from "@/lib/platform-config";
 import { sendWelcomeEmail } from "@/lib/email";
 import { sendEmailVerification } from "@/lib/email-verification";
+import { rateLimit, getClientIp, rateLimitResponse, REGISTER_RATE_LIMIT } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 registrasi per IP per jam
+    const ip = getClientIp(req);
+    const rlResult = rateLimit(`register:ip:${ip}`, REGISTER_RATE_LIMIT);
+    if (!rlResult.success) {
+      return rateLimitResponse(
+        rlResult.resetIn,
+        `Terlalu banyak percobaan registrasi. Coba lagi dalam ${rlResult.resetIn} detik.`
+      ) as NextResponse;
+    }
+
     const body = await req.json();
     const { ownerName, email, password, storeName, phone } = body;
 

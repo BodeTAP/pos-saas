@@ -138,6 +138,9 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 - Atomic stock deduction untuk transaksi dan transfer stok (mencegah oversell saat transaksi bersamaan)
 - Retur diproses satu kali secara atomik dan membalik poin dari snapshot transaksi
 - Idempotent webhook (mencegah duplikasi aktivasi paket)
+- **Rate limiting brute force** — in-memory sliding window di semua endpoint auth (login, register, forgot/reset password)
+- **Reset password via email** — token 32 bytes, expire 1 jam, satu kali pakai
+- **Konfirmasi email** — tenant baru wajib verifikasi email sebelum dianggap terverifikasi
 
 ### ⚙️ Konfigurasi Admin
 
@@ -598,8 +601,17 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Halaman `/dashboard/purchase-orders` dengan filter status dan summary cards
 - Sidebar: menu "Pembelian (PO)" dengan ikon Truck
 
+### ✅ Fase 9 — Keamanan & Auth Lanjutan
+- **Reset password via email** — token 32 bytes, expire 1 jam, atomic update, rate limit per IP + per email via DB
+- **Konfirmasi email saat register** — email verifikasi dikirim otomatis, banner compact di dashboard untuk Owner yang belum verifikasi
+- **Rate limiting brute force** — in-memory sliding window, diterapkan di semua endpoint auth:
+  - Login: 10 percobaan per IP / 5 per email per 15 menit
+  - Register: 5 akun per IP per jam
+  - Forgot password: 5 request per IP per 15 menit + 3 per email per 15 menit (via DB)
+  - Reset password: 10 percobaan per IP per 15 menit
+  - Validasi token: 20 request per IP per 15 menit (soft limit)
+
 ### 🔄 Backlog
-- Rate limiting endpoint
 - Audit log aktivitas
 - Promo rule otomatis (beli N gratis 1, diskon jika total > X)
 - Customer display (layar pelanggan)

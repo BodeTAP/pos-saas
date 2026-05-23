@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/email";
 import crypto from "crypto";
+import { rateLimit, getClientIp, FORGOT_PASSWORD_RATE_LIMIT } from "@/lib/rate-limit";
 
 const RESET_TOKEN_EXPIRY_HOURS = 1;
-// Rate limit: max 3 request per email per 15 menit
+// Rate limit per email via DB
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX = 3;
 
@@ -15,6 +16,13 @@ const RATE_LIMIT_MAX = 3;
  */
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit per IP (silent — return 200 agar tidak bocorkan info)
+    const ip = getClientIp(req);
+    const ipResult = rateLimit(`forgot-password:ip:${ip}`, FORGOT_PASSWORD_RATE_LIMIT);
+    if (!ipResult.success) {
+      return NextResponse.json({ success: true });
+    }
+
     const body = await req.json().catch(() => ({}));
     const email = (body.email as string)?.trim().toLowerCase();
 

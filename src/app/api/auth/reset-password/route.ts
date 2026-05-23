@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import {
+  rateLimit,
+  getClientIp,
+  rateLimitResponse,
+  RESET_PASSWORD_RATE_LIMIT,
+} from "@/lib/rate-limit";
 
 /**
  * POST /api/auth/reset-password
@@ -8,6 +14,16 @@ import bcrypt from "bcryptjs";
  */
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 10 percobaan per IP per 15 menit
+    const ip = getClientIp(req);
+    const rlResult = rateLimit(`reset-password:ip:${ip}`, RESET_PASSWORD_RATE_LIMIT);
+    if (!rlResult.success) {
+      return rateLimitResponse(
+        rlResult.resetIn,
+        `Terlalu banyak percobaan. Coba lagi dalam ${rlResult.resetIn} detik.`
+      ) as NextResponse;
+    }
+
     const body = await req.json();
     const { token, password } = body as { token: string; password: string };
 
@@ -89,6 +105,10 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
+    // Rate limit: 20 validasi per IP per 15 menit (soft limit, tidak blokir)
+    const ip = getClientIp(req);
+    rateLimit(`reset-password-validate:ip:${ip}`, { limit: 20, windowSec: 15 * 60 });
+
     const token = req.nextUrl.searchParams.get("token");
 
     if (!token) {
