@@ -246,6 +246,10 @@ model User {
   emailVerified DateTime?
   image         String?
 
+  // PIN offline untuk kasir (di-set oleh Owner)
+  offlinePinHash      String?
+  offlinePinExpiresAt DateTime?
+
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   outletId String?

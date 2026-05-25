@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Lock, Check, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
-import { saveOfflinePin } from "@/lib/offline-pin";
 import { toast } from "sonner";
 
 interface StaffMember {
@@ -56,11 +55,10 @@ export function OfflinePinManager({ staff }: OfflinePinManagerProps) {
         return;
       }
 
-      // Simpan hash ke IndexedDB lokal
-      await saveOfflinePin(data.userId, data.pinHash, data.expiresAt);
-
       const kasir = kasirList.find((k) => k.id === selectedUserId);
-      toast.success(`PIN offline untuk ${kasir?.name || "kasir"} berhasil diatur.`);
+      toast.success(
+        `PIN offline untuk ${kasir?.name || "kasir"} berhasil diatur. Kasir perlu login di device-nya untuk sync PIN ke perangkatnya.`
+      );
       setPin("");
       setConfirmPin("");
     } finally {

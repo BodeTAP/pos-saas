@@ -110,6 +110,7 @@ export default async function POSPage() {
       tenant={tenant}
       cashierId={session.user.id}
       cashierName={session.user.name}
+      cashierRole={session.user.role}
       tenantId={session.user.tenantId}
       outlet={outlet}
     />

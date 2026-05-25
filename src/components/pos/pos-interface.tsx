@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
@@ -11,8 +11,11 @@ import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
 import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
 import { useOfflineSync } from "@/hooks/use-offline-sync";
+import { useOfflinePinSync } from "@/hooks/use-offline-pin-sync";
 import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
+import { OfflinePinModal } from "@/components/pwa/offline-pin-modal";
+import { getActiveOfflineSession, hasValidOfflinePin } from "@/lib/offline-pin";
 import { VariantPickerModal, type ProductForVariant } from "./variant-picker-modal";
 
 type ProductWithCategory = Product & {
@@ -57,6 +60,7 @@ interface POSInterfaceProps {
   } | null;
   cashierId: string;
   cashierName: string;
+  cashierRole: string;
   tenantId: string;
   outlet: {
     id: string;
@@ -71,6 +75,7 @@ export function POSInterface({
   tenant,
   cashierId,
   cashierName,
+  cashierRole,
   tenantId,
   outlet,
 }: POSInterfaceProps) {
@@ -90,6 +95,45 @@ export function POSInterface({
   // State untuk variant picker
   const [variantProduct, setVariantProduct] = useState<ProductForVariant | null>(null);
 
+  // State PIN offline — true jika kasir butuh input PIN untuk mode offline
+  const [needsOfflinePin, setNeedsOfflinePin] = useState(false);
+
+  // Cek apakah perlu PIN modal saat offline
+  useEffect(() => {
+    async function checkOfflineSession() {
+      // Hanya cek saat offline
+      if (typeof window === "undefined" || navigator.onLine) {
+        setNeedsOfflinePin(false);
+        return;
+      }
+
+      // Cek apakah user punya PIN offline yang valid
+      const hasPin = await hasValidOfflinePin(cashierId);
+      if (!hasPin) {
+        // Belum punya PIN — tetap biarkan akses (graceful, biar user bisa lihat data cache)
+        // Modal hanya muncul kalau user sudah set PIN tapi sesi expired
+        setNeedsOfflinePin(false);
+        return;
+      }
+
+      // Cek session offline aktif
+      const session = await getActiveOfflineSession();
+      setNeedsOfflinePin(!session);
+    }
+
+    checkOfflineSession();
+
+    // Re-check saat status koneksi berubah
+    const handleOnline = () => setNeedsOfflinePin(false);
+    const handleOffline = () => checkOfflineSession();
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [cashierId]);
+
   // Sync data ke IndexedDB saat online (untuk offline support)
   const { sync: forceSync } = useOfflineSync({
     onSynced: () => {
@@ -97,6 +141,9 @@ export function POSInterface({
       // (produk di state sudah up-to-date dari server render)
     },
   });
+
+  // Sync PIN offline ke IndexedDB (hanya untuk KASIR)
+  useOfflinePinSync(cashierId, cashierRole);
 
   const cart = useCartStore();
   const taxPct = tenant?.taxRate ?? 0;
@@ -427,6 +474,16 @@ export function POSInterface({
           product={variantProduct}
           onClose={() => setVariantProduct(null)}
           onConfirm={handleVariantConfirm}
+        />
+      )}
+
+      {/* PIN Offline Modal — muncul saat offline & sesi expired */}
+      {needsOfflinePin && outlet && (
+        <OfflinePinModal
+          userId={cashierId}
+          cashierId={cashierId}
+          outletId={outlet.id}
+          onSuccess={() => setNeedsOfflinePin(false)}
         />
       )}
 
