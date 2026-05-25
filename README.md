@@ -685,6 +685,30 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 - Toast info ke user: "Gambar dikompres: 4.5MB → 280KB"
 - Limit upload server dinaikkan dari 2MB → 5MB (safety setelah kompresi)
 
+### ✅ Fase 18 — Audit & Perbaikan Offline Mode
+- Bug: `getOfflineProducts` `.equals(1)` untuk boolean → fix dengan filter di JS
+- Bug: race condition sync paralel → module-level lock di `offline-queue.ts`
+- Bug: SW tidak fallback saat 5xx → cek cache sebelum return error
+- Bug: `clients.claim()` aggressive → claim setelah cleanup cache lama
+- **Notifikasi update SW**: toast "Versi baru tersedia" + tombol Update
+- **Batch sync transaksi**: 1 request untuk N transaksi (bukan N request)
+- Stale check juga untuk CONFIG, bukan hanya PRODUCTS
+- Invoice number lokal append UUID 8 char (mencegah collision)
+- `useEffect` dep refactor ke ref pattern
+- PIN expired record auto-delete saat verifikasi
+- **Integrasi PIN modal**: kolom `User.offlinePinHash` di DB, hook `useOfflinePinSync`, modal muncul saat offline + sesi expired
+- **Stok UI baca dari IndexedDB saat offline**: hydrate `products` state setelah unmount, agar user yang refresh halaman saat offline tetap dapat stok terkini
+
+### ✅ Fase 19 — Audit & Perbaikan PWA
+- **Icons PNG** (bukan SVG) — fix dukungan iOS dan Android lama
+- Script `npm run icons:generate` — auto-generate semua ukuran PNG dari SVG template via `sharp`
+- **Manifest.json**: tambah `id`, `scope`, `dir`, `screenshots` (landscape + mobile), shortcut Dashboard
+- **Background color** match `theme_color` (mencegah flash putih saat splash)
+- **Layout.tsx**: `apple-touch-icon` PNG, `status-bar-style: black-translucent`, viewport `userScalable: true` (a11y compliant), `themeColor` light/dark
+- **Install prompt persistent**: timer 30 detik tidak reset saat navigasi (pakai timestamp di localStorage)
+- Listen event `appinstalled` — auto-mark sebagai installed permanently
+- Auto-dismiss konsisten saat user batal di native prompt
+
 ### 🔄 Backlog
 - Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
 - Landing page marketing (publik, bukan area auth)

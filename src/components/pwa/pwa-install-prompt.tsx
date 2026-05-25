@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Download, X, Smartphone } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -8,73 +8,126 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+const DISMISS_KEY = "pwa-prompt-dismissed";
+const INSTALLED_KEY = "pwa-installed";
+const DELAY_MS = 30_000; // 30 detik
+const DISMISS_DAYS = 7;
+
 /**
  * Komponen prompt install PWA ke homescreen.
- * Muncul otomatis setelah 30 detik jika browser mendukung dan belum di-install.
- * User bisa dismiss dan tidak akan muncul lagi selama 7 hari.
+ * - Muncul otomatis setelah 30 detik (timer persistent antar navigasi via timestamp)
+ * - User bisa dismiss; tidak akan muncul lagi selama 7 hari
+ * - Listen event 'appinstalled' untuk mark sebagai installed permanently
+ * - Auto-dismiss saat user batal di native prompt (consistency fix)
  */
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     // Cek apakah sudah di-install (standalone mode)
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as { standalone?: boolean }).standalone === true;
 
-    if (isStandalone) return;
+    if (isStandalone) {
+      // App sudah berjalan dalam mode standalone — mark sebagai installed
+      localStorage.setItem(INSTALLED_KEY, "1");
+      return;
+    }
 
-    // Cek apakah sudah pernah dismiss
-    const dismissedAt = localStorage.getItem("pwa-prompt-dismissed");
+    // Cek apakah sudah pernah install
+    if (localStorage.getItem(INSTALLED_KEY) === "1") return;
+
+    // Cek apakah sudah pernah dismiss dalam 7 hari terakhir
+    const dismissedAt = localStorage.getItem(DISMISS_KEY);
     if (dismissedAt) {
       const daysSinceDismiss =
         (Date.now() - parseInt(dismissedAt)) / (1000 * 60 * 60 * 24);
-      if (daysSinceDismiss < 7) return;
+      if (daysSinceDismiss < DISMISS_DAYS) return;
     }
 
     // Deteksi iOS (Safari tidak support beforeinstallprompt)
+    const ua = navigator.userAgent;
     const isIOSDevice =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      /iPad|iPhone|iPod/.test(ua) &&
       !(window as { MSStream?: unknown }).MSStream;
     setIsIOS(isIOSDevice);
 
+    // Compute remaining wait time berdasarkan first-visit timestamp
+    // Ini memastikan timer "persistent" antar navigasi/refresh
+    const FIRST_VISIT_KEY = "pwa-first-visit";
+    let firstVisit = parseInt(localStorage.getItem(FIRST_VISIT_KEY) || "0");
+    if (!firstVisit) {
+      firstVisit = Date.now();
+      localStorage.setItem(FIRST_VISIT_KEY, firstVisit.toString());
+    }
+    const elapsedMs = Date.now() - firstVisit;
+    const remainingMs = Math.max(0, DELAY_MS - elapsedMs);
+
     if (isIOSDevice) {
-      // Tampilkan instruksi manual untuk iOS setelah 30 detik
-      const timer = setTimeout(() => setShowPrompt(true), 30000);
-      return () => clearTimeout(timer);
+      // iOS: tampilkan instruksi manual setelah delay
+      timerRef.current = setTimeout(() => setShowPrompt(true), remainingMs);
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
     }
 
     // Android/Chrome: tangkap event beforeinstallprompt
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Tampilkan prompt setelah 30 detik
-      setTimeout(() => setShowPrompt(true), 30000);
+      // Tampilkan prompt setelah delay
+      timerRef.current = setTimeout(() => setShowPrompt(true), remainingMs);
+    };
+
+    // Listen 'appinstalled' — mark installed dan sembunyikan prompt
+    const handleAppInstalled = () => {
+      localStorage.setItem(INSTALLED_KEY, "1");
+      setShowPrompt(false);
+      setDeferredPrompt(null);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
-    return () =>
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   function handleInstall() {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choice) => {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice
+      .then((choice) => {
         if (choice.outcome === "accepted") {
+          // 'appinstalled' listener akan menangani persistence
+          setShowPrompt(false);
+        } else {
+          // User dismiss native prompt — set tanggal dismiss kita juga
+          localStorage.setItem(DISMISS_KEY, Date.now().toString());
           setShowPrompt(false);
         }
+      })
+      .finally(() => {
+        // deferredPrompt hanya bisa dipakai sekali
         setDeferredPrompt(null);
       });
-    }
   }
 
   function handleDismiss() {
     setShowPrompt(false);
-    localStorage.setItem("pwa-prompt-dismissed", Date.now().toString());
+    localStorage.setItem(DISMISS_KEY, Date.now().toString());
   }
 
   if (!showPrompt) return null;
@@ -82,7 +135,7 @@ export function PWAInstallPrompt() {
   // Instruksi iOS
   if (isIOS) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4">
+      <div className="fixed bottom-4 left-4 right-4 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 max-w-md mx-auto">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -114,7 +167,8 @@ export function PWAInstallPrompt() {
           </div>
           <button
             onClick={handleDismiss}
-            className="text-gray-400 hover:text-gray-600 p-1"
+            className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
+            aria-label="Tutup"
           >
             <X className="w-4 h-4" />
           </button>
@@ -125,7 +179,7 @@ export function PWAInstallPrompt() {
 
   // Android/Chrome
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4">
+    <div className="fixed bottom-4 left-4 right-4 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 max-w-md mx-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -142,7 +196,8 @@ export function PWAInstallPrompt() {
         </div>
         <button
           onClick={handleDismiss}
-          className="text-gray-400 hover:text-gray-600 p-1"
+          className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
+          aria-label="Tutup"
         >
           <X className="w-4 h-4" />
         </button>
