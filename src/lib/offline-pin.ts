@@ -49,6 +49,8 @@ export async function verifyOfflinePin(
     }
 
     if (Date.now() > record.expiresAt) {
+      // Bersihkan record expired agar tidak menumpuk
+      await db.offlinePins.delete(userId).catch(() => {});
       return { valid: false, reason: "PIN sudah expired. Sambungkan internet untuk memperbarui." };
     }
 

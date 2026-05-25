@@ -33,8 +33,16 @@ interface UseOfflineSyncOptions {
  * Hanya sync jika data sudah stale (> 24 jam) atau force = true.
  */
 export function useOfflineSync(options: UseOfflineSyncOptions = {}) {
-  const { force = false, onSynced, onError } = options;
+  const { force = false } = options;
   const syncingRef = useRef(false);
+  // Simpan callback di ref agar tidak memicu re-create sync function
+  const onSyncedRef = useRef(options.onSynced);
+  const onErrorRef = useRef(options.onError);
+
+  useEffect(() => {
+    onSyncedRef.current = options.onSynced;
+    onErrorRef.current = options.onError;
+  }, [options.onSynced, options.onError]);
 
   const sync = useCallback(async () => {
     // Jangan sync di server side atau jika sedang sync
@@ -89,25 +97,20 @@ export function useOfflineSync(options: UseOfflineSyncOptions = {}) {
       await setLastSyncAt(SYNC_KEYS.PRODUCTS);
       await setLastSyncAt(SYNC_KEYS.CONFIG);
 
-      onSynced?.();
+      onSyncedRef.current?.();
     } catch (err) {
       console.warn("Offline sync error:", err);
-      onError?.(err instanceof Error ? err : new Error(String(err)));
+      onErrorRef.current?.(err instanceof Error ? err : new Error(String(err)));
     } finally {
       syncingRef.current = false;
     }
-  }, [force, onSynced, onError]);
+  }, [force]);
 
-  // Sync saat mount (jika online)
+  // Sync saat mount + saat koneksi kembali online (digabung dalam 1 effect)
   useEffect(() => {
     sync();
-  }, [sync]);
 
-  // Sync saat koneksi kembali online
-  useEffect(() => {
-    const handleOnline = () => {
-      sync();
-    };
+    const handleOnline = () => sync();
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
   }, [sync]);
@@ -116,12 +119,15 @@ export function useOfflineSync(options: UseOfflineSyncOptions = {}) {
 }
 
 /**
- * Ambil produk dari IndexedDB (untuk mode offline)
+ * Ambil produk dari IndexedDB (untuk mode offline).
+ * Filter isActive di JS karena IndexedDB tidak bisa index boolean langsung
+ * dengan .equals() (boolean tidak valid sebagai indexable type di Dexie).
  */
 export async function getOfflineProducts(): Promise<OfflineProduct[]> {
   try {
     const db = getOfflineDB();
-    return await db.products.where("isActive").equals(1).toArray();
+    const all = await db.products.toArray();
+    return all.filter((p) => p.isActive);
   } catch {
     return [];
   }

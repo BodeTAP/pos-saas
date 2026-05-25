@@ -3,7 +3,7 @@
  * Manual implementation tanpa library untuk kompatibilitas Next.js 16 + Turbopack
  */
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `pos-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `pos-pages-${CACHE_VERSION}`;
 const IMAGES_CACHE = `pos-images-${CACHE_VERSION}`;
@@ -26,17 +26,23 @@ self.addEventListener("install", (event) => {
       });
     })
   );
-  self.skipWaiting();
+  // PENTING: jangan otomatis skipWaiting() — beri kesempatan tab lama selesai dulu
+  // Client akan kirim message SKIP_WAITING saat user klik "Update Sekarang"
 });
 
-// ── Message: trigger cache halaman POS dari client ─────────────
+// ── Message: trigger cache halaman POS atau apply update ─────
 self.addEventListener("message", (event) => {
   if (event.data?.type === "CACHE_POS_PAGE") {
     caches.open(PAGES_CACHE).then((cache) => {
       cache.add("/dashboard/pos").catch(() => {});
     });
   }
+  if (event.data?.type === "SKIP_WAITING") {
+    // Apply pembaruan SW saat user setuju
+    self.skipWaiting();
+  }
 });
+
 // ── Activate: hapus cache lama ─────────────────────────────────
 self.addEventListener("activate", (event) => {
   const validCaches = [STATIC_CACHE, PAGES_CACHE, IMAGES_CACHE];
@@ -50,9 +56,8 @@ self.addEventListener("activate", (event) => {
             return caches.delete(key);
           })
       )
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // ── Fetch: strategi per tipe request ──────────────────────────
@@ -70,16 +75,24 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
+        .then(async (response) => {
           // Cache halaman yang berhasil diload
           if (response.ok) {
             const clone = response.clone();
             caches.open(PAGES_CACHE).then((cache) => cache.put(request, clone));
+            return response;
           }
+
+          // 5xx server error — coba fallback ke cache jika ada
+          if (response.status >= 500) {
+            const cached = await caches.match(request);
+            if (cached) return cached;
+          }
+
           return response;
         })
         .catch(async () => {
-          // Offline: coba dari cache halaman
+          // Network error / offline: coba dari cache halaman
           const cached = await caches.match(request);
           if (cached) return cached;
 

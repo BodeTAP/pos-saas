@@ -18,8 +18,13 @@ export function OfflineIndicator({ onSyncRequest }: OfflineIndicatorProps) {
     // Set initial state
     setIsOnline(navigator.onLine);
 
-    // Cek apakah data sudah stale
-    isSyncStale(SYNC_KEYS.PRODUCTS).then(setIsStale);
+    // Cek staleness baik PRODUCTS maupun CONFIG (ambil yang paling stale)
+    Promise.all([
+      isSyncStale(SYNC_KEYS.PRODUCTS),
+      isSyncStale(SYNC_KEYS.CONFIG),
+    ]).then(([productsStale, configStale]) => {
+      setIsStale(productsStale || configStale);
+    });
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -103,7 +108,12 @@ export function StaleBanner({ onSyncRequest }: { onSyncRequest?: () => void }) {
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
-    isSyncStale(SYNC_KEYS.PRODUCTS).then(setIsStale);
+    Promise.all([
+      isSyncStale(SYNC_KEYS.PRODUCTS),
+      isSyncStale(SYNC_KEYS.CONFIG),
+    ]).then(([productsStale, configStale]) => {
+      setIsStale(productsStale || configStale);
+    });
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
