@@ -92,6 +92,68 @@ export function POSInterface({
   // State produk lokal — bisa diupdate setelah transaksi tanpa full page refresh
   const [products, setProducts] = useState<ProductWithCategory[]>(initialProducts);
 
+  // Saat offline, hydrate produk dari IndexedDB agar stoknya akurat
+  // (tidak terikat ke HTML cache lama dari service worker)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    async function loadOfflineProducts() {
+      if (navigator.onLine) return; // Online — pakai data dari server
+
+      try {
+        const { getOfflineProducts } = await import("@/hooks/use-offline-sync");
+        const offlineProducts = await getOfflineProducts();
+        if (offlineProducts.length === 0) return;
+
+        // Map OfflineProduct ke ProductWithCategory format
+        const mapped: ProductWithCategory[] = offlineProducts.map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          description: null,
+          imageUrl: p.imageUrl,
+          buyPrice: 0,
+          sellPrice: p.sellPrice,
+          stock: p.stock,
+          minStock: p.minStock,
+          unit: p.unit,
+          isActive: p.isActive,
+          tenantId,
+          categoryId: p.categoryId,
+          hasVariants: p.hasVariants,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          category: p.categoryName
+            ? {
+                id: p.categoryId ?? "",
+                name: p.categoryName,
+                tenantId,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            : null,
+          variantTypes: p.variantTypes,
+          variantSKUs: p.variantSKUs,
+        }));
+
+        setProducts(mapped);
+      } catch (err) {
+        console.warn("Failed to load offline products:", err);
+      }
+    }
+
+    // Trigger saat offline
+    if (!navigator.onLine) {
+      loadOfflineProducts();
+    }
+
+    // Trigger saat user kehilangan koneksi
+    const handleOffline = () => loadOfflineProducts();
+    window.addEventListener("offline", handleOffline);
+    return () => window.removeEventListener("offline", handleOffline);
+  }, [tenantId]);
+
   // State untuk variant picker
   const [variantProduct, setVariantProduct] = useState<ProductForVariant | null>(null);
 
