@@ -4,8 +4,12 @@ import { sendLowStockEmail } from "@/lib/email";
 import { auth } from "@/lib/auth";
 
 /**
+ * POST /api/notifications/low-stock
  * Kirim email low stock alert ke semua Owner yang punya produk di bawah minStock.
- * Dipanggil via cron job harian (atau manual dari Super Admin).
+ * Dipanggil via:
+ * 1. Super Admin manual dari panel settings
+ * 2. Vercel Cron (GET) — lihat handler GET di bawah
+ * 3. External cron dengan header x-cron-secret
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -19,6 +23,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "CRON_SECRET belum dikonfigurasi." }, { status: 503 });
   }
   if (secret !== validSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return sendLowStockNotifications();
+}
+
+/**
+ * GET /api/notifications/low-stock
+ * Vercel Cron memanggil endpoint ini setiap hari pukul 08.00 WIB (01.00 UTC).
+ * Vercel mengirim header: Authorization: Bearer <CRON_SECRET>
+ */
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const validSecret = process.env.CRON_SECRET;
+
+  if (!validSecret) {
+    return NextResponse.json({ error: "CRON_SECRET belum dikonfigurasi." }, { status: 503 });
+  }
+
+  if (authHeader !== `Bearer ${validSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

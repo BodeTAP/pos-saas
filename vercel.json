@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/notifications/low-stock",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/notifications/trial-reminder",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
