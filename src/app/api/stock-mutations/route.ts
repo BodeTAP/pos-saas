@@ -43,28 +43,41 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "30");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "30") || 30));
     const outletId = searchParams.get("outletId");
     const productId = searchParams.get("productId");
-    const type = searchParams.get("type");
-    const dateFrom = searchParams.get("dateFrom");
-    const dateTo = searchParams.get("dateTo");
     const skip = (page - 1) * limit;
+
+    // Validasi type — hanya nilai yang dikenal
+    const VALID_TYPES = ["IN", "OUT", "ADJUSTMENT", "SALE", "RETURN", "PURCHASE"] as const;
+    type MutationType = typeof VALID_TYPES[number];
+    const typeParam = searchParams.get("type");
+    const type = typeParam && VALID_TYPES.includes(typeParam as MutationType)
+      ? (typeParam as MutationType)
+      : null;
+
+    // Validasi tanggal — cegah crash dari string tidak valid
+    const dateFromParam = searchParams.get("dateFrom");
+    const dateToParam = searchParams.get("dateTo");
+    const dateFrom = dateFromParam && !isNaN(Date.parse(dateFromParam))
+      ? new Date(dateFromParam)
+      : null;
+    const dateTo = dateToParam && !isNaN(Date.parse(dateToParam))
+      ? new Date(new Date(dateToParam).setHours(23, 59, 59, 999))
+      : null;
 
     const where = {
       tenantId: session.user.tenantId,
       ...(outletId && { outletId }),
       ...(productId && { productId }),
-      ...(type && { type: type as "IN" | "OUT" | "ADJUSTMENT" | "SALE" | "RETURN" | "PURCHASE" }),
-      ...(dateFrom || dateTo
-        ? {
-            createdAt: {
-              ...(dateFrom && { gte: new Date(dateFrom) }),
-              ...(dateTo && { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) }),
-            },
-          }
-        : {}),
+      ...(type && { type }),
+      ...((dateFrom || dateTo) && {
+        createdAt: {
+          ...(dateFrom && { gte: dateFrom }),
+          ...(dateTo && { lte: dateTo }),
+        },
+      }),
     };
 
     const [mutations, total] = await Promise.all([

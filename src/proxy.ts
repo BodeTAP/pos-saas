@@ -98,5 +98,14 @@ export const proxy = auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  matcher: [
+    /*
+     * Match semua path kecuali:
+     * - _next/static (Next.js static files)
+     * - _next/image (Next.js image optimization)
+     * - favicon.ico
+     * - File statis dengan ekstensi umum (gambar, font, manifest, sw)
+     */
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|eot|json|js|css|txt|xml)$).*)",
+  ],
 };
