@@ -5,12 +5,22 @@ import { createTransaction } from "@/lib/tripay";
 import { getPlan } from "@/lib/plans";
 import { generateInvoiceNumber } from "@/lib/utils";
 import { parseBody, checkoutSchema } from "@/lib/schemas";
+import { rateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+
+const CHECKOUT_RATE_LIMIT = { limit: 5, windowSec: 60 * 60 }; // 5x per jam per IP
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user.tenantId || session.user.role !== "OWNER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Rate limit: 5 checkout per IP per jam
+    const ip = getClientIp(req);
+    const rl = rateLimit(`billing-checkout:ip:${ip}`, CHECKOUT_RATE_LIMIT);
+    if (!rl.success) {
+      return rateLimitResponse(rl.resetIn, "Terlalu banyak percobaan checkout. Coba lagi nanti.");
     }
 
     const parsed = await parseBody(req, checkoutSchema);
@@ -87,9 +97,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate invoice number unik
-    const invoiceNumber = generateInvoiceNumber("BIL");
-
     // Hitung period start & end
     const periodStart = new Date();
     const periodEnd = new Date();
@@ -99,18 +106,34 @@ export async function POST(req: NextRequest) {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
 
-    // Buat invoice di database dulu (status PENDING)
-    const invoice = await prisma.billingInvoice.create({
-      data: {
-        invoiceNumber,
-        plan,
-        amount,
-        status: "PENDING",
-        periodStart,
-        periodEnd,
-        tenantId: session.user.tenantId,
-      },
-    });
+    // Generate invoice number unik dengan retry loop
+    let invoiceNumber = "";
+    let invoice = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      invoiceNumber = generateInvoiceNumber("BIL");
+      try {
+        invoice = await prisma.billingInvoice.create({
+          data: {
+            invoiceNumber,
+            plan,
+            amount,
+            status: "PENDING",
+            periodStart,
+            periodEnd,
+            tenantId: session.user.tenantId,
+          },
+        });
+        break;
+      } catch (err: unknown) {
+        const isUniqueViolation =
+          err &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code: string }).code === "P2002";
+        if (!isUniqueViolation || attempt === 2) throw err;
+      }
+    }
+    if (!invoice) throw new Error("Gagal membuat nomor invoice unik.");
 
     // Buat transaksi di Tripay
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

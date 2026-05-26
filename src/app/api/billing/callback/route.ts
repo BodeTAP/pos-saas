@@ -39,7 +39,17 @@ export async function POST(req: NextRequest) {
 
     if (!invoice) {
       console.warn(`Invoice not found: ${payload.merchant_ref}`);
-      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      // Return 200 agar Tripay tidak retry terus-menerus
+      return NextResponse.json({ success: true, ignored: true, reason: "invoice_not_found" });
+    }
+
+    // Verifikasi bahwa reference Tripay cocok dengan yang tersimpan di DB
+    // Mencegah attacker yang tahu merchant_ref tapi tidak punya reference asli
+    if (invoice.tripayReference && invoice.tripayReference !== payload.reference) {
+      console.warn(
+        `Reference mismatch for ${payload.merchant_ref}: expected ${invoice.tripayReference}, got ${payload.reference}`
+      );
+      return NextResponse.json({ error: "Reference mismatch" }, { status: 400 });
     }
 
     const result = await applyBillingStatusUpdate(
@@ -67,6 +77,13 @@ export async function POST(req: NextRequest) {
           periodEnd: invoice.periodEnd,
         }).catch((err) => console.error("Invoice paid email error:", err));
       }
+    }
+
+    // Log REFUND untuk monitoring (tidak ada email template khusus saat ini)
+    if (result.updated && payload.status === "REFUND") {
+      console.warn(
+        `[Billing] Refund received for invoice ${invoice.invoiceNumber}, tenant ${invoice.tenantId}`
+      );
     }
 
     return NextResponse.json({ success: true, ...result });

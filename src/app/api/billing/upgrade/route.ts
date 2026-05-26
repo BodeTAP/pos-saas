@@ -5,6 +5,9 @@ import { createTransaction } from "@/lib/tripay";
 import { getPlan } from "@/lib/plans";
 import { generateInvoiceNumber } from "@/lib/utils";
 import { parseBody, checkoutSchema } from "@/lib/schemas";
+import { rateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+
+const UPGRADE_RATE_LIMIT = { limit: 5, windowSec: 60 * 60 };
 
 /**
  * Upgrade paket langsung (misal Pro → Enterprise).
@@ -16,6 +19,12 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session?.user.tenantId || session.user.role !== "OWNER") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const ip = getClientIp(req);
+    const rl = rateLimit(`billing-upgrade:ip:${ip}`, UPGRADE_RATE_LIMIT);
+    if (!rl.success) {
+      return rateLimitResponse(rl.resetIn, "Terlalu banyak percobaan upgrade. Coba lagi nanti.");
     }
 
     const parsed = await parseBody(req, checkoutSchema);
@@ -74,14 +83,10 @@ export async function POST(req: NextRequest) {
     }
 
     const amount = period === "YEARLY" ? planInfo.yearlyPrice : planInfo.monthlyPrice;
-    const invoiceNumber = generateInvoiceNumber("UPG");
 
     // FIX 6: Cancel any existing PENDING invoices to prevent plan regression
     await prisma.billingInvoice.updateMany({
-      where: {
-        tenantId: session.user.tenantId,
-        status: "PENDING",
-      },
+      where: { tenantId: session.user.tenantId, status: "PENDING" },
       data: { status: "FAILED" },
     });
 
@@ -91,18 +96,34 @@ export async function POST(req: NextRequest) {
     if (period === "YEARLY") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     else periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-    // Buat invoice
-    const invoice = await prisma.billingInvoice.create({
-      data: {
-        invoiceNumber,
-        plan,
-        amount,
-        status: "PENDING",
-        periodStart,
-        periodEnd,
-        tenantId: session.user.tenantId,
-      },
-    });
+    // Generate invoice number unik dengan retry loop
+    let invoiceNumber = "";
+    let invoice = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      invoiceNumber = generateInvoiceNumber("UPG");
+      try {
+        invoice = await prisma.billingInvoice.create({
+          data: {
+            invoiceNumber,
+            plan,
+            amount,
+            status: "PENDING",
+            periodStart,
+            periodEnd,
+            tenantId: session.user.tenantId,
+          },
+        });
+        break;
+      } catch (err: unknown) {
+        const isUniqueViolation =
+          err &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code: string }).code === "P2002";
+        if (!isUniqueViolation || attempt === 2) throw err;
+      }
+    }
+    if (!invoice) throw new Error("Gagal membuat nomor invoice unik.");
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const periodLabel = period === "YEARLY" ? "Tahunan" : "Bulanan";

@@ -1,13 +1,29 @@
 import crypto from "crypto";
 
-const TRIPAY_API_KEY = process.env.TRIPAY_API_KEY!;
-const TRIPAY_PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY!;
-const TRIPAY_MERCHANT_CODE = process.env.TRIPAY_MERCHANT_CODE!;
+const TRIPAY_API_KEY = process.env.TRIPAY_API_KEY;
+const TRIPAY_PRIVATE_KEY = process.env.TRIPAY_PRIVATE_KEY;
+const TRIPAY_MERCHANT_CODE = process.env.TRIPAY_MERCHANT_CODE;
 const TRIPAY_BASE_URL = process.env.TRIPAY_BASE_URL || "https://tripay.co.id/api-sandbox";
 
-// FIX 11: Validate required env vars at module load time
-if (!process.env.TRIPAY_API_KEY || !process.env.TRIPAY_PRIVATE_KEY || !process.env.TRIPAY_MERCHANT_CODE) {
-  console.error("WARNING: Tripay environment variables are not fully configured. Payment features will not work.");
+/**
+ * Validasi env vars Tripay — throw di runtime jika tidak lengkap.
+ * Dipanggil sebelum setiap operasi Tripay.
+ */
+function assertTripayConfig(): {
+  apiKey: string;
+  privateKey: string;
+  merchantCode: string;
+} {
+  if (!TRIPAY_API_KEY || !TRIPAY_PRIVATE_KEY || !TRIPAY_MERCHANT_CODE) {
+    throw new Error(
+      "Konfigurasi Tripay tidak lengkap. Pastikan TRIPAY_API_KEY, TRIPAY_PRIVATE_KEY, dan TRIPAY_MERCHANT_CODE sudah diset di .env"
+    );
+  }
+  return {
+    apiKey: TRIPAY_API_KEY,
+    privateKey: TRIPAY_PRIVATE_KEY,
+    merchantCode: TRIPAY_MERCHANT_CODE,
+  };
 }
 
 export interface TripayChannel {
@@ -71,38 +87,50 @@ export interface TripayTransactionResponse {
  * Format: merchantCode + merchantRef + amount → HMAC dengan privateKey
  */
 export function generateSignature(merchantRef: string, amount: number): string {
-  const data = `${TRIPAY_MERCHANT_CODE}${merchantRef}${amount}`;
+  const { privateKey, merchantCode } = assertTripayConfig();
+  const data = `${merchantCode}${merchantRef}${amount}`;
   return crypto
-    .createHmac("sha256", TRIPAY_PRIVATE_KEY)
+    .createHmac("sha256", privateKey)
     .update(data)
     .digest("hex");
 }
 
 /**
- * Verifikasi signature dari webhook callback Tripay
- * Tripay mengirim signature di header X-Callback-Signature
+ * Verifikasi signature dari webhook callback Tripay.
+ * Menggunakan timing-safe comparison untuk mencegah timing attack.
  */
 export function verifyCallbackSignature(rawBody: string, signature: string): boolean {
+  if (!signature) return false;
+  const { privateKey } = assertTripayConfig();
   const expected = crypto
-    .createHmac("sha256", TRIPAY_PRIVATE_KEY)
+    .createHmac("sha256", privateKey)
     .update(rawBody)
     .digest("hex");
-  return expected === signature;
+
+  // Timing-safe comparison — mencegah timing attack
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, "hex"),
+      Buffer.from(signature, "hex")
+    );
+  } catch {
+    // Buffer length mismatch (signature format salah)
+    return false;
+  }
 }
 
 /**
  * Ambil daftar payment channel yang tersedia
  */
 export async function getPaymentChannels(): Promise<TripayChannel[]> {
+  const { apiKey } = assertTripayConfig();
   const res = await fetch(`${TRIPAY_BASE_URL}/merchant/payment-channel`, {
-    headers: {
-      Authorization: `Bearer ${TRIPAY_API_KEY}`,
-    },
+    headers: { Authorization: `Bearer ${apiKey}` },
     cache: "no-store",
   });
 
   if (!res.ok) {
-    throw new Error(`Tripay API error: ${res.status}`);
+    throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
   }
 
   const data = await res.json();
@@ -120,6 +148,7 @@ export async function getPaymentChannels(): Promise<TripayChannel[]> {
 export async function createTransaction(
   params: CreateTransactionParams
 ): Promise<TripayTransactionResponse> {
+  const { apiKey } = assertTripayConfig();
   const signature = generateSignature(params.merchantRef, params.amount);
   const expiredAt =
     Math.floor(Date.now() / 1000) + (params.expiredHours || 24) * 3600;
@@ -141,7 +170,7 @@ export async function createTransaction(
   const res = await fetch(`${TRIPAY_BASE_URL}/transaction/create`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${TRIPAY_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
@@ -160,15 +189,18 @@ export async function createTransaction(
  * Cek status transaksi
  */
 export async function getTransactionStatus(reference: string) {
+  const { apiKey } = assertTripayConfig();
   const res = await fetch(
-    `${TRIPAY_BASE_URL}/transaction/detail?reference=${reference}`,
+    `${TRIPAY_BASE_URL}/transaction/detail?reference=${encodeURIComponent(reference)}`,
     {
-      headers: {
-        Authorization: `Bearer ${TRIPAY_API_KEY}`,
-      },
+      headers: { Authorization: `Bearer ${apiKey}` },
       cache: "no-store",
     }
   );
+
+  if (!res.ok) {
+    throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
+  }
 
   const data = await res.json();
   if (!data.success) {
