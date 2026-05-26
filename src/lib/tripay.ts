@@ -124,21 +124,34 @@ export function verifyCallbackSignature(rawBody: string, signature: string): boo
  */
 export async function getPaymentChannels(): Promise<TripayChannel[]> {
   const { apiKey } = assertTripayConfig();
-  const res = await fetch(`${TRIPAY_BASE_URL}/merchant/payment-channel`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000); // 15 detik
 
-  if (!res.ok) {
-    throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
+  try {
+    const res = await fetch(`${TRIPAY_BASE_URL}/merchant/payment-channel`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.message || "Gagal mengambil channel pembayaran");
+    }
+
+    return data.data as TripayChannel[];
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Koneksi ke Tripay timeout. Coba lagi dalam beberapa saat.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.message || "Gagal mengambil channel pembayaran");
-  }
-
-  return data.data as TripayChannel[];
 }
 
 /**
@@ -167,22 +180,35 @@ export async function createTransaction(
     signature,
   };
 
-  const res = await fetch(`${TRIPAY_BASE_URL}/transaction/create`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
-  const data = await res.json();
+  try {
+    const res = await fetch(`${TRIPAY_BASE_URL}/transaction/create`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
 
-  if (!res.ok || !data.success) {
-    throw new Error(data.message || `Tripay error: ${res.status}`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || `Tripay error: ${res.status}`);
+    }
+
+    return data.data as TripayTransactionResponse;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Koneksi ke Tripay timeout. Coba lagi dalam beberapa saat.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return data.data as TripayTransactionResponse;
 }
 
 /**
@@ -190,21 +216,34 @@ export async function createTransaction(
  */
 export async function getTransactionStatus(reference: string) {
   const { apiKey } = assertTripayConfig();
-  const res = await fetch(
-    `${TRIPAY_BASE_URL}/transaction/detail?reference=${encodeURIComponent(reference)}`,
-    {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: "no-store",
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(
+      `${TRIPAY_BASE_URL}/transaction/detail?reference=${encodeURIComponent(reference)}`,
+      {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        cache: "no-store",
+        signal: controller.signal,
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
     }
-  );
 
-  if (!res.ok) {
-    throw new Error(`Tripay API error: ${res.status} ${res.statusText}`);
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.message || "Gagal mengambil status transaksi");
+    }
+    return data.data;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Koneksi ke Tripay timeout. Coba lagi dalam beberapa saat.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const data = await res.json();
-  if (!data.success) {
-    throw new Error(data.message || "Gagal mengambil status transaksi");
-  }
-  return data.data;
 }
