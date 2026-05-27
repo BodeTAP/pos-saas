@@ -45,8 +45,16 @@ interface KitchenTable {
   activeOrder: ActiveOrder | null;
 }
 
+interface KitchenTakeaway {
+  id: string; // transaction id
+  invoiceNumber: string;
+  outletName: string;
+  activeOrder: ActiveOrder;
+}
+
 interface KitchenDisplayClientProps {
   initialTables: KitchenTable[];
+  initialTakeaway?: KitchenTakeaway[];
 }
 
 const TABLE_STATUS_CONFIG = {
@@ -113,8 +121,9 @@ function formatDuration(minutes: number): string {
   return `${h}j ${m}m`;
 }
 
-export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProps) {
+export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: KitchenDisplayClientProps) {
   const [tables, setTables] = useState<KitchenTable[]>(initialTables);
+  const [takeaway, setTakeaway] = useState<KitchenTakeaway[]>(initialTakeaway);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [updatingItem, setUpdatingItem] = useState<string | null>(null);
@@ -127,6 +136,7 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
       if (!res.ok) return;
       const data = await res.json();
       setTables(data.tables);
+      setTakeaway(data.takeaway ?? []);
       setLastUpdated(new Date());
     } catch {
       if (!silent) toast.error("Gagal memuat data.");
@@ -157,11 +167,27 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
             : null,
         }))
       );
+      setTakeaway((prev) =>
+        prev.map((t) => ({
+          ...t,
+          activeOrder: {
+            ...t.activeOrder,
+            durationMinutes: Math.floor(
+              (Date.now() - new Date(t.activeOrder.openedAt).getTime()) / 60000
+            ),
+          },
+        }))
+      );
     }, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  async function handleUpdateItemStatus(tableId: string, itemId: string, newStatus: OrderItem["status"]) {
+  async function handleUpdateItemStatus(
+    containerId: string,
+    itemId: string,
+    newStatus: OrderItem["status"],
+    isTakeaway = false
+  ) {
     setUpdatingItem(itemId);
     try {
       const res = await fetch(`/api/order-items/${itemId}`, {
@@ -175,21 +201,38 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
         return;
       }
       const data = await res.json();
-      // Update item di state lokal
-      setTables((prev) =>
-        prev.map((t) => {
-          if (t.id !== tableId || !t.activeOrder) return t;
-          return {
-            ...t,
-            activeOrder: {
-              ...t.activeOrder,
-              items: t.activeOrder.items.map((i) =>
-                i.id === itemId ? { ...i, ...data.item } : i
-              ),
-            },
-          };
-        })
-      );
+
+      if (isTakeaway) {
+        setTakeaway((prev) =>
+          prev.map((t) => {
+            if (t.id !== containerId) return t;
+            return {
+              ...t,
+              activeOrder: {
+                ...t.activeOrder,
+                items: t.activeOrder.items.map((i) =>
+                  i.id === itemId ? { ...i, ...data.item } : i
+                ),
+              },
+            };
+          })
+        );
+      } else {
+        setTables((prev) =>
+          prev.map((t) => {
+            if (t.id !== containerId || !t.activeOrder) return t;
+            return {
+              ...t,
+              activeOrder: {
+                ...t.activeOrder,
+                items: t.activeOrder.items.map((i) =>
+                  i.id === itemId ? { ...i, ...data.item } : i
+                ),
+              },
+            };
+          })
+        );
+      }
     } catch {
       toast.error("Terjadi kesalahan.");
     } finally {
@@ -224,11 +267,17 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
   const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
   const billCount = tables.filter((t) => t.status === "BILL").length;
 
-  // Hitung item yang perlu perhatian (PENDING atau COOKING)
-  const pendingItemCount = tables.reduce((sum, t) => {
-    if (!t.activeOrder) return sum;
-    return sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length;
-  }, 0);
+  // Hitung item yang perlu perhatian (PENDING atau COOKING) — termasuk takeaway
+  const pendingItemCount =
+    tables.reduce((sum, t) => {
+      if (!t.activeOrder) return sum;
+      return sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length;
+    }, 0) +
+    takeaway.reduce(
+      (sum, t) =>
+        sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length,
+      0
+    );
 
   return (
     <div className="space-y-5">
@@ -290,14 +339,16 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
       )}
 
       {/* Empty state */}
-      {tables.length === 0 ? (
+      {tables.length === 0 && takeaway.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
           <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">Semua meja kosong</p>
-          <p className="text-sm text-gray-400 mt-1">Tidak ada order aktif saat ini</p>
+          <p className="text-gray-500 font-medium">Tidak ada order aktif</p>
+          <p className="text-sm text-gray-400 mt-1">Semua meja kosong dan tidak ada takeaway</p>
         </div>
       ) : (
-        areas.map((area) => {
+        <>
+          {/* Tables section */}
+          {tables.length > 0 && areas.map((area) => {
           const areaTables = tables.filter((t) => (t.area || "Umum") === area);
           return (
             <div key={area}>
@@ -475,7 +526,127 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
               </div>
             </div>
           );
-        })
+        })}
+
+          {/* Takeaway section */}
+          {takeaway.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">🥡 Takeaway</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {takeaway.map((tx) => {
+                  const items = tx.activeOrder.items;
+                  const activeItems = items.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
+                  const duration = tx.activeOrder.durationMinutes;
+                  const allServed = items.length > 0 && items.every((i) => i.status === "SERVED" || i.status === "CANCELLED");
+
+                  return (
+                    <div
+                      key={tx.id}
+                      className="bg-white rounded-xl border-2 overflow-hidden bg-purple-50 border-purple-200 transition-all"
+                    >
+                      {/* Header takeaway */}
+                      <div className="px-4 pt-4 pb-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="text-lg font-bold text-gray-900">🥡 {tx.invoiceNumber}</p>
+                            <p className="text-xs text-gray-500">Takeaway · {tx.outletName}</p>
+                          </div>
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full text-purple-700 bg-purple-100">
+                            Sudah Dibayar
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <Clock className={`w-3.5 h-3.5 ${getDurationColor(duration)}`} />
+                          <span className={`text-xs font-semibold ${getDurationColor(duration)}`}>
+                            {formatDuration(duration)}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            sejak {new Date(tx.activeOrder.openedAt).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items */}
+                      <div className="border-t border-gray-100">
+                        {allServed && (
+                          <div className="px-4 py-2 bg-green-50 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                            <p className="text-xs text-green-700 font-medium">Semua item sudah disajikan</p>
+                          </div>
+                        )}
+
+                        <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                          {activeItems.map((item) => {
+                            const itemCfg = ITEM_STATUS_CONFIG[item.status];
+                            const ItemIcon = itemCfg.icon;
+                            const isUpdating = updatingItem === item.id;
+
+                            return (
+                              <div key={item.id} className="px-4 py-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-gray-900 text-sm">{item.quantity}x</span>
+                                      <span className="font-medium text-gray-900 text-sm truncate">
+                                        {item.productName}
+                                        {item.variantLabel && (
+                                          <span className="text-gray-500 font-normal"> ({item.variantLabel})</span>
+                                        )}
+                                      </span>
+                                    </div>
+                                    {item.modifiers.length > 0 && (
+                                      <div className="mt-0.5 space-y-0.5">
+                                        {item.modifiers.map((mod, i) => (
+                                          <p key={i} className="text-xs text-gray-500 pl-4">
+                                            → {mod.optionName}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {item.note && (
+                                      <p className="text-xs text-amber-700 italic pl-4 mt-0.5">! {item.note}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${itemCfg.color} ${itemCfg.bg}`}>
+                                      <ItemIcon className="w-3 h-3" />
+                                      {itemCfg.label}
+                                    </span>
+                                    {itemCfg.nextStatus && (
+                                      <button
+                                        onClick={() => handleUpdateItemStatus(tx.id, item.id, itemCfg.nextStatus!, true)}
+                                        disabled={isUpdating}
+                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+                                      >
+                                        {isUpdating ? "..." : itemCfg.nextLabel}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {items.filter((i) => i.status === "SERVED").length > 0 && (
+                          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+                            <p className="text-xs text-gray-400">
+                              ✓ {items.filter((i) => i.status === "SERVED").length} item sudah disajikan
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

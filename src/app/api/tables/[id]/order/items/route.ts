@@ -111,6 +111,7 @@ export async function POST(
         prisma.orderItem.create({
           data: {
             tableOrderId: order.id,
+            tenantId: session.user.tenantId!,
             productId: item.productId,
             productName: item.productName,
             productSku: item.productSku ?? null,

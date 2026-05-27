@@ -78,6 +78,8 @@ interface POSInterfaceProps {
     pointValue?: number;
     activePaymentMethods?: string | null;
     invoicePrefix?: string | null;
+    serviceChargePct?: number;
+    paymentFlow?: "PAY_FIRST" | "PAY_LATER";
   } | null;
   cashierId: string;
   cashierName: string;
@@ -126,6 +128,9 @@ export function POSInterface({
 
   // F&B: state meja
   const isFnB = businessType === "FNB";
+  const paymentFlow = tenant?.paymentFlow ?? "PAY_FIRST";
+  // Tombol "Kirim ke Dapur" hanya untuk PAY_LATER (alur tradisional pesan dulu, bayar belakangan)
+  const showSendToKitchen = isFnB && paymentFlow === "PAY_LATER";
   const [tables, setTables] = useState<TableInfo[]>(initialTables);
 
   // F&B: auto-select meja dari URL param ?tableId= (server sudah validasi)
@@ -688,7 +693,7 @@ export function POSInterface({
           pointValue={tenant?.pointValue || 100}
           onCheckout={() => setShowPayment(true)}
           onHold={handleHold}
-          isFnB={isFnB}
+          isFnB={showSendToKitchen}
           hasTable={!!selectedTable}
           onSendToKitchen={handleSendToKitchen}
           isSendingToKitchen={isSendingToKitchen}
@@ -739,7 +744,7 @@ export function POSInterface({
                 pointValue={tenant?.pointValue || 100}
                 onCheckout={() => { setShowMobileCart(false); setShowPayment(true); }}
                 onHold={() => { handleHold(); setShowMobileCart(false); }}
-                isFnB={isFnB}
+                isFnB={showSendToKitchen}
                 hasTable={!!selectedTable}
                 onSendToKitchen={async () => { await handleSendToKitchen(); setShowMobileCart(false); }}
                 isSendingToKitchen={isSendingToKitchen}

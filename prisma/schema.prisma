@@ -80,6 +80,12 @@ enum BusinessType {
   OTHER     // Lainnya
 }
 
+// F&B: alur pembayaran
+enum PaymentFlow {
+  PAY_FIRST  // Bayar dulu, baru dimasak (self-service, fast food, kantin)
+  PAY_LATER  // Pesan dulu, bayar belakangan (kafe/restoran tradisional)
+}
+
 // ─────────────────────────────────────────────
 // PLATFORM CONFIG (dikelola Super Admin)
 // ─────────────────────────────────────────────
@@ -148,6 +154,9 @@ model Tenant {
   // F&B: Service charge
   serviceChargePct Float @default(0)   // % biaya layanan (misal 5 = 5%)
 
+  // F&B: alur pembayaran (default PAY_FIRST untuk self-service/fast food)
+  paymentFlow PaymentFlow @default(PAY_FIRST)
+
   // Metode pembayaran yang aktif (JSON array: ["CASH","QRIS","TRANSFER","CARD"])
   activePaymentMethods String @default("[\"CASH\",\"QRIS\",\"TRANSFER\"]")
 
@@ -188,6 +197,7 @@ model Tenant {
   tables        Table[]
   tableOrders   TableOrder[]
   modifierGroups ModifierGroup[]
+  orderItems    OrderItem[]
 
   @@map("tenants")
 }
@@ -605,6 +615,7 @@ model Transaction {
 
   items TransactionItem[]
   tableOrder TableOrder? // F&B: link ke order meja
+  orderItems OrderItem[] // F&B PAY_FIRST takeaway: link ke order items dapur
 
   @@index([tenantId])
   @@index([outletId])
@@ -931,8 +942,14 @@ model OrderItem {
   unitPrice    Float   // harga final (sudah include modifier extra)
   note         String? // catatan per item (misal: "tanpa bawang")
 
-  tableOrderId String
-  tableOrder   TableOrder @relation(fields: [tableOrderId], references: [id], onDelete: Cascade)
+  // Untuk dine-in: link ke TableOrder
+  // Untuk takeaway PAY_FIRST: link langsung ke Transaction
+  tableOrderId String?
+  tableOrder   TableOrder? @relation(fields: [tableOrderId], references: [id], onDelete: Cascade)
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   sentAt    DateTime  @default(now()) // kapan item dikirim ke dapur
   cookedAt  DateTime?                 // kapan mulai dimasak
@@ -942,6 +959,8 @@ model OrderItem {
   modifiers OrderItemModifier[]
 
   @@index([tableOrderId])
+  @@index([transactionId])
+  @@index([tenantId])
   @@map("order_items")
 }
 

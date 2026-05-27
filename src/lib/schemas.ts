@@ -173,6 +173,7 @@ export const settingsSchema = z.object({
     .min(0, "Service charge tidak boleh negatif.")
     .max(100, "Service charge maksimal 100%.")
     .optional(),
+  paymentFlow: z.enum(["PAY_FIRST", "PAY_LATER"]).optional(),
 });
 
 // ─────────────────────────────────────────────

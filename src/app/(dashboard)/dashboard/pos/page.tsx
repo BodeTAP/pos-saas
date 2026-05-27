@@ -140,6 +140,7 @@ export default async function POSPage({
         invoicePrefix: true,
         businessType: true, // ambil sekaligus
         serviceChargePct: true, // F&B service charge
+        paymentFlow: true, // F&B payment flow
       },
     }),
     prisma.outlet.findUnique({
@@ -166,6 +167,7 @@ export default async function POSPage({
         activePaymentMethods: tenantData.activePaymentMethods,
         invoicePrefix: tenantData.invoicePrefix,
         serviceChargePct: tenantData.serviceChargePct,
+        paymentFlow: tenantData.paymentFlow,
       }
     : null;
 

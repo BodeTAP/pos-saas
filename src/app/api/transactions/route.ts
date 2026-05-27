@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
         activePaymentMethods: true,
         invoicePrefix: true,
         serviceChargePct: true,
+        paymentFlow: true,
+        businessType: true,
       },
     });
     if (!tenantConfig) {
@@ -405,32 +407,103 @@ export async function POST(req: NextRequest) {
       throw new Error("Gagal membuat nomor invoice transaksi.");
     }
 
-    // F&B: Jika ada tableOrderId, tutup order meja dan set status EMPTY
+    // F&B: tentukan flow berdasarkan paymentFlow tenant + ada/tidaknya meja
+    const isFnB = tenantConfig.businessType === "FNB";
+    const isPayFirst = isFnB && tenantConfig.paymentFlow === "PAY_FIRST";
+
+    // Cek apakah TableOrder sudah punya OrderItem (artinya item sudah dikirim ke dapur)
+    // Jika sudah, tidak perlu auto-create lagi
+    let tableOrderHasItems = false;
     if (tableOrderId) {
+      const existingCount = await prisma.orderItem.count({
+        where: { tableOrderId, status: { not: "CANCELLED" } },
+      });
+      tableOrderHasItems = existingCount > 0;
+    }
+
+    if (tableOrderId) {
+      // Ada meja — alur dine-in
       await prisma.$transaction(async (tx) => {
-        // Validasi tableOrder milik tenant dan outlet yang sama
         const tableOrder = await tx.tableOrder.findFirst({
           where: {
             id: tableOrderId,
             tenantId,
             closedAt: null,
-            table: { outletId: activeOutletId }, // harus outlet yang sama
+            table: { outletId: activeOutletId },
           },
           select: { id: true, tableId: true },
         });
-        if (tableOrder) {
-          await tx.tableOrder.update({
-            where: { id: tableOrder.id },
-            data: { closedAt: new Date(), transactionId: transaction!.id },
-          });
+        if (!tableOrder) {
+          console.warn(`TableOrder ${tableOrderId} not found or not owned by tenant ${tenantId}`);
+          return;
+        }
+
+        // PAY_FIRST + belum ada OrderItem → auto-create dari TransactionItem
+        // (kasir bayar dulu sebelum kirim ke dapur)
+        if (isPayFirst && !tableOrderHasItems) {
+          for (const item of transactionItems) {
+            await tx.orderItem.create({
+              data: {
+                tableOrderId: tableOrder.id,
+                tenantId,
+                productId: item.productId,
+                productName: item.productName,
+                productSku: item.productSku ?? null,
+                variantSkuId: item.variantSkuId ?? null,
+                variantLabel: item.variantLabel ?? null,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                status: "PENDING",
+              },
+            });
+          }
+        }
+
+        // Link transaksi ke TableOrder (tapi jangan tutup dulu untuk PAY_FIRST)
+        await tx.tableOrder.update({
+          where: { id: tableOrder.id },
+          data: {
+            transactionId: transaction!.id,
+            // PAY_LATER → tutup order setelah bayar (alur sekarang)
+            // PAY_FIRST → biarkan terbuka, tutup saat semua item SERVED (lihat order-items API)
+            ...(isPayFirst ? {} : { closedAt: new Date() }),
+          },
+        });
+
+        // Update status meja
+        // PAY_LATER → langsung EMPTY (selesai)
+        // PAY_FIRST → tetap OCCUPIED sampai semua item disajikan
+        if (!isPayFirst) {
           await tx.table.update({
             where: { id: tableOrder.tableId },
             data: { status: "EMPTY" },
           });
-        } else {
-          console.warn(`TableOrder ${tableOrderId} not found or not owned by tenant ${tenantId}`);
         }
-      }).catch((err) => console.error("Failed to close table order:", err));
+      }).catch((err) => console.error("Failed to handle table order:", err));
+    } else if (isPayFirst) {
+      // Takeaway PAY_FIRST: create OrderItem langsung ke Transaction agar muncul di Kitchen Display
+      try {
+        await prisma.$transaction(
+          transactionItems.map((item) =>
+            prisma.orderItem.create({
+              data: {
+                transactionId: transaction!.id,
+                tenantId,
+                productId: item.productId,
+                productName: item.productName,
+                productSku: item.productSku ?? null,
+                variantSkuId: item.variantSkuId ?? null,
+                variantLabel: item.variantLabel ?? null,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                status: "PENDING",
+              },
+            })
+          )
+        );
+      } catch (err) {
+        console.error("Failed to create order items for takeaway:", err);
+      }
     }
 
     // Notifikasi in-app: transaksi baru (hanya untuk OWNER, bukan kasir sendiri)

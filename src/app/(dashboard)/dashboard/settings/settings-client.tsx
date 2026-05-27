@@ -56,6 +56,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
     pointValue: (tenant.pointValue ?? 100).toString(),
     activePaymentMethods: parsedMethods,
     serviceChargePct: ((tenant as { serviceChargePct?: number }).serviceChargePct ?? 0).toString(),
+    paymentFlow: ((tenant as { paymentFlow?: string }).paymentFlow ?? "PAY_FIRST") as "PAY_FIRST" | "PAY_LATER",
   });
 
   function handleChange(
@@ -101,6 +102,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
           pointValue: parseInt(form.pointValue) || 100,
           activePaymentMethods: form.activePaymentMethods,
           serviceChargePct: parseFloat(form.serviceChargePct) || 0,
+          paymentFlow: form.paymentFlow,
         }),
       });
 
@@ -197,17 +199,67 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
 
           {/* Service charge — hanya tampil untuk F&B */}
           {(tenant as { businessType?: string }).businessType === "FNB" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Service Charge (%)
-              </label>
-              <input name="serviceChargePct" type="number" min={0} max={100} step={0.5}
-                value={form.serviceChargePct} onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-              <p className="text-xs text-gray-400 mt-1">
-                Biaya layanan yang ditambahkan ke setiap transaksi. 0 = tidak ada service charge.
-              </p>
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Service Charge (%)
+                </label>
+                <input name="serviceChargePct" type="number" min={0} max={100} step={0.5}
+                  value={form.serviceChargePct} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                <p className="text-xs text-gray-400 mt-1">
+                  Biaya layanan yang ditambahkan ke setiap transaksi. 0 = tidak ada service charge.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Alur Pembayaran
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className={`flex items-start gap-2 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
+                    form.paymentFlow === "PAY_FIRST"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentFlow"
+                      value="PAY_FIRST"
+                      checked={form.paymentFlow === "PAY_FIRST"}
+                      onChange={() => setForm((p) => ({ ...p, paymentFlow: "PAY_FIRST" }))}
+                      className="mt-1"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Bayar Di Depan</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Customer pesan → bayar dulu → masuk dapur. Cocok untuk self-service, fast food, kantin.
+                      </p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-2 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
+                    form.paymentFlow === "PAY_LATER"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="paymentFlow"
+                      value="PAY_LATER"
+                      checked={form.paymentFlow === "PAY_LATER"}
+                      onChange={() => setForm((p) => ({ ...p, paymentFlow: "PAY_LATER" }))}
+                      className="mt-1"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Bayar Belakangan</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Customer duduk → pesan → makan → minta bill → bayar. Cocok untuk kafe/restoran tradisional.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </>
           )}
 
           {/* Metode Pembayaran */}
