@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
           discountNominal: number;
           tax: number;
           taxPct: number;
+          serviceChargePct?: number;
+          serviceCharge?: number;
           total: number;
           amountPaid: number;
           change: number;
@@ -62,6 +64,7 @@ export async function POST(req: NextRequest) {
           tenantId: string;
           customerId: string | null;
           pointsRedeemed: number;
+          tableOrderId?: string | null;
         };
       }>;
     };
@@ -309,6 +312,48 @@ export async function POST(req: NextRequest) {
             if (!isInvoiceConflict(err) || attempt === MAX_INVOICE_ATTEMPTS - 1) {
               throw err;
             }
+          }
+        }
+
+        // F&B: Tutup table order jika ada tableOrderId
+        if (payload.tableOrderId && serverInvoiceNumber) {
+          try {
+            // Cari transaksi yang baru dibuat untuk mendapatkan ID-nya
+            const createdTx = await prisma.transaction.findFirst({
+              where: {
+                tenantId: session.user.tenantId!,
+                invoiceNumber: serverInvoiceNumber,
+              },
+              select: { id: true },
+            });
+
+            if (createdTx) {
+              const tableOrder = await prisma.tableOrder.findFirst({
+                where: {
+                  id: payload.tableOrderId,
+                  tenantId: session.user.tenantId!,
+                  closedAt: null,
+                  table: { outletId: outletId },
+                },
+                select: { id: true, tableId: true },
+              });
+
+              if (tableOrder) {
+                await prisma.$transaction([
+                  prisma.tableOrder.update({
+                    where: { id: tableOrder.id },
+                    data: { closedAt: new Date(), transactionId: createdTx.id },
+                  }),
+                  prisma.table.update({
+                    where: { id: tableOrder.tableId },
+                    data: { status: "EMPTY" },
+                  }),
+                ]);
+              }
+            }
+          } catch (tableErr) {
+            // Jangan gagalkan transaksi karena error table order
+            console.error("Failed to close table order during offline sync:", tableErr);
           }
         }
 

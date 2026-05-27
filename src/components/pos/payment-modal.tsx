@@ -153,6 +153,8 @@ export function PaymentModal({
           discountNominal,
           tax: taxAmount,
           taxPct,
+          serviceChargePct,
+          serviceCharge: serviceChargeAmount,
           total,
           amountPaid: paid,
           change,
@@ -162,6 +164,7 @@ export function PaymentModal({
           tenantId,
           customerId: customerId || null,
           pointsRedeemed: pointsRedeemed || 0,
+          tableOrderId: tableOrderId || null,
         },
         config?.invoicePrefix || tenant?.invoicePrefix || "INV"
       );
@@ -391,6 +394,15 @@ export function PaymentModal({
           <div className="bg-blue-50 rounded-xl p-4 text-center">
             <p className="text-sm text-blue-600 mb-1">Total Pembayaran</p>
             <p className="text-3xl font-bold text-blue-700">{formatCurrency(total)}</p>
+            {/* Rincian untuk F&B */}
+            {serviceChargeAmount > 0 && (
+              <div className="mt-2 text-xs text-blue-500 space-y-0.5">
+                <div className="flex justify-between px-2">
+                  <span>Service Charge ({serviceChargePct}%)</span>
+                  <span>{formatCurrency(serviceChargeAmount)}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

@@ -645,7 +645,44 @@ function TableSelectorModal({
   onSelect: (table: TableInfo | null) => void;
   onClose: () => void;
 }) {
+  const [loadingTableId, setLoadingTableId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
+
+  async function handleTableClick(table: TableInfo) {
+    setErrorMsg(null);
+
+    // Meja sudah ada order aktif — langsung pilih
+    if (table.status !== "EMPTY" && table.activeOrderId) {
+      onSelect(table);
+      return;
+    }
+
+    // Meja EMPTY — buka TableOrder baru dulu
+    setLoadingTableId(table.id);
+    try {
+      const res = await fetch(`/api/tables/${table.id}/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || "Gagal membuka order meja.");
+        return;
+      }
+      // Update table dengan activeOrderId baru dan status OCCUPIED
+      const updatedTable: TableInfo = {
+        ...table,
+        status: "OCCUPIED",
+        activeOrderId: data.tableOrder.id,
+      };
+      onSelect(updatedTable);
+    } catch {
+      setErrorMsg("Gagal terhubung ke server. Coba lagi.");
+    } finally {
+      setLoadingTableId(null);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -668,6 +705,13 @@ function TableSelectorModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Error message */}
+          {errorMsg && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
+              {errorMsg}
+            </div>
+          )}
+
           {/* Opsi tanpa meja (takeaway) */}
           <button
             onClick={() => onSelect(null)}
@@ -695,22 +739,24 @@ function TableSelectorModal({
                     {areaTables.map((table) => {
                       const cfg = TABLE_STATUS_CONFIG[table.status];
                       const isSelected = selectedTableId === table.id;
+                      const isLoading = loadingTableId === table.id;
                       return (
                         <button
                           key={table.id}
-                          onClick={() => onSelect(table)}
+                          onClick={() => handleTableClick(table)}
+                          disabled={isLoading}
                           className={`p-3 rounded-xl border-2 text-left transition-all ${
                             isSelected
                               ? "border-blue-500 bg-blue-50"
                               : `${cfg.bg} hover:opacity-80`
-                          }`}
+                          } ${isLoading ? "opacity-60 cursor-wait" : ""}`}
                         >
                           <p className="font-bold text-gray-900">#{table.number}</p>
                           {table.name && (
                             <p className="text-xs text-gray-500 truncate">{table.name}</p>
                           )}
                           <span className={`text-xs font-medium ${cfg.color}`}>
-                            {cfg.label}
+                            {isLoading ? "Membuka..." : cfg.label}
                           </span>
                         </button>
                       );

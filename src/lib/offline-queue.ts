@@ -29,6 +29,8 @@ export interface OfflineTransactionPayload {
   discountNominal: number;
   tax: number;
   taxPct: number;
+  serviceChargePct?: number;
+  serviceCharge?: number;
   total: number;
   amountPaid: number;
   change: number;
@@ -38,6 +40,7 @@ export interface OfflineTransactionPayload {
   tenantId: string;
   customerId: string | null;
   pointsRedeemed: number;
+  tableOrderId?: string | null;
 }
 
 /**
