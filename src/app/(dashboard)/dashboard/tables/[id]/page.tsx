@@ -52,6 +52,22 @@ export default async function TableDetailPage({
 
   const activeOrder = table.tableOrders[0] ?? null;
 
+  // Fetch meja kosong (EMPTY) di outlet yang sama untuk fitur "Pindah Meja"
+  // Hanya fetch kalau ada activeOrder yang belum dibayar
+  const availableTables = activeOrder && !activeOrder.transaction
+    ? await prisma.table.findMany({
+        where: {
+          tenantId: session.user.tenantId,
+          outletId: table.outlet.id,
+          isActive: true,
+          status: "EMPTY",
+          id: { not: table.id },
+        },
+        select: { id: true, number: true, name: true, area: true, capacity: true },
+        orderBy: [{ area: "asc" }, { number: "asc" }],
+      })
+    : [];
+
   return (
     <TableDetailClient
       table={{
@@ -101,6 +117,7 @@ export default async function TableDetailPage({
       serviceChargePct={tenant?.serviceChargePct ?? 0}
       taxRate={tenant?.taxRate ?? 0}
       isOwner={session.user.role === "OWNER"}
+      availableTables={availableTables}
     />
   );
 }

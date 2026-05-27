@@ -6,7 +6,7 @@ import { toast } from "@/components/ui/toaster";
 import { formatCurrency } from "@/lib/utils";
 import {
   ArrowLeft, Clock, Users, AlertCircle, CheckCircle,
-  Loader2, ShoppingCart, X, Printer, Flame, Bell,
+  Loader2, ShoppingCart, X, Printer, Flame, Bell, ArrowRightLeft,
 } from "lucide-react";
 import Link from "next/link";
 import { type KitchenReceiptData } from "@/components/pos/receipt";
@@ -58,6 +58,7 @@ interface TableDetailClientProps {
   serviceChargePct: number;
   taxRate: number;
   isOwner?: boolean;
+  availableTables?: Array<{ id: string; number: string; name: string | null; area: string | null; capacity: number }>;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -81,12 +82,15 @@ export function TableDetailClient({
   serviceChargePct,
   taxRate,
   isOwner = false,
+  availableTables = [],
 }: TableDetailClientProps) {
   const router = useRouter();
   const [status, setStatus] = useState(table.status);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isForceClosing, setIsForceClosing] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const orderItems = activeOrder?.orderItems ?? [];
 
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.EMPTY;
@@ -141,6 +145,31 @@ export function TableDetailClient({
       toast.error("Terjadi kesalahan.");
     } finally {
       setIsCancelling(false);
+    }
+  }
+
+  async function handleMove(targetTableId: string) {
+    if (!activeOrder) return;
+    setIsMoving(true);
+    try {
+      const res = await fetch(`/api/table-orders/${activeOrder.id}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetTableId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Gagal memindahkan meja.");
+        return;
+      }
+      toast.success(data.message || "Meja berhasil dipindahkan.");
+      setShowMoveModal(false);
+      router.push(`/dashboard/tables/${targetTableId}`);
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan.");
+    } finally {
+      setIsMoving(false);
     }
   }
 
@@ -424,6 +453,18 @@ export function TableDetailClient({
             Bayar di POS
           </Link>
 
+          {availableTables.length > 0 && (
+            <button
+              onClick={() => setShowMoveModal(true)}
+              disabled={isMoving}
+              className="flex items-center justify-center gap-2 px-4 py-3 border border-blue-300 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors disabled:opacity-50"
+              title="Pindahkan order ke meja lain"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Pindah Meja
+            </button>
+          )}
+
           {!activeOrder.transaction && (
             <button
               onClick={handleCancelOrder}
@@ -461,6 +502,47 @@ export function TableDetailClient({
               Tutup Paksa (Owner)
             </button>
           )}
+        </div>
+      )}
+
+      {/* Modal pindah meja */}
+      {showMoveModal && availableTables.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Pindah Meja</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pindah dari Meja #{table.number} ke meja kosong
+                </p>
+              </div>
+              <button onClick={() => setShowMoveModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 space-y-2">
+              {availableTables.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => handleMove(t.id)}
+                  disabled={isMoving}
+                  className="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">Meja #{t.number}</p>
+                      <p className="text-xs text-gray-500">
+                        {t.name && `${t.name} · `}
+                        {t.area && `${t.area} · `}
+                        {t.capacity} orang
+                      </p>
+                    </div>
+                    {isMoving && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
