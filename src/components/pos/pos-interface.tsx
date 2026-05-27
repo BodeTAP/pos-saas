@@ -90,6 +90,7 @@ interface POSInterfaceProps {
   } | null;
   businessType?: string;
   tables?: TableInfo[];
+  initialTableId?: string;
 }
 
 export function POSInterface({
@@ -103,6 +104,7 @@ export function POSInterface({
   outlet,
   businessType = "RETAIL",
   tables: initialTables = [],
+  initialTableId,
 }: POSInterfaceProps) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -116,6 +118,16 @@ export function POSInterface({
   const [tables, setTables] = useState<TableInfo[]>(initialTables);
   const [selectedTable, setSelectedTable] = useState<TableInfo | null>(null);
   const [showTableSelector, setShowTableSelector] = useState(false);
+
+  // F&B: auto-select meja dari URL param ?tableId=
+  useEffect(() => {
+    if (!isFnB || !initialTableId || initialTables.length === 0) return;
+    const table = initialTables.find((t) => t.id === initialTableId);
+    if (table && table.activeOrderId) {
+      setSelectedTable(table);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // hanya saat mount
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );

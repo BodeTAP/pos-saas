@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "@/components/ui/toaster";
-import { Plus, Edit, Trash2, Users, X, Loader2, UtensilsCrossed } from "lucide-react";
+import { Plus, Edit, Trash2, Users, X, Loader2, UtensilsCrossed, CreditCard, ExternalLink } from "lucide-react";
 import { TableStatus } from "@prisma/client";
+import Link from "next/link";
 
 interface TableData {
   id: string;
@@ -139,19 +140,35 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {areaTables.map((table) => {
                   const cfg = STATUS_CONFIG[table.status];
+                  const isClickable = table.status === "OCCUPIED" || table.status === "BILL";
                   return (
                     <div
                       key={table.id}
-                      className={`bg-white rounded-xl border-2 p-4 transition-all ${cfg.bg}`}
+                      className={`bg-white rounded-xl border-2 p-4 transition-all ${cfg.bg} ${isClickable ? "cursor-pointer hover:shadow-md" : ""}`}
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="text-lg font-bold text-gray-900">#{table.number}</p>
+                        <div className="min-w-0 flex-1">
+                          {isClickable ? (
+                            <Link href={`/dashboard/tables/${table.id}`} className="block">
+                              <p className="text-lg font-bold text-gray-900 hover:text-blue-600">#{table.number}</p>
+                            </Link>
+                          ) : (
+                            <p className="text-lg font-bold text-gray-900">#{table.number}</p>
+                          )}
                           {table.name && (
-                            <p className="text-xs text-gray-500">{table.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{table.name}</p>
                           )}
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-shrink-0">
+                          {isClickable && (
+                            <Link
+                              href={`/dashboard/tables/${table.id}`}
+                              className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                              title="Lihat detail"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          )}
                           <button
                             onClick={() => { setEditTable(table); setShowModal(true); }}
                             className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -184,6 +201,17 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
                         <p className="text-xs text-gray-400 mt-1">
                           Buka: {new Date(table.activeOrder.openedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                         </p>
+                      )}
+
+                      {/* Shortcut bayar untuk meja BILL */}
+                      {table.status === "BILL" && (
+                        <Link
+                          href={`/dashboard/pos?tableId=${table.id}`}
+                          className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          <CreditCard className="w-3 h-3" />
+                          Proses Pembayaran
+                        </Link>
                       )}
                     </div>
                   );

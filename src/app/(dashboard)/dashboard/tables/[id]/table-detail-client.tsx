@@ -389,7 +389,7 @@ export function TableDetailClient({
           )}
 
           <Link
-            href="/dashboard/pos"
+            href={`/dashboard/pos?tableId=${table.id}`}
             className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
           >
             <ShoppingCart className="w-4 h-4" />

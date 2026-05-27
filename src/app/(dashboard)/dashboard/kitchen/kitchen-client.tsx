@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/components/ui/toaster";
 import {
   RefreshCw, Clock, UtensilsCrossed, CheckCircle,
-  AlertCircle, ChefHat, Flame, Bell,
+  AlertCircle, ChefHat, Flame, Bell, CreditCard,
 } from "lucide-react";
 
 interface OrderItemModifier {
@@ -460,9 +460,13 @@ export function KitchenDisplayClient({ initialTables }: KitchenDisplayClientProp
                           </button>
                         )}
                         {table.status === "BILL" && (
-                          <div className="w-full px-3 py-2 bg-orange-100 text-orange-700 text-sm font-medium rounded-lg text-center">
-                            Menunggu Pembayaran
-                          </div>
+                          <a
+                            href={`/dashboard/pos?tableId=${table.id}`}
+                            className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            Proses Pembayaran
+                          </a>
                         )}
                       </div>
                     </div>

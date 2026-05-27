@@ -5,7 +5,11 @@ import { NoTenant } from "@/components/ui/no-tenant";
 import { getActiveOutletId } from "@/lib/active-outlet";
 import { AlertCircle } from "lucide-react";
 
-export default async function POSPage() {
+export default async function POSPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tableId?: string }>;
+}) {
   const session = await auth();
   if (!session?.user.tenantId) return <NoTenant />;
 
@@ -23,6 +27,8 @@ export default async function POSPage() {
       </div>
     );
   }
+
+  const { tableId: initialTableId } = await searchParams;
 
   // Ambil produk dengan stok di outlet aktif + varian
   // F&B: filter availableToday = true jika businessType FNB
@@ -198,6 +204,7 @@ export default async function POSPage() {
       outlet={outlet}
       businessType={businessType}
       tables={tables}
+      initialTableId={initialTableId}
     />
   );
 }
