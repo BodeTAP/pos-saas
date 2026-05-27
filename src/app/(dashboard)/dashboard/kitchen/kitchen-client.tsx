@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "@/components/ui/toaster";
 import {
   RefreshCw, Clock, CheckCircle, AlertCircle, ChefHat,
-  Flame, Bell, CreditCard, ChevronDown, ChevronUp,
+  Flame, Bell, CreditCard, ChevronDown, ChevronUp, X,
 } from "lucide-react";
 
 interface OrderItemModifier {
@@ -247,6 +247,49 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
       toast.error("Gagal menandai semua item.");
     } finally {
       setMarkingAllServed(null);
+    }
+  }
+
+  // Void item individual (set status ke CANCELLED)
+  async function handleVoidItem(
+    containerId: string,
+    item: OrderItem,
+    isTakeaway = false
+  ) {
+    if (!confirm(`Batalkan item "${item.quantity}x ${item.productName}"?\n\nAksi ini tidak bisa dibatalkan.`)) return;
+    setUpdatingItem(item.id);
+    try {
+      const res = await fetch(`/api/order-items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Gagal membatalkan item.");
+        return;
+      }
+      const updateItem = (items: OrderItem[]) =>
+        items.map((i) => (i.id === item.id ? { ...i, status: "CANCELLED" as const } : i));
+      if (isTakeaway) {
+        setTakeaway((prev) =>
+          prev.map((t) =>
+            t.id !== containerId ? t : { ...t, activeOrder: { ...t.activeOrder, items: updateItem(t.activeOrder.items) } }
+          )
+        );
+      } else {
+        setTables((prev) =>
+          prev.map((t) =>
+            t.id !== containerId || !t.activeOrder ? t
+              : { ...t, activeOrder: { ...t.activeOrder, items: updateItem(t.activeOrder.items) } }
+          )
+        );
+      }
+      toast.success(`Item "${item.productName}" dibatalkan.`);
+    } catch {
+      toast.error("Terjadi kesalahan.");
+    } finally {
+      setUpdatingItem(null);
     }
   }
 
@@ -504,6 +547,14 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                                             {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin mx-auto" /> : itemCfg.nextLabel}
                                           </button>
                                         )}
+                                        <button
+                                          onClick={() => handleVoidItem(table.id, item)}
+                                          disabled={isUpdating}
+                                          className="text-xs text-red-500 hover:text-red-700 hover:underline disabled:opacity-50 inline-flex items-center gap-0.5"
+                                          title="Batalkan item"
+                                        >
+                                          <X className="w-3 h-3" /> Batalkan
+                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -694,6 +745,14 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                                         {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin mx-auto" /> : itemCfg.nextLabel}
                                       </button>
                                     )}
+                                    <button
+                                      onClick={() => handleVoidItem(tx.id, item, true)}
+                                      disabled={isUpdating}
+                                      className="text-xs text-red-500 hover:text-red-700 hover:underline disabled:opacity-50 inline-flex items-center gap-0.5"
+                                      title="Batalkan item"
+                                    >
+                                      <X className="w-3 h-3" /> Batalkan
+                                    </button>
                                   </div>
                                 </div>
                               </div>
