@@ -242,7 +242,8 @@ function TableFormModal({
           name: form.name.trim() || null,
           capacity: parseInt(form.capacity) || 4,
           area: form.area.trim() || null,
-          outletId,
+          // Hanya kirim outletId jika ada — API akan fallback ke outlet aktif
+          ...(outletId && { outletId }),
         }),
       });
       const data = await res.json();
