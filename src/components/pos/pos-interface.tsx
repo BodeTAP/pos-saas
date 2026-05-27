@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
@@ -266,13 +266,7 @@ export function POSInterface({
   // F&B: state kirim ke dapur
   const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
 
-  /**
-   * F&B: Load order items dari dapur ke keranjang.
-   * Dipanggil saat kasir memilih meja yang sudah ada order aktif.
-   * Hanya load item yang belum SERVED/CANCELLED.
-   * Menggunakan getState() agar tidak bergantung pada urutan deklarasi cart.
-   */
-  async function loadOrderItemsToCart(table: TableInfo) {
+  const loadOrderItemsToCart = useCallback(async (table: TableInfo) => {
     if (!table.activeOrderId) return;
     try {
       const res = await fetch(`/api/tables/${table.id}/order/items`);
@@ -296,18 +290,16 @@ export function POSInterface({
         }>;
       };
 
-      // Filter hanya item yang aktif (bukan SERVED/CANCELLED)
       const activeItems = data.items.filter(
         (i) => i.status !== "SERVED" && i.status !== "CANCELLED"
       );
 
       if (activeItems.length === 0) return;
 
-      // Gunakan getState() agar tidak bergantung pada closure cart
-      const cartStore = useCartStore.getState();
-      cartStore.clearCart();
+      // Pakai cart dari hook (subscribe ke React) agar CartPanel re-render
+      cart.clearCart();
       for (const item of activeItems) {
-        cartStore.addItem({
+        cart.addItem({
           productId: item.productId,
           name: item.productName,
           sku: item.productSku ?? undefined,
@@ -328,18 +320,21 @@ export function POSInterface({
 
       toast.success(`${activeItems.length} item dari meja #${table.number} dimuat ke keranjang.`);
     } catch {
-      // Gagal load — biarkan keranjang kosong, kasir bisa input manual
       console.warn("Failed to load order items to cart");
     }
-  }
+  }, [cart]);
 
-  // F&B: auto-select meja dari URL param ?tableId= (diletakkan setelah loadOrderItemsToCart)
+  // F&B: auto-select meja dari URL param ?tableId=
+  // Gunakan ref agar useEffect hanya jalan sekali tapi dapat loadOrderItemsToCart terbaru
+  const loadOrderItemsRef = useRef(loadOrderItemsToCart);
+  loadOrderItemsRef.current = loadOrderItemsToCart;
+
   useEffect(() => {
     if (!isFnB || !initialTableId || initialTables.length === 0) return;
     const table = initialTables.find((t) => t.id === initialTableId);
     if (table && table.activeOrderId) {
       setSelectedTable(table);
-      loadOrderItemsToCart(table);
+      loadOrderItemsRef.current(table);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // hanya saat mount
@@ -831,7 +826,7 @@ export function POSInterface({
               loadOrderItemsToCart(table);
             } else if (!table) {
               // Pilih takeaway — kosongkan keranjang jika sebelumnya ada meja
-              if (selectedTable) useCartStore.getState().clearCart();
+              if (selectedTable) cart.clearCart();
             }
           }}
           onClose={() => setShowTableSelector(false)}
