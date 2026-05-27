@@ -21,9 +21,15 @@ export default async function TablesPage() {
 
   const outletId = await getActiveOutletId();
 
-  const tables = outletId
+  // Jika tidak ada outlet aktif, coba ambil outlet utama langsung
+  const resolvedOutletId = outletId ?? await prisma.outlet.findFirst({
+    where: { tenantId: session.user.tenantId, isMain: true, isActive: true },
+    select: { id: true },
+  }).then((o) => o?.id ?? null);
+
+  const tables = resolvedOutletId
     ? await prisma.table.findMany({
-        where: { outletId, tenantId: session.user.tenantId, isActive: true },
+        where: { outletId: resolvedOutletId, tenantId: session.user.tenantId, isActive: true },
         include: {
           tableOrders: {
             where: { closedAt: null },
@@ -42,7 +48,7 @@ export default async function TablesPage() {
         activeOrder: t.tableOrders[0] ?? null,
         tableOrders: undefined,
       }))}
-      currentOutletId={outletId}
+      currentOutletId={resolvedOutletId}
     />
   );
 }

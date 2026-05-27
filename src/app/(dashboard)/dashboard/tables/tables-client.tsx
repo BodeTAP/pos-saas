@@ -196,6 +196,7 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
 
       {showModal && (
         <TableFormModal
+          key={editTable?.id ?? "new"}
           table={editTable}
           outletId={currentOutletId}
           onClose={() => { setShowModal(false); setEditTable(null); }}
@@ -231,6 +232,13 @@ function TableFormModal({
     setIsLoading(true);
     setError("");
 
+    // Validasi outletId tersedia
+    if (!outletId) {
+      setError("Cabang aktif tidak ditemukan. Pastikan Anda sudah memilih cabang.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const url = table ? `/api/tables/${table.id}` : "/api/tables";
       const method = table ? "PUT" : "POST";
@@ -242,8 +250,7 @@ function TableFormModal({
           name: form.name.trim() || null,
           capacity: parseInt(form.capacity) || 4,
           area: form.area.trim() || null,
-          // Hanya kirim outletId jika ada — API akan fallback ke outlet aktif
-          ...(outletId && { outletId }),
+          outletId, // sudah dipastikan tidak null di atas
         }),
       });
       const data = await res.json();
