@@ -57,6 +57,7 @@ interface TableDetailClientProps {
   activeOrder: ActiveOrder | null;
   serviceChargePct: number;
   taxRate: number;
+  isOwner?: boolean;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -79,11 +80,13 @@ export function TableDetailClient({
   activeOrder,
   serviceChargePct,
   taxRate,
+  isOwner = false,
 }: TableDetailClientProps) {
   const router = useRouter();
   const [status, setStatus] = useState(table.status);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isForceClosing, setIsForceClosing] = useState(false);
   const orderItems = activeOrder?.orderItems ?? [];
 
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.EMPTY;
@@ -138,6 +141,31 @@ export function TableDetailClient({
       toast.error("Terjadi kesalahan.");
     } finally {
       setIsCancelling(false);
+    }
+  }
+
+  async function handleForceClose() {
+    if (!activeOrder) return;
+    if (!confirm(
+      "Tutup paksa order meja ini?\n\n" +
+      "Semua item akan ditandai SERVED dan meja jadi EMPTY. Gunakan ini untuk membersihkan order yang stuck/tidak bisa ditutup normal.\n\n" +
+      "Aksi ini tidak bisa dibatalkan."
+    )) return;
+    setIsForceClosing(true);
+    try {
+      const res = await fetch(`/api/tables/${table.id}/order?force=true`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Gagal menutup order.");
+        return;
+      }
+      toast.success("Order berhasil ditutup paksa. Meja dikosongkan.");
+      router.push("/dashboard/tables");
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan.");
+    } finally {
+      setIsForceClosing(false);
     }
   }
 
@@ -370,7 +398,7 @@ export function TableDetailClient({
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — saat belum dibayar */}
       {activeOrder && !activeOrder.isPaid && (
         <div className="flex flex-col sm:flex-row gap-3">
           {status === "OCCUPIED" && (
@@ -408,6 +436,29 @@ export function TableDetailClient({
                 <X className="w-4 h-4" />
               )}
               Batalkan Order
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Actions — saat sudah dibayar (PAY_FIRST flow) */}
+      {activeOrder && activeOrder.isPaid && (
+        <div className="space-y-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+            💡 Tandai semua item <strong>SERVED</strong> di Kitchen Display agar meja otomatis tutup.
+          </div>
+          {isOwner && (
+            <button
+              onClick={handleForceClose}
+              disabled={isForceClosing}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-red-300 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {isForceClosing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <X className="w-4 h-4" />
+              )}
+              Tutup Paksa (Owner)
             </button>
           )}
         </div>

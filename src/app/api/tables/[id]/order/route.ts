@@ -127,8 +127,16 @@ export async function POST(
  * DELETE /api/tables/[id]/order
  * Tutup order (batalkan tanpa bayar) — set meja kembali EMPTY.
  */
+/**
+ * DELETE /api/tables/[id]/order
+ * Tutup order — set meja kembali EMPTY.
+ *
+ * Default: hanya bisa close order yang BELUM dibayar (no transactionId)
+ * Force close: tambah `?force=true` (OWNER only) — bisa close order yang sudah
+ * dibayar tapi macet (misal: item belum SERVED dari bug sebelumnya).
+ */
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -136,6 +144,17 @@ export async function DELETE(
     const session = await auth();
     if (!session?.user.tenantId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const force = searchParams.get("force") === "true";
+
+    // Force close hanya untuk OWNER
+    if (force && session.user.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Hanya OWNER yang bisa paksa tutup order." },
+        { status: 403 }
+      );
     }
 
     const outletId = await getActiveOutletId();
@@ -151,11 +170,25 @@ export async function DELETE(
       return NextResponse.json({ error: "Tidak ada order aktif di meja ini." }, { status: 404 });
     }
 
-    if (order.transactionId) {
+    // Block close kalau sudah dibayar, kecuali force=true
+    if (order.transactionId && !force) {
       return NextResponse.json(
-        { error: "Order sudah dibayar dan tidak bisa dibatalkan." },
+        {
+          error: "Order sudah dibayar. Tandai semua item SERVED di Kitchen Display agar meja otomatis tutup, atau gunakan tombol Tutup Paksa (Owner).",
+        },
         { status: 400 }
       );
+    }
+
+    // Auto-set semua OrderItem ke SERVED kalau force close (cegah ghost item di Kitchen Display)
+    if (force) {
+      await prisma.orderItem.updateMany({
+        where: {
+          tableOrderId: order.id,
+          status: { notIn: ["SERVED", "CANCELLED"] },
+        },
+        data: { status: "SERVED", servedAt: new Date() },
+      });
     }
 
     await prisma.$transaction(async (tx) => {

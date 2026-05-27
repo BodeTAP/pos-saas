@@ -100,6 +100,7 @@ export default async function TableDetailPage({
       }
       serviceChargePct={tenant?.serviceChargePct ?? 0}
       taxRate={tenant?.taxRate ?? 0}
+      isOwner={session.user.role === "OWNER"}
     />
   );
 }
