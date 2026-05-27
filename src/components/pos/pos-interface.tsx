@@ -542,12 +542,44 @@ export function POSInterface({
 
   /**
    * F&B: Kirim item keranjang ke dapur (simpan sebagai OrderItem di TableOrder).
-   * Setelah berhasil, keranjang dikosongkan tapi meja tetap terpilih.
+   * Lazy-create TableOrder jika meja belum punya order aktif.
    */
   async function handleSendToKitchen() {
-    if (!selectedTable?.activeOrderId || cart.items.length === 0) return;
+    if (!selectedTable || cart.items.length === 0) return;
     setIsSendingToKitchen(true);
     try {
+      // Lazy-create TableOrder kalau belum ada (cegah "tiba-tiba terisi")
+      let activeOrderId = selectedTable.activeOrderId;
+      if (!activeOrderId) {
+        const orderRes = await fetch(`/api/tables/${selectedTable.id}/order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const orderData = await orderRes.json();
+        if (!orderRes.ok) {
+          // Kalau ada race condition (P2002), API return 409 dengan order existing
+          if (orderRes.status === 409 && orderData.order) {
+            activeOrderId = orderData.order.id;
+          } else {
+            toast.error(orderData.error || "Gagal membuka order meja.");
+            return;
+          }
+        } else {
+          activeOrderId = orderData.order.id;
+        }
+        // Update selectedTable + tables list dengan activeOrderId baru
+        const updated: TableInfo = {
+          ...selectedTable,
+          status: "OCCUPIED",
+          activeOrderId: activeOrderId!,
+        };
+        setSelectedTable(updated);
+        setTables((prev) =>
+          prev.map((t) => (t.id === selectedTable.id ? updated : t))
+        );
+      }
+
+      // Kirim item ke dapur
       const res = await fetch(`/api/tables/${selectedTable.id}/order/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -775,6 +807,7 @@ export function POSInterface({
           serviceChargePct={serviceChargePct}
           serviceChargeAmount={serviceChargeAmount}
           tableOrderId={selectedTable?.activeOrderId ?? null}
+          tableId={selectedTable?.id ?? null}
           cashierId={cashierId}
           cashierName={cashierName}
           tenantId={tenantId}
@@ -904,43 +937,16 @@ function TableSelectorModal({
   onSelect: (table: TableInfo | null) => void;
   onClose: () => void;
 }) {
-  const [loadingTableId, setLoadingTableId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
 
-  async function handleTableClick(table: TableInfo) {
+  function handleTableClick(table: TableInfo) {
     setErrorMsg(null);
-
-    // Meja sudah ada order aktif — langsung pilih
-    if (table.status !== "EMPTY" && table.activeOrderId) {
-      onSelect(table);
-      return;
-    }
-
-    // Meja EMPTY — buka TableOrder baru dulu
-    setLoadingTableId(table.id);
-    try {
-      const res = await fetch(`/api/tables/${table.id}/order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || "Gagal membuka order meja.");
-        return;
-      }
-      // Update table dengan activeOrderId baru dan status OCCUPIED
-      const updatedTable: TableInfo = {
-        ...table,
-        status: "OCCUPIED",
-        activeOrderId: data.order.id,
-      };
-      onSelect(updatedTable);
-    } catch {
-      setErrorMsg("Gagal terhubung ke server. Coba lagi.");
-    } finally {
-      setLoadingTableId(null);
-    }
+    // Hanya pilih meja — TableOrder dibuat lazy saat:
+    // 1. Kasir klik "Kirim ke Dapur" (handleSendToKitchen)
+    // 2. Kasir klik "Bayar" → PaymentModal → server /api/transactions
+    // Ini cegah meja "tiba-tiba terisi" tanpa transaksi/intent jelas.
+    onSelect(table);
   }
 
   return (
@@ -998,24 +1004,22 @@ function TableSelectorModal({
                     {areaTables.map((table) => {
                       const cfg = TABLE_STATUS_CONFIG[table.status];
                       const isSelected = selectedTableId === table.id;
-                      const isLoading = loadingTableId === table.id;
                       return (
                         <button
                           key={table.id}
                           onClick={() => handleTableClick(table)}
-                          disabled={isLoading}
                           className={`p-3 rounded-xl border-2 text-left transition-all ${
                             isSelected
                               ? "border-blue-500 bg-blue-50"
                               : `${cfg.bg} hover:opacity-80`
-                          } ${isLoading ? "opacity-60 cursor-wait" : ""}`}
+                          }`}
                         >
                           <p className="font-bold text-gray-900">#{table.number}</p>
                           {table.name && (
                             <p className="text-xs text-gray-500 truncate">{table.name}</p>
                           )}
                           <span className={`text-xs font-medium ${cfg.color}`}>
-                            {isLoading ? "Membuka..." : cfg.label}
+                            {cfg.label}
                           </span>
                         </button>
                       );

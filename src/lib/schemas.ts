@@ -109,7 +109,8 @@ export const createTransactionSchema = z.object({
   customerId: z.string().cuid().optional().nullable(),
   pointsRedeemed: z.number().int().nonnegative().default(0),
   tenantId: z.string().cuid().optional(), // hanya untuk Super Admin
-  tableOrderId: z.string().cuid().optional().nullable(), // F&B: link ke order meja
+  tableOrderId: z.string().cuid().optional().nullable(), // F&B: link ke order meja existing
+  tableId: z.string().cuid().optional().nullable(), // F&B: meja yang dipilih (lazy-create TableOrder)
 });
 
 // ─────────────────────────────────────────────

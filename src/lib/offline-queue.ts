@@ -42,6 +42,7 @@ export interface OfflineTransactionPayload {
   customerId: string | null;
   pointsRedeemed: number;
   tableOrderId?: string | null;
+  tableId?: string | null;
 }
 
 /**

@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
           customerId: string | null;
           pointsRedeemed: number;
           tableOrderId?: string | null;
+          tableId?: string | null;
         };
       }>;
     };

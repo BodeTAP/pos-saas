@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
       customerId,
       pointsRedeemed,
       tenantId: bodyTenantId,
-      tableOrderId,
+      tableOrderId: bodyTableOrderId,
+      tableId: bodyTableId,
       serviceChargePct: bodyServiceChargePct,
     } = parsed.data;
     const nominalDiscount = discountNominal ?? 0;
@@ -409,30 +410,71 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let transaction = null;    for (let attempt = 0; attempt < MAX_INVOICE_ATTEMPTS; attempt++) {
-      const invoiceNumber = generateInvoiceNumber(tenantConfig.invoicePrefix || "INV");
-      try {
-        transaction = await createCompletedTransaction(invoiceNumber);
-        break;
-      } catch (error) {
-        if (!isInvoiceNumberConflict(error) || attempt === MAX_INVOICE_ATTEMPTS - 1) {
-          throw error;
-        }
-      }
-    }
-
-    if (!transaction) {
-      throw new Error("Gagal membuat nomor invoice transaksi.");
-    }
-
     // F&B: tentukan flow berdasarkan paymentFlow tenant + ada/tidaknya meja
     const isFnB = tenantConfig.businessType === "FNB";
     const isPayFirst = isFnB && tenantConfig.paymentFlow === "PAY_FIRST";
 
+    // F&B: lazy-create TableOrder kalau hanya tableId yang dikirim
+    // (kasir pilih meja EMPTY → tidak ada side effect di DB sampai bayar/kirim ke dapur)
+    let tableOrderId: string | null = bodyTableOrderId ?? null;
+    let createdNewTableOrder = false; // untuk rollback kalau transaksi gagal
+    if (!tableOrderId && bodyTableId && isFnB) {
+      // Validasi meja milik tenant + outlet aktif
+      const targetTable = await prisma.table.findFirst({
+        where: {
+          id: bodyTableId,
+          tenantId,
+          isActive: true,
+          outletId: activeOutletId,
+        },
+        select: { id: true },
+      });
+      if (!targetTable) {
+        return NextResponse.json(
+          { error: "Meja tidak ditemukan atau bukan milik cabang ini." },
+          { status: 400 }
+        );
+      }
+
+      // Buat TableOrder baru (atomic dengan partial unique index)
+      try {
+        const newOrder = await prisma.$transaction(async (tx) => {
+          const order = await tx.tableOrder.create({
+            data: { tableId: bodyTableId, tenantId },
+            select: { id: true },
+          });
+          await tx.table.update({
+            where: { id: bodyTableId },
+            data: { status: "OCCUPIED" },
+          });
+          return order;
+        });
+        tableOrderId = newOrder.id;
+        createdNewTableOrder = true;
+      } catch (err) {
+        // P2002 = sudah ada active TableOrder (race condition dengan kasir lain)
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          const existing = await prisma.tableOrder.findFirst({
+            where: { tableId: bodyTableId, tenantId, closedAt: null },
+            select: { id: true, transactionId: true },
+          });
+          if (existing && !existing.transactionId) {
+            tableOrderId = existing.id;
+          } else if (existing?.transactionId) {
+            return NextResponse.json(
+              { error: "Meja ini sudah memiliki order yang dibayar. Refresh halaman dan coba lagi." },
+              { status: 409 }
+            );
+          }
+        } else {
+          throw err;
+        }
+      }
+    }
+
     // Validasi: jika ada tableOrderId, pastikan TableOrder belum dibayar
-    // dan punya cek apakah sudah ada OrderItem (kirim ke dapur sebelumnya)
     let tableOrderHasItems = false;
-    if (tableOrderId) {
+    if (tableOrderId && !createdNewTableOrder) {
       const tableOrderInfo = await prisma.tableOrder.findFirst({
         where: { id: tableOrderId, tenantId, closedAt: null },
         select: { id: true, transactionId: true },
@@ -461,6 +503,53 @@ export async function POST(req: NextRequest) {
         },
       });
       tableOrderHasItems = existingCount > 0;
+    }
+
+    // Buat transaksi (dengan retry untuk invoice conflict)
+    // Jika gagal, rollback TableOrder yang baru dibuat
+    let transaction = null;
+    try {
+      for (let attempt = 0; attempt < MAX_INVOICE_ATTEMPTS; attempt++) {
+        const invoiceNumber = generateInvoiceNumber(tenantConfig.invoicePrefix || "INV");
+        try {
+          transaction = await createCompletedTransaction(invoiceNumber);
+          break;
+        } catch (error) {
+          if (!isInvoiceNumberConflict(error) || attempt === MAX_INVOICE_ATTEMPTS - 1) {
+            throw error;
+          }
+        }
+      }
+    } catch (err) {
+      // Rollback TableOrder yang baru dibuat (cegah meja stuck OCCUPIED tanpa transaksi)
+      if (createdNewTableOrder && tableOrderId && bodyTableId) {
+        try {
+          await prisma.$transaction([
+            prisma.tableOrder.delete({ where: { id: tableOrderId } }),
+            prisma.table.update({
+              where: { id: bodyTableId },
+              data: { status: "EMPTY" },
+            }),
+          ]);
+        } catch (rollbackErr) {
+          console.error("Failed to rollback TableOrder:", rollbackErr);
+        }
+      }
+      throw err;
+    }
+
+    if (!transaction) {
+      // Rollback juga kalau transaction null (tidak seharusnya terjadi)
+      if (createdNewTableOrder && tableOrderId && bodyTableId) {
+        await prisma.$transaction([
+          prisma.tableOrder.delete({ where: { id: tableOrderId } }),
+          prisma.table.update({
+            where: { id: bodyTableId },
+            data: { status: "EMPTY" },
+          }),
+        ]).catch((e) => console.error("Rollback failed:", e));
+      }
+      throw new Error("Gagal membuat nomor invoice transaksi.");
     }
 
     let tableOrderError: string | null = null;

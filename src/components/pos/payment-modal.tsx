@@ -19,6 +19,7 @@ interface PaymentModalProps {
   serviceChargePct?: number;
   serviceChargeAmount?: number;
   tableOrderId?: string | null;
+  tableId?: string | null; // F&B: meja yang dipilih (untuk lazy-create TableOrder)
   cashierId: string;
   cashierName: string;
   tenantId: string;
@@ -85,6 +86,7 @@ export function PaymentModal({
   serviceChargePct = 0,
   serviceChargeAmount = 0,
   tableOrderId,
+  tableId,
   cashierId,
   cashierName,
   tenantId,
@@ -178,6 +180,7 @@ export function PaymentModal({
           customerId: customerId || null,
           pointsRedeemed: pointsRedeemed || 0,
           tableOrderId: tableOrderId || null,
+          tableId: tableId || null,
         },
         config?.invoicePrefix || tenant?.invoicePrefix || "INV"
       );
@@ -267,6 +270,7 @@ export function PaymentModal({
             customerId: customerId || null,
             pointsRedeemed: pointsRedeemed || 0,
             tableOrderId: tableOrderId || null,
+            tableId: tableId || null,
           }),
         });
       } catch {
