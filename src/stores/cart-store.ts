@@ -1,5 +1,13 @@
 import { create } from "zustand";
 
+export interface CartItemModifier {
+  groupId: string;
+  groupName: string;
+  optionId: string;
+  optionName: string;
+  extraPrice: number;
+}
+
 export interface CartItem {
   productId: string;
   variantSkuId?: string | null;  // null = produk tanpa varian
@@ -13,13 +21,7 @@ export interface CartItem {
   stock?: number;
   minStock?: number;
   // F&B: modifier yang dipilih
-  modifiers?: Array<{
-    groupId: string;
-    groupName: string;
-    optionId: string;
-    optionName: string;
-    extraPrice: number;
-  }>;
+  modifiers?: CartItemModifier[];
 }
 
 export interface CartCustomer {
@@ -27,6 +29,21 @@ export interface CartCustomer {
   name: string;
   phone?: string | null;
   points: number;
+}
+
+/**
+ * Generate unique key per cart item (productId + variantSkuId + modifier hash).
+ * Item dengan modifier berbeda harus jadi cart line terpisah.
+ */
+function itemKey(
+  productId: string,
+  variantSkuId?: string | null,
+  modifiers?: CartItemModifier[]
+): string {
+  const modifierKey = modifiers && modifiers.length > 0
+    ? modifiers.map((m) => m.optionId || m.optionName).sort().join(",")
+    : "";
+  return `${productId}:${variantSkuId ?? ""}:${modifierKey}`;
 }
 
 interface CartState {
@@ -43,9 +60,25 @@ interface CartState {
 
   // Actions
   addItem: (item: Omit<CartItem, "subtotal">) => void;
-  updateQuantity: (productId: string, quantity: number, variantSkuId?: string | null) => void;
-  updateItemDiscount: (productId: string, discount: number, variantSkuId?: string | null) => void;
-  removeItem: (productId: string, variantSkuId?: string | null) => void;
+  // Semua action di bawah pakai modifierKey untuk discriminate cart line
+  // (modifiers diambil dari item itu sendiri saat lookup)
+  updateQuantity: (
+    productId: string,
+    quantity: number,
+    variantSkuId?: string | null,
+    modifiers?: CartItemModifier[]
+  ) => void;
+  updateItemDiscount: (
+    productId: string,
+    discount: number,
+    variantSkuId?: string | null,
+    modifiers?: CartItemModifier[]
+  ) => void;
+  removeItem: (
+    productId: string,
+    variantSkuId?: string | null,
+    modifiers?: CartItemModifier[]
+  ) => void;
   setDiscountPct: (pct: number) => void;
   setDiscountNominal: (nominal: number) => void;
   setTaxPct: (pct: number) => void;
@@ -71,26 +104,14 @@ export const useCartStore = create<CartState>((set) => ({
 
   addItem: (newItem) => {
     set((state) => {
-      // Key unik: productId + variantSkuId + modifier options (untuk F&B)
-      // Produk yang sama dengan modifier berbeda harus jadi item terpisah
-      const modifierKey = newItem.modifiers && newItem.modifiers.length > 0
-        ? newItem.modifiers.map((m) => m.optionId).sort().join(",")
-        : "";
-      const itemKey = `${newItem.productId}:${newItem.variantSkuId ?? ""}:${modifierKey}`;
+      // Item dengan modifier berbeda harus jadi cart line terpisah
+      const newKey = itemKey(newItem.productId, newItem.variantSkuId, newItem.modifiers);
       const existing = state.items.find(
-        (i) => {
-          const iModifierKey = i.modifiers && i.modifiers.length > 0
-            ? i.modifiers.map((m) => m.optionId).sort().join(",")
-            : "";
-          return `${i.productId}:${i.variantSkuId ?? ""}:${iModifierKey}` === itemKey;
-        }
+        (i) => itemKey(i.productId, i.variantSkuId, i.modifiers) === newKey
       );
       if (existing) {
         const updatedItems = state.items.map((i) => {
-          const iModifierKey = i.modifiers && i.modifiers.length > 0
-            ? i.modifiers.map((m) => m.optionId).sort().join(",")
-            : "";
-          if (`${i.productId}:${i.variantSkuId ?? ""}:${iModifierKey}` !== itemKey) return i;
+          if (itemKey(i.productId, i.variantSkuId, i.modifiers) !== newKey) return i;
           return {
             ...i,
             quantity: i.quantity + newItem.quantity,
@@ -109,38 +130,42 @@ export const useCartStore = create<CartState>((set) => ({
     });
   },
 
-  updateQuantity: (productId, quantity, variantSkuId) => {
-    const itemKey = `${productId}:${variantSkuId ?? ""}`;
+  updateQuantity: (productId, quantity, variantSkuId, modifiers) => {
+    const targetKey = itemKey(productId, variantSkuId, modifiers);
     if (quantity <= 0) {
       set((state) => ({
-        items: state.items.filter((i) => `${i.productId}:${i.variantSkuId ?? ""}` !== itemKey),
+        items: state.items.filter(
+          (i) => itemKey(i.productId, i.variantSkuId, i.modifiers) !== targetKey
+        ),
       }));
       return;
     }
     set((state) => ({
       items: state.items.map((i) =>
-        `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
+        itemKey(i.productId, i.variantSkuId, i.modifiers) === targetKey
           ? { ...i, quantity, subtotal: quantity * i.price - i.discount }
           : i
       ),
     }));
   },
 
-  updateItemDiscount: (productId, discount, variantSkuId) => {
-    const itemKey = `${productId}:${variantSkuId ?? ""}`;
+  updateItemDiscount: (productId, discount, variantSkuId, modifiers) => {
+    const targetKey = itemKey(productId, variantSkuId, modifiers);
     set((state) => ({
       items: state.items.map((i) =>
-        `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
+        itemKey(i.productId, i.variantSkuId, i.modifiers) === targetKey
           ? { ...i, discount, subtotal: i.quantity * i.price - discount }
           : i
       ),
     }));
   },
 
-  removeItem: (productId, variantSkuId) => {
-    const itemKey = `${productId}:${variantSkuId ?? ""}`;
+  removeItem: (productId, variantSkuId, modifiers) => {
+    const targetKey = itemKey(productId, variantSkuId, modifiers);
     set((state) => ({
-      items: state.items.filter((i) => `${i.productId}:${i.variantSkuId ?? ""}` !== itemKey),
+      items: state.items.filter(
+        (i) => itemKey(i.productId, i.variantSkuId, i.modifiers) !== targetKey
+      ),
     }));
   },
 
@@ -165,3 +190,8 @@ export const useCartStore = create<CartState>((set) => ({
 
   loadHeld: (state) => set({ ...state, isHeld: false }),
 }));
+
+// Helper export untuk konsumen yang butuh generate key sendiri (e.g. React keys)
+export function getCartItemKey(item: CartItem): string {
+  return itemKey(item.productId, item.variantSkuId, item.modifiers);
+}

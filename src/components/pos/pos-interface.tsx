@@ -344,6 +344,14 @@ export function POSInterface({
 
       cart.clearCart();
       for (const item of activeItems) {
+        // Cari stock info dari products state (untuk warning low/over stock)
+        const product = products.find((p) => p.id === item.productId);
+        const variantSku = item.variantSkuId && product?.variantSKUs
+          ? product.variantSKUs.find((v) => v.id === item.variantSkuId)
+          : null;
+        const stock = variantSku?.stock ?? product?.stock;
+        const minStock = variantSku?.minStock ?? product?.minStock;
+
         cart.addItem({
           productId: item.productId,
           name: item.productName,
@@ -353,6 +361,8 @@ export function POSInterface({
           price: item.unitPrice,
           quantity: item.quantity,
           discount: 0,
+          stock,
+          minStock,
           modifiers: item.modifiers.map((m) => ({
             groupId: "",
             groupName: m.modifierGroupName,
@@ -366,7 +376,7 @@ export function POSInterface({
     } catch {
       console.warn("Failed to load order items to cart");
     }
-  }, [cart]);
+  }, [cart, products]);
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       search === "" ||
@@ -1085,13 +1095,20 @@ function ModifierPickerModal({
     });
   }
 
-  // Validasi: semua grup required harus punya pilihan
+  // Validasi: semua grup harus memenuhi minSelect & maxSelect
+  // - required group: minimal max(1, minSelect) pilihan
+  // - optional group: kalau ada pilihan, harus ≥ minSelect dan ≤ maxSelect
   const isValid = groups.every((group) => {
-    if (!group.required) return true;
-    const selected = selections.get(group.id);
-    // required group harus minimal 1 pilihan (minSelect bisa 0 tapi required tetap butuh 1)
-    const minRequired = Math.max(1, group.minSelect);
-    return selected && selected.size >= minRequired;
+    const selected = selections.get(group.id) ?? new Set();
+    const count = selected.size;
+
+    if (group.required) {
+      const minRequired = Math.max(1, group.minSelect);
+      return count >= minRequired && count <= group.maxSelect;
+    }
+    // Optional: 0 pilihan OK; kalau ada pilihan, harus dalam range
+    if (count === 0) return true;
+    return count >= group.minSelect && count <= group.maxSelect;
   });
 
   // Hitung total extra price

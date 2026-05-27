@@ -73,6 +73,17 @@ const transactionItemSchema = z.object({
   // Varian (opsional)
   variantSkuId: z.string().cuid().optional().nullable(),
   variantLabel: z.string().max(200).optional().nullable(),
+  // F&B: Modifier (opsional)
+  modifiers: z
+    .array(
+      z.object({
+        groupName: z.string().min(1).max(100),
+        optionName: z.string().min(1).max(100),
+        extraPrice: z.number().nonnegative().default(0),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 export const createTransactionSchema = z.object({

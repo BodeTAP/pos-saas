@@ -21,7 +21,19 @@ function generateReceiptHTML(data: ReceiptData): string {
 
   const itemsHTML = data.items
     .map(
-      (item) => `
+      (item) => {
+        const modsHTML = item.modifiers && item.modifiers.length > 0
+          ? item.modifiers
+              .map(
+                (m) => `
+        <div class="modifier-row">
+          <span>+ ${m.optionName}</span>
+          ${m.extraPrice > 0 ? `<span>+${formatCurrency(m.extraPrice)}</span>` : ""}
+        </div>`
+              )
+              .join("")
+          : "";
+        return `
       <div class="item">
         <div class="item-name">${item.name}</div>
         <div class="item-row">
@@ -30,13 +42,20 @@ function generateReceiptHTML(data: ReceiptData): string {
           }</span>
           <span>${formatCurrency(item.subtotal)}</span>
         </div>
-      </div>`
+        ${modsHTML}
+      </div>`;
+      }
     )
     .join("");
 
   const discountRow =
     data.discountAmount > 0
       ? `<div class="row"><span>Diskon</span><span>- ${formatCurrency(data.discountAmount)}</span></div>`
+      : "";
+
+  const serviceChargeRow =
+    (data.serviceChargeAmount ?? 0) > 0
+      ? `<div class="row"><span>Service Charge (${data.serviceChargePct ?? 0}%)</span><span>${formatCurrency(data.serviceChargeAmount!)}</span></div>`
       : "";
 
   const taxRow =
@@ -88,6 +107,7 @@ function generateReceiptHTML(data: ReceiptData): string {
     .item { margin: 2px 0; }
     .item-name { font-weight: bold; }
     .item-row { display: flex; justify-content: space-between; padding-left: 4px; }
+    .modifier-row { display: flex; justify-content: space-between; padding-left: 8px; color: #555; font-size: ${fontSizePx - 1}px; }
 
     .row { display: flex; justify-content: space-between; margin: 1px 0; }
     .row.bold { font-weight: bold; font-size: ${fontSizePx + 1}px; }
@@ -120,6 +140,7 @@ function generateReceiptHTML(data: ReceiptData): string {
     <tr><td>No.</td><td>${data.invoiceNumber}</td></tr>
     <tr><td>Tanggal</td><td>${formatDateTime(data.createdAt)}</td></tr>
     <tr><td>Kasir</td><td>${data.cashierName}</td></tr>
+    ${data.tableNumber ? `<tr><td>Meja</td><td>#${data.tableNumber}${data.tableArea ? ` (${data.tableArea})` : ""}</td></tr>` : ""}
     <tr><td>Pembayaran</td><td>${paymentLabel[data.paymentMethod] || data.paymentMethod}</td></tr>
   </table>
 
@@ -131,6 +152,7 @@ function generateReceiptHTML(data: ReceiptData): string {
 
   <div class="row"><span>Subtotal</span><span>${formatCurrency(data.subtotal)}</span></div>
   ${discountRow}
+  ${serviceChargeRow}
   ${taxRow}
   <div class="total-row"><span>TOTAL</span><span>${formatCurrency(data.total)}</span></div>
   <div class="row"><span>Bayar</span><span>${formatCurrency(data.amountPaid)}</span></div>

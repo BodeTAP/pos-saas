@@ -1,6 +1,6 @@
 "use client";
 
-import { useCartStore, POINT_VALUE } from "@/stores/cart-store";
+import { useCartStore, POINT_VALUE, getCartItemKey } from "@/stores/cart-store";
 import { formatCurrency } from "@/lib/utils";
 import { Trash2, Plus, Minus, ShoppingCart, Star, PauseCircle, AlertTriangle, ChefHat, Loader2 } from "lucide-react";
 import { CustomerSelector } from "./customer-selector";
@@ -102,7 +102,7 @@ export function CartPanel({
 
             return (
               <div
-                key={`${item.productId}:${item.variantSkuId ?? ""}`}
+                key={getCartItemKey(item)}
                 className={`rounded-lg p-3 border ${
                   isOverStock
                     ? "bg-red-50 border-red-200"
@@ -121,12 +121,25 @@ export function CartPanel({
                         {item.variantLabel}
                       </p>
                     )}
+                    {/* F&B: tampilkan modifier */}
+                    {item.modifiers && item.modifiers.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-0.5 space-y-0.5">
+                        {item.modifiers.map((m, i) => (
+                          <p key={i}>
+                            + {m.optionName}
+                            {m.extraPrice > 0 && (
+                              <span className="text-gray-400"> (+{formatCurrency(m.extraPrice)})</span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xs text-gray-500">
                       {formatCurrency(item.price)} / pcs
                     </p>
                   </div>
                   <button
-                    onClick={() => removeItem(item.productId, item.variantSkuId)}
+                    onClick={() => removeItem(item.productId, item.variantSkuId, item.modifiers)}
                     className="text-red-400 hover:text-red-600 p-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -135,7 +148,7 @@ export function CartPanel({
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity - 1, item.variantSkuId)}
+                      onClick={() => updateQuantity(item.productId, item.quantity - 1, item.variantSkuId, item.modifiers)}
                       className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
                     >
                       <Minus className="w-3 h-3" />
@@ -144,7 +157,7 @@ export function CartPanel({
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity + 1, item.variantSkuId)}
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1, item.variantSkuId, item.modifiers)}
                       className="w-6 h-6 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center"
                     >
                       <Plus className="w-3 h-3 text-blue-600" />
@@ -182,7 +195,7 @@ export function CartPanel({
                         parseFloat(e.target.value) || 0,
                         item.price * item.quantity
                       );
-                      updateItemDiscount(item.productId, val, item.variantSkuId);
+                      updateItemDiscount(item.productId, val, item.variantSkuId, item.modifiers);
                     }}
                     placeholder="0"
                     className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"

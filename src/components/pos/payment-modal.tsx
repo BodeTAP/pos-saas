@@ -45,6 +45,8 @@ interface SavedTransaction {
   invoiceNumber: string;
   subtotal: number;
   discount: number;
+  serviceCharge: number;
+  serviceChargePct: number;
   tax: number;
   taxPct: number;
   total: number;
@@ -59,6 +61,11 @@ interface SavedTransaction {
     unitPrice: number;
     discount: number;
     subtotal: number;
+    modifiers?: Array<{
+      modifierGroupName: string;
+      modifierOptionName: string;
+      extraPrice: number;
+    }>;
   }>;
 }
 
@@ -146,6 +153,12 @@ export function PaymentModal({
             discount: i.discount,
             subtotal: i.subtotal,
             variantSkuId: i.variantSkuId ?? null,
+            variantLabel: i.variantLabel ?? null,
+            modifiers: i.modifiers?.map((m) => ({
+              groupName: m.groupName,
+              optionName: m.optionName,
+              extraPrice: m.extraPrice,
+            })) ?? [],
           })),
           subtotal,
           discount: discountAmount,
@@ -189,9 +202,16 @@ export function PaymentModal({
           unitPrice: i.price,
           discount: i.discount,
           subtotal: i.subtotal,
+          modifiers: i.modifiers?.map((m) => ({
+            groupName: m.groupName,
+            optionName: m.optionName,
+            extraPrice: m.extraPrice,
+          })),
         })),
         subtotal,
         discountAmount,
+        serviceChargeAmount,
+        serviceChargePct,
         taxAmount,
         taxPct,
         total,
@@ -224,6 +244,11 @@ export function PaymentModal({
               discount: i.discount,
               subtotal: i.subtotal,
               variantSkuId: i.variantSkuId ?? null,
+              modifiers: i.modifiers?.map((m) => ({
+                groupName: m.groupName,
+                optionName: m.optionName,
+                extraPrice: m.extraPrice,
+              })) ?? [],
             })),
             subtotal,
             discount: discountAmount,
@@ -269,9 +294,16 @@ export function PaymentModal({
           unitPrice: i.unitPrice,
           discount: i.discount,
           subtotal: i.subtotal,
+          modifiers: i.modifiers?.map((m) => ({
+            groupName: m.modifierGroupName,
+            optionName: m.modifierOptionName,
+            extraPrice: m.extraPrice,
+          })),
         })),
         subtotal: savedTransaction.subtotal,
         discountAmount: savedTransaction.discount,
+        serviceChargeAmount: savedTransaction.serviceCharge,
+        serviceChargePct: savedTransaction.serviceChargePct,
         taxAmount: savedTransaction.tax,
         taxPct: savedTransaction.taxPct,
         total: savedTransaction.total,

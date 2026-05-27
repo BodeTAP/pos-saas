@@ -197,7 +197,10 @@ export async function POST(req: NextRequest) {
     const transactionItems = items.map((item) => {
       const product = productsById.get(item.productId)!;
       const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
-      const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+      const baseUnitPrice = variantSku ? variantSku.price : product.sellPrice;
+      // F&B: harga unit final = base + total extra modifier
+      const modifierExtra = (item.modifiers ?? []).reduce((s, m) => s + (m.extraPrice ?? 0), 0);
+      const unitPrice = baseUnitPrice + modifierExtra;
       const buyPrice = variantSku ? variantSku.buyPrice : product.buyPrice;
       const itemGross = unitPrice * item.quantity;
       const itemDiscount = item.discount ?? 0;
@@ -213,6 +216,7 @@ export async function POST(req: NextRequest) {
         subtotal: itemGross - itemDiscount,
         variantSkuId: item.variantSkuId ?? null,
         variantLabel: item.variantSkuId ? (variantLabels.get(item.variantSkuId) ?? null) : null,
+        modifiers: item.modifiers ?? [],
       };
     });
 
@@ -232,7 +236,9 @@ export async function POST(req: NextRequest) {
 
     const discountedSubtotal = Math.max(0, subtotal - transactionDiscount - pointsDiscount);
     // Service charge dihitung dari subtotal setelah diskon (sebelum pajak)
-    const serviceChargePct = bodyServiceChargePct ?? tenantConfig.serviceChargePct ?? 0;
+    // Server otoritas — abaikan client input untuk security
+    void bodyServiceChargePct; // disengaja tidak dipakai
+    const serviceChargePct = tenantConfig.serviceChargePct ?? 0;
     const serviceCharge = discountedSubtotal * (serviceChargePct / 100);
     const taxPct = tenantConfig.taxRate;
     const tax = (discountedSubtotal + serviceCharge) * (taxPct / 100);
@@ -288,6 +294,18 @@ export async function POST(req: NextRequest) {
                 subtotal: item.subtotal,
                 variantSkuId: item.variantSkuId || null,
                 variantLabel: item.variantLabel || null,
+                // F&B: snapshot modifiers
+                modifiers: item.modifiers && item.modifiers.length > 0
+                  ? {
+                      create: item.modifiers.map((m) => ({
+                        modifierGroupId: "", // group ID tidak tersimpan di payload (snapshot only)
+                        modifierGroupName: m.groupName,
+                        modifierOptionId: "",
+                        modifierOptionName: m.optionName,
+                        extraPrice: m.extraPrice,
+                      })),
+                    }
+                  : undefined,
               })
             ),
           },
@@ -411,12 +429,36 @@ export async function POST(req: NextRequest) {
     const isFnB = tenantConfig.businessType === "FNB";
     const isPayFirst = isFnB && tenantConfig.paymentFlow === "PAY_FIRST";
 
-    // Cek apakah TableOrder sudah punya OrderItem (artinya item sudah dikirim ke dapur)
-    // Jika sudah, tidak perlu auto-create lagi
+    // Validasi: jika ada tableOrderId, pastikan TableOrder belum dibayar
+    // dan punya cek apakah sudah ada OrderItem (kirim ke dapur sebelumnya)
     let tableOrderHasItems = false;
     if (tableOrderId) {
+      const tableOrderInfo = await prisma.tableOrder.findFirst({
+        where: { id: tableOrderId, tenantId, closedAt: null },
+        select: { id: true, transactionId: true },
+      });
+
+      if (!tableOrderInfo) {
+        return NextResponse.json(
+          { error: "Order meja tidak ditemukan atau sudah ditutup." },
+          { status: 404 }
+        );
+      }
+
+      // Reject jika sudah ada transactionId (sudah dibayar)
+      if (tableOrderInfo.transactionId) {
+        return NextResponse.json(
+          { error: "Order meja ini sudah dibayar sebelumnya. Tidak bisa bayar 2 kali." },
+          { status: 409 }
+        );
+      }
+
       const existingCount = await prisma.orderItem.count({
-        where: { tableOrderId, status: { not: "CANCELLED" } },
+        where: {
+          tableOrderId,
+          tenantId,
+          status: { not: "CANCELLED" },
+        },
       });
       tableOrderHasItems = existingCount > 0;
     }
@@ -454,6 +496,15 @@ export async function POST(req: NextRequest) {
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 status: "PENDING",
+                modifiers: item.modifiers && item.modifiers.length > 0
+                  ? {
+                      create: item.modifiers.map((m) => ({
+                        modifierGroupName: m.groupName,
+                        modifierOptionName: m.optionName,
+                        extraPrice: m.extraPrice,
+                      })),
+                    }
+                  : undefined,
               },
             });
           }
@@ -497,6 +548,15 @@ export async function POST(req: NextRequest) {
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 status: "PENDING",
+                modifiers: item.modifiers && item.modifiers.length > 0
+                  ? {
+                      create: item.modifiers.map((m) => ({
+                        modifierGroupName: m.groupName,
+                        modifierOptionName: m.optionName,
+                        extraPrice: m.extraPrice,
+                      })),
+                    }
+                  : undefined,
               },
             })
           )

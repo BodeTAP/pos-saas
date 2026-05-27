@@ -28,13 +28,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validasi item milik tenant ini
+    // Validasi item milik tenant ini (support both dine-in dan takeaway)
     const item = await prisma.orderItem.findFirst({
       where: {
         id,
-        tableOrder: { tenantId: session.user.tenantId },
+        tenantId: session.user.tenantId,
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, tableOrderId: true, transactionId: true },
     });
 
     if (!item) {
@@ -68,7 +68,7 @@ export async function PATCH(
     });
 
     // Jika status diubah ke SERVED, cek apakah semua item di order sudah SERVED/CANCELLED
-    // Jika ya, tutup TableOrder dan set meja EMPTY (untuk PAY_FIRST yang masih ada meja terbuka)
+    // Hanya auto-close TableOrder yang SUDAH DIBAYAR (PAY_FIRST) — biarkan PAY_LATER tunggu kasir
     if (status === "SERVED" && updated.tableOrderId) {
       const allItems = await prisma.orderItem.findMany({
         where: { tableOrderId: updated.tableOrderId },
@@ -81,10 +81,11 @@ export async function PATCH(
       if (allDone) {
         const tableOrder = await prisma.tableOrder.findUnique({
           where: { id: updated.tableOrderId },
-          select: { id: true, tableId: true, closedAt: true },
+          select: { id: true, tableId: true, closedAt: true, transactionId: true },
         });
-        // Hanya close jika belum di-close
-        if (tableOrder && !tableOrder.closedAt) {
+        // Hanya close jika belum di-close DAN sudah dibayar (transactionId != null)
+        // Kalau belum dibayar (PAY_LATER), biarkan terbuka — kasir harus minta bill dulu
+        if (tableOrder && !tableOrder.closedAt && tableOrder.transactionId) {
           await prisma.$transaction([
             prisma.tableOrder.update({
               where: { id: tableOrder.id },
@@ -124,7 +125,7 @@ export async function DELETE(
     const item = await prisma.orderItem.findFirst({
       where: {
         id,
-        tableOrder: { tenantId: session.user.tenantId },
+        tenantId: session.user.tenantId,
       },
       select: { id: true, status: true },
     });

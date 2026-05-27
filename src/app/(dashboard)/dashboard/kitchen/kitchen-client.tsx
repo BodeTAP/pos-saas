@@ -145,11 +145,14 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
     }
   }, []);
 
-  // Auto-refresh setiap 10 detik
+  // Auto-refresh setiap 10 detik — skip jika user sedang update item (cegah override optimistic)
   useEffect(() => {
-    const interval = setInterval(() => fetchTables(true), 10000);
+    const interval = setInterval(() => {
+      if (updatingItem) return; // skip polling saat user klik tombol
+      fetchTables(true);
+    }, 10000);
     return () => clearInterval(interval);
-  }, [fetchTables]);
+  }, [fetchTables, updatingItem]);
 
   // Update durasi setiap menit
   useEffect(() => {

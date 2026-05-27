@@ -46,6 +46,11 @@ export async function POST(req: NextRequest) {
             subtotal: number;
             variantSkuId?: string | null;
             variantLabel?: string | null;
+            modifiers?: Array<{
+              groupName: string;
+              optionName: string;
+              extraPrice: number;
+            }>;
           }>;
           subtotal: number;
           discount: number;
@@ -86,6 +91,8 @@ export async function POST(req: NextRequest) {
         taxRate: true,
         activePaymentMethods: true,
         invoicePrefix: true,
+        businessType: true,
+        paymentFlow: true,
       },
     });
 
@@ -200,7 +207,10 @@ export async function POST(req: NextRequest) {
                       const product = productsById.get(item.productId)!;
                       // Bug 4 fix: pakai harga varian dari DB, bukan harga produk dasar
                       const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
-                      const unitPrice = variantSku ? variantSku.price : product.sellPrice;
+                      const baseUnitPrice = variantSku ? variantSku.price : product.sellPrice;
+                      // F&B: harga unit final = base + total extra modifier
+                      const modifierExtra = (item.modifiers ?? []).reduce((s, m) => s + (m.extraPrice ?? 0), 0);
+                      const unitPrice = baseUnitPrice + modifierExtra;
                       const buyPrice = variantSku ? variantSku.buyPrice : product.buyPrice;
                       const itemSku = variantSku?.sku ?? product.sku;
                       return {
@@ -214,6 +224,18 @@ export async function POST(req: NextRequest) {
                         subtotal: unitPrice * item.quantity - (item.discount || 0),
                         variantSkuId: item.variantSkuId || null,
                         variantLabel: item.variantLabel || null,
+                        // F&B: snapshot modifiers
+                        modifiers: item.modifiers && item.modifiers.length > 0
+                          ? {
+                              create: item.modifiers.map((m) => ({
+                                modifierGroupId: "",
+                                modifierGroupName: m.groupName,
+                                modifierOptionId: "",
+                                modifierOptionName: m.optionName,
+                                extraPrice: m.extraPrice,
+                              })),
+                            }
+                          : undefined,
                       };
                     }),
                   },
@@ -315,10 +337,12 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // F&B: Tutup table order jika ada tableOrderId
-        if (payload.tableOrderId && serverInvoiceNumber) {
+        // F&B: Handle table order + auto-create OrderItem (replikasi alur online)
+        const isFnB = tenantConfig.businessType === "FNB";
+        const isPayFirst = isFnB && tenantConfig.paymentFlow === "PAY_FIRST";
+
+        if (serverInvoiceNumber) {
           try {
-            // Cari transaksi yang baru dibuat untuk mendapatkan ID-nya
             const createdTx = await prisma.transaction.findFirst({
               where: {
                 tenantId: session.user.tenantId!,
@@ -328,32 +352,118 @@ export async function POST(req: NextRequest) {
             });
 
             if (createdTx) {
-              const tableOrder = await prisma.tableOrder.findFirst({
-                where: {
-                  id: payload.tableOrderId,
-                  tenantId: session.user.tenantId!,
-                  closedAt: null,
-                  table: { outletId: outletId },
-                },
-                select: { id: true, tableId: true },
-              });
+              if (payload.tableOrderId) {
+                // Dine-in
+                const tableOrder = await prisma.tableOrder.findFirst({
+                  where: {
+                    id: payload.tableOrderId,
+                    tenantId: session.user.tenantId!,
+                    closedAt: null,
+                    table: { outletId: outletId },
+                  },
+                  select: { id: true, tableId: true },
+                });
 
-              if (tableOrder) {
-                await prisma.$transaction([
-                  prisma.tableOrder.update({
+                if (tableOrder) {
+                  // Cek apakah sudah ada OrderItem (kasir kirim ke dapur sebelumnya)
+                  const existingCount = await prisma.orderItem.count({
+                    where: {
+                      tableOrderId: tableOrder.id,
+                      tenantId: session.user.tenantId!,
+                      status: { not: "CANCELLED" },
+                    },
+                  });
+
+                  // PAY_FIRST + belum ada OrderItem → auto-create
+                  if (isPayFirst && existingCount === 0) {
+                    for (const item of payload.items) {
+                      const product = productsById.get(item.productId);
+                      const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
+                      const baseUnitPrice = variantSku ? variantSku.price : (product?.sellPrice ?? item.unitPrice);
+                      const modifierExtra = (item.modifiers ?? []).reduce((s, m) => s + (m.extraPrice ?? 0), 0);
+                      const unitPrice = baseUnitPrice + modifierExtra;
+
+                      await prisma.orderItem.create({
+                        data: {
+                          tableOrderId: tableOrder.id,
+                          tenantId: session.user.tenantId!,
+                          productId: item.productId,
+                          productName: product?.name ?? item.productName,
+                          productSku: variantSku?.sku ?? product?.sku ?? null,
+                          variantSkuId: item.variantSkuId ?? null,
+                          variantLabel: item.variantLabel ?? null,
+                          quantity: item.quantity,
+                          unitPrice,
+                          status: "PENDING",
+                          modifiers: item.modifiers && item.modifiers.length > 0
+                            ? {
+                                create: item.modifiers.map((m) => ({
+                                  modifierGroupName: m.groupName,
+                                  modifierOptionName: m.optionName,
+                                  extraPrice: m.extraPrice,
+                                })),
+                              }
+                            : undefined,
+                        },
+                      });
+                    }
+                  }
+
+                  // Link transaksi ke TableOrder
+                  // PAY_LATER → close + meja EMPTY
+                  // PAY_FIRST → biarkan terbuka, tutup saat semua item SERVED
+                  await prisma.tableOrder.update({
                     where: { id: tableOrder.id },
-                    data: { closedAt: new Date(), transactionId: createdTx.id },
-                  }),
-                  prisma.table.update({
-                    where: { id: tableOrder.tableId },
-                    data: { status: "EMPTY" },
-                  }),
-                ]);
+                    data: {
+                      transactionId: createdTx.id,
+                      ...(isPayFirst ? {} : { closedAt: new Date() }),
+                    },
+                  });
+
+                  if (!isPayFirst) {
+                    await prisma.table.update({
+                      where: { id: tableOrder.tableId },
+                      data: { status: "EMPTY" },
+                    });
+                  }
+                }
+              } else if (isPayFirst) {
+                // Takeaway PAY_FIRST: create OrderItem ke transaction
+                for (const item of payload.items) {
+                  const product = productsById.get(item.productId);
+                  const variantSku = item.variantSkuId ? variantSkusById.get(item.variantSkuId) : null;
+                  const baseUnitPrice = variantSku ? variantSku.price : (product?.sellPrice ?? item.unitPrice);
+                  const modifierExtra = (item.modifiers ?? []).reduce((s, m) => s + (m.extraPrice ?? 0), 0);
+                  const unitPrice = baseUnitPrice + modifierExtra;
+
+                  await prisma.orderItem.create({
+                    data: {
+                      transactionId: createdTx.id,
+                      tenantId: session.user.tenantId!,
+                      productId: item.productId,
+                      productName: product?.name ?? item.productName,
+                      productSku: variantSku?.sku ?? product?.sku ?? null,
+                      variantSkuId: item.variantSkuId ?? null,
+                      variantLabel: item.variantLabel ?? null,
+                      quantity: item.quantity,
+                      unitPrice,
+                      status: "PENDING",
+                      modifiers: item.modifiers && item.modifiers.length > 0
+                        ? {
+                            create: item.modifiers.map((m) => ({
+                              modifierGroupName: m.groupName,
+                              modifierOptionName: m.optionName,
+                              extraPrice: m.extraPrice,
+                            })),
+                          }
+                        : undefined,
+                    },
+                  });
+                }
               }
             }
           } catch (tableErr) {
-            // Jangan gagalkan transaksi karena error table order
-            console.error("Failed to close table order during offline sync:", tableErr);
+            console.error("Failed to handle F&B order during offline sync:", tableErr);
           }
         }
 

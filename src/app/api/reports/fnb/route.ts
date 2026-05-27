@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { getActiveOutletId } from "@/lib/active-outlet";
 
 /**
  * GET /api/reports/fnb
@@ -15,7 +16,8 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const outletId = searchParams.get("outletId") || session.user.outletId;
+    // Pakai active outlet (cookie) — fallback ke session.user.outletId, lalu null
+    const outletId = searchParams.get("outletId") || (await getActiveOutletId());
 
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -32,12 +34,24 @@ export async function GET(req: NextRequest) {
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);
 
+    // Cek apakah tenant pakai PaymentFlow PAY_FIRST (untuk include takeaway)
+    const tenantInfo = await prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { paymentFlow: true },
+    });
+    const isPayFirst = tenantInfo?.paymentFlow === "PAY_FIRST";
+
+    // Base where: F&B = transaksi dengan tableOrderId (dine-in)
+    // ATAU transaksi dengan OrderItem (takeaway PAY_FIRST)
     const baseTxWhere = {
       tenantId: session.user.tenantId,
       status: "COMPLETED" as const,
       createdAt: { gte: startDate, lte: endDate },
       ...(outletId ? { outletId } : {}),
-      tableOrderId: { not: null }, // hanya transaksi F&B (ada meja)
+      OR: [
+        { tableOrderId: { not: null } }, // dine-in
+        ...(isPayFirst ? [{ orderItems: { some: {} } }] : []), // takeaway PAY_FIRST
+      ],
     };
 
     // 1. Revenue per area meja
@@ -60,11 +74,14 @@ export async function GET(req: NextRequest) {
     // Revenue per area
     const areaMap = new Map<string, { revenue: number; count: number; totalDuration: number; durationCount: number }>();
     for (const tx of txWithTable) {
-      const area = tx.tableOrder?.table.area || "Umum";
+      // Takeaway tidak punya tableOrder → masuk ke "Takeaway"
+      const area = tx.tableOrder
+        ? (tx.tableOrder.table.area || "Umum")
+        : "Takeaway";
       const current = areaMap.get(area) || { revenue: 0, count: 0, totalDuration: 0, durationCount: 0 };
       current.revenue += tx.total;
       current.count += 1;
-      // Hitung durasi duduk (menit)
+      // Hitung durasi duduk (menit) — hanya untuk dine-in
       if (tx.tableOrder?.openedAt && tx.tableOrder?.closedAt) {
         const duration = Math.floor(
           (new Date(tx.tableOrder.closedAt).getTime() - new Date(tx.tableOrder.openedAt).getTime()) / 60000

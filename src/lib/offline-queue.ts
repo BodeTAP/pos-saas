@@ -22,6 +22,7 @@ export interface OfflineTransactionPayload {
     subtotal: number;
     variantSkuId?: string | null;
     variantLabel?: string | null;
+    modifiers?: Array<{ groupName: string; optionName: string; extraPrice: number }>;
   }>;
   subtotal: number;
   discount: number;

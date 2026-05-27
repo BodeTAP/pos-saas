@@ -211,30 +211,44 @@ export default async function POSPage({
   if (isFnB && initialTableId) {
     const targetTable = tables.find((t) => t.id === initialTableId);
     if (targetTable?.activeOrderId) {
-      const orderItems = await prisma.orderItem.findMany({
-        where: {
-          tableOrderId: targetTable.activeOrderId,
-          // Hanya exclude CANCELLED — item SERVED tetap harus ditagih ke pelanggan
-          status: { not: "CANCELLED" },
-        },
-        include: { modifiers: true },
-        orderBy: { sentAt: "asc" },
+      // Cek apakah TableOrder sudah dibayar (transactionId != null)
+      // Kalau sudah, skip auto-load — supaya kasir tidak charge 2x
+      const tableOrderInfo = await prisma.tableOrder.findUnique({
+        where: { id: targetTable.activeOrderId },
+        select: { transactionId: true, tenantId: true },
       });
 
-      initialCartItems = orderItems.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        productSku: item.productSku,
-        variantSkuId: item.variantSkuId,
-        variantLabel: item.variantLabel,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        modifiers: item.modifiers.map((m) => ({
-          groupName: m.modifierGroupName,
-          optionName: m.modifierOptionName,
-          extraPrice: m.extraPrice,
-        })),
-      }));
+      const alreadyPaid = !!tableOrderInfo?.transactionId;
+      // Validasi tenantId untuk defensive
+      const validTenant = tableOrderInfo?.tenantId === session.user.tenantId;
+
+      if (!alreadyPaid && validTenant) {
+        const orderItems = await prisma.orderItem.findMany({
+          where: {
+            tableOrderId: targetTable.activeOrderId,
+            tenantId: session.user.tenantId,
+            // Hanya exclude CANCELLED — item SERVED tetap harus ditagih ke pelanggan
+            status: { not: "CANCELLED" },
+          },
+          include: { modifiers: true },
+          orderBy: { sentAt: "asc" },
+        });
+
+        initialCartItems = orderItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          productSku: item.productSku,
+          variantSkuId: item.variantSkuId,
+          variantLabel: item.variantLabel,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          modifiers: item.modifiers.map((m) => ({
+            groupName: m.modifierGroupName,
+            optionName: m.modifierOptionName,
+            extraPrice: m.extraPrice,
+          })),
+        }));
+      }
     }
   }
 
