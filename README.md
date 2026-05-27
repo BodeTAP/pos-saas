@@ -744,3 +744,23 @@ MIT License — bebas digunakan dan dimodifikasi.
 - **Laporan F&B** — tab baru "F&B" di halaman Laporan (hanya muncul untuk FNB): summary (pendapatan, transaksi, rata-rata, durasi duduk), revenue per area, menu terlaris; data di-fetch client-side saat tab diklik
 - **API baru**: `GET /api/kitchen`, `PATCH /api/tables/[id]/status`, `GET/POST /api/modifiers`, `PUT/DELETE /api/modifiers/[id]`, `POST/DELETE /api/modifiers/[id]/products`, `PATCH /api/products/[id]/availability`, `GET /api/reports/fnb`
 - Sidebar F&B: 4 menu baru (Meja, Kitchen Display, Menu Hari Ini, Modifier Menu) — hanya muncul untuk FNB
+
+
+### ✅ Fase 22 — F&B Kitchen Display Full Flow & Alur Pembayaran
+
+**Kitchen Display — Item Tracking:**
+- **Schema baru**: `OrderItem` (status PENDING/COOKING/READY/SERVED/CANCELLED, timestamp per status), `OrderItemModifier` (snapshot modifier per item), enum `OrderItemStatus`
+- **Alur baru**: Kasir tambah item ke keranjang → klik "Kirim ke Dapur" → `OrderItem` dibuat di DB → Kitchen Display tampilkan item per meja dengan status real-time
+- **Kitchen Display** sekarang menampilkan item pesanan per meja (bukan hanya status meja): nama item, varian, modifier, catatan item, status badge per item
+- **Update status item** langsung dari Kitchen Display: Antri → Mulai Masak → Siap Saji → Sudah Disajikan (PATCH `/api/order-items/[id]`)
+- **API baru**: `GET/POST /api/tables/[id]/order/items`, `PATCH/DELETE /api/order-items/[id]`
+- **Tombol "Kirim ke Dapur"** di CartPanel (hijau) — hanya muncul untuk FnB saat meja terpilih; setelah kirim, keranjang dikosongkan tapi meja tetap terpilih
+- **Halaman Detail Meja** (`/dashboard/tables/[id]`) sekarang menampilkan `OrderItem` (item yang dikirim ke dapur) bukan `TransactionItem` (item setelah bayar) — termasuk status per item dan estimasi total
+
+**Alur Pembayaran F&B:**
+- **Tombol "Proses Pembayaran"** di Kitchen Display pada kartu meja BILL → redirect ke `/dashboard/pos?tableId=xxx`
+- **Tombol "Proses Pembayaran"** di halaman Meja pada kartu meja BILL → redirect ke `/dashboard/pos?tableId=xxx`
+- **Tombol "Bayar di POS"** di halaman Detail Meja → redirect ke `/dashboard/pos?tableId=xxx`
+- **POS auto-select meja** dari URL `?tableId=xxx` saat halaman dimuat (`useEffect` saat mount)
+- **Auto-load order items ke keranjang** saat meja dipilih (baik dari URL param maupun manual): fetch `GET /api/tables/[id]/order/items`, filter item aktif (bukan SERVED/CANCELLED), masukkan ke keranjang dengan modifier — kasir langsung bisa klik "Bayar"
+- **Halaman Meja** (`/dashboard/tables`): kartu meja OCCUPIED/BILL sekarang bisa diklik (link ke detail meja), kartu BILL punya shortcut "Proses Pembayaran"
