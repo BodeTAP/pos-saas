@@ -75,7 +75,7 @@ export default async function POSPage() {
     };
   });
 
-  const [categories, tenant, outlet, businessType] = await Promise.all([
+  const [categories, tenantData, outlet] = await Promise.all([
     prisma.category.findMany({
       where: { tenantId: session.user.tenantId },
       orderBy: { name: "asc" },
@@ -95,19 +95,36 @@ export default async function POSPage() {
         pointValue: true,
         activePaymentMethods: true,
         invoicePrefix: true,
+        businessType: true, // ambil sekaligus
       },
     }),
     prisma.outlet.findUnique({
       where: { id: outletId },
       select: { id: true, name: true, isMain: true },
     }),
-    prisma.tenant.findUnique({
-      where: { id: session.user.tenantId },
-      select: { businessType: true },
-    }).then((t) => t?.businessType ?? "RETAIL"),
   ]);
 
-  // Ambil meja untuk F&B
+  const businessType = tenantData?.businessType ?? "RETAIL";
+
+  // Pisahkan tenant info dari businessType
+  const tenant = tenantData
+    ? {
+        taxRate: tenantData.taxRate,
+        currency: tenantData.currency,
+        name: tenantData.name,
+        address: tenantData.address,
+        phone: tenantData.phone,
+        receiptWidth: tenantData.receiptWidth,
+        receiptNote: tenantData.receiptNote,
+        receiptHeader: tenantData.receiptHeader,
+        pointsPerAmount: tenantData.pointsPerAmount,
+        pointValue: tenantData.pointValue,
+        activePaymentMethods: tenantData.activePaymentMethods,
+        invoicePrefix: tenantData.invoicePrefix,
+      }
+    : null;
+
+  // Ambil meja untuk F&B — paralel dengan query di atas sudah selesai
   const tables = businessType === "FNB"
     ? await prisma.table.findMany({
         where: { outletId, tenantId: session.user.tenantId, isActive: true },

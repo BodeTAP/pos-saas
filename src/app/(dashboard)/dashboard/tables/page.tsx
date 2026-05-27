@@ -10,28 +10,30 @@ export default async function TablesPage() {
   if (!session?.user.tenantId) return <NoTenant />;
   if (session.user.role !== "OWNER") redirect("/dashboard");
 
+  // Cek businessType — halaman ini hanya untuk F&B
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: session.user.tenantId },
+    select: { businessType: true },
+  });
+  if (tenant?.businessType !== "FNB") {
+    redirect("/dashboard");
+  }
+
   const outletId = await getActiveOutletId();
 
-  const [tables, outlets] = await Promise.all([
-    outletId
-      ? prisma.table.findMany({
-          where: { outletId, tenantId: session.user.tenantId, isActive: true },
-          include: {
-            tableOrders: {
-              where: { closedAt: null },
-              select: { id: true, openedAt: true },
-              take: 1,
-            },
+  const tables = outletId
+    ? await prisma.table.findMany({
+        where: { outletId, tenantId: session.user.tenantId, isActive: true },
+        include: {
+          tableOrders: {
+            where: { closedAt: null },
+            select: { id: true, openedAt: true },
+            take: 1,
           },
-          orderBy: [{ area: "asc" }, { number: "asc" }],
-        })
-      : [],
-    prisma.outlet.findMany({
-      where: { tenantId: session.user.tenantId, isActive: true },
-      select: { id: true, name: true, isMain: true },
-      orderBy: [{ isMain: "desc" }, { name: "asc" }],
-    }),
-  ]);
+        },
+        orderBy: [{ area: "asc" }, { number: "asc" }],
+      })
+    : [];
 
   return (
     <TablesClient
@@ -40,7 +42,6 @@ export default async function TablesPage() {
         activeOrder: t.tableOrders[0] ?? null,
         tableOrders: undefined,
       }))}
-      outlets={outlets}
       currentOutletId={outletId}
     />
   );

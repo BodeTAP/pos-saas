@@ -634,9 +634,19 @@ function TableSelectorModal({
       <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Pilih Meja</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedTableId !== null && (
+              <button
+                onClick={() => onSelect(null)}
+                className="text-xs text-orange-600 hover:text-orange-800 px-2 py-1 rounded hover:bg-orange-50 transition-colors"
+              >
+                Batalkan pilihan
+              </button>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">

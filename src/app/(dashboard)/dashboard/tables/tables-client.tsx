@@ -16,15 +16,8 @@ interface TableData {
   activeOrder: { id: string; openedAt: Date } | null;
 }
 
-interface OutletInfo {
-  id: string;
-  name: string;
-  isMain: boolean;
-}
-
 interface TablesClientProps {
   initialTables: TableData[];
-  outlets: OutletInfo[];
   currentOutletId: string | null;
 }
 
@@ -35,7 +28,7 @@ const STATUS_CONFIG: Record<TableStatus, { label: string; color: string; bg: str
   RESERVED: { label: "Dipesan", color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
 };
 
-export function TablesClient({ initialTables, outlets, currentOutletId }: TablesClientProps) {
+export function TablesClient({ initialTables, currentOutletId }: TablesClientProps) {
   const [tables, setTables] = useState<TableData[]>(initialTables);
   const [showModal, setShowModal] = useState(false);
   const [editTable, setEditTable] = useState<TableData | null>(null);
@@ -62,18 +55,26 @@ export function TablesClient({ initialTables, outlets, currentOutletId }: Tables
     if (!confirm(`Hapus meja ${table.number}?`)) return;
 
     const original = tables.find((t) => t.id === table.id);
+    // Optimistic delete
     setTables((prev) => prev.filter((t) => t.id !== table.id));
     setIsDeleting(table.id);
 
-    const res = await fetch(`/api/tables/${table.id}`, { method: "DELETE" });
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/tables/${table.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        // Rollback
+        if (original) setTables((prev) => [...prev, original]);
+        const data = await res.json();
+        toast.error(data.error || "Gagal menghapus meja.");
+      } else {
+        toast.success(`Meja ${table.number} berhasil dihapus.`);
+      }
+    } catch {
       if (original) setTables((prev) => [...prev, original]);
-      const data = await res.json();
-      toast.error(data.error || "Gagal menghapus meja.");
-    } else {
-      toast.success(`Meja ${table.number} berhasil dihapus.`);
+      toast.error("Terjadi kesalahan koneksi.");
+    } finally {
+      setIsDeleting(null);
     }
-    setIsDeleting(null);
   }
 
   const totalEmpty = tables.filter((t) => t.status === "EMPTY").length;
@@ -250,7 +251,18 @@ function TableFormModal({
         return;
       }
       toast.success(table ? "Meja berhasil diperbarui." : "Meja berhasil ditambahkan.");
-      onSaved({ ...(table || {}), ...data.table, activeOrder: table?.activeOrder ?? null });
+      // Buat TableData yang proper — jangan spread {} karena bisa missing fields
+      const savedTable: TableData = {
+        id: data.table.id,
+        number: data.table.number,
+        name: data.table.name ?? null,
+        capacity: data.table.capacity,
+        area: data.table.area ?? null,
+        status: data.table.status,
+        isActive: data.table.isActive,
+        activeOrder: table?.activeOrder ?? null,
+      };
+      onSaved(savedTable);
     } catch {
       setError("Terjadi kesalahan.");
     } finally {
