@@ -192,6 +192,49 @@ export default async function POSPage({
       })))
     : [];
 
+  // F&B: jika ada ?tableId=, fetch order items dari dapur untuk pre-fill keranjang
+  type InitialCartItem = {
+    productId: string;
+    productName: string;
+    productSku: string | null;
+    variantSkuId: string | null;
+    variantLabel: string | null;
+    quantity: number;
+    unitPrice: number;
+    modifiers: Array<{ groupName: string; optionName: string; extraPrice: number }>;
+  };
+
+  let initialCartItems: InitialCartItem[] = [];
+
+  if (isFnB && initialTableId) {
+    const targetTable = tables.find((t) => t.id === initialTableId);
+    if (targetTable?.activeOrderId) {
+      const orderItems = await prisma.orderItem.findMany({
+        where: {
+          tableOrderId: targetTable.activeOrderId,
+          status: { notIn: ["SERVED", "CANCELLED"] },
+        },
+        include: { modifiers: true },
+        orderBy: { sentAt: "asc" },
+      });
+
+      initialCartItems = orderItems.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        productSku: item.productSku,
+        variantSkuId: item.variantSkuId,
+        variantLabel: item.variantLabel,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        modifiers: item.modifiers.map((m) => ({
+          groupName: m.modifierGroupName,
+          optionName: m.modifierOptionName,
+          extraPrice: m.extraPrice,
+        })),
+      }));
+    }
+  }
+
   return (
     <POSInterface
       products={products}
@@ -205,6 +248,7 @@ export default async function POSPage({
       businessType={businessType}
       tables={tables}
       initialTableId={initialTableId}
+      initialCartItems={initialCartItems}
     />
   );
 }

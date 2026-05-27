@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useCartStore } from "@/stores/cart-store";
 import { ProductGrid } from "./product-grid";
 import { CartPanel } from "./cart-panel";
@@ -91,6 +91,16 @@ interface POSInterfaceProps {
   businessType?: string;
   tables?: TableInfo[];
   initialTableId?: string;
+  initialCartItems?: Array<{
+    productId: string;
+    productName: string;
+    productSku: string | null;
+    variantSkuId: string | null;
+    variantLabel: string | null;
+    quantity: number;
+    unitPrice: number;
+    modifiers: Array<{ groupName: string; optionName: string; extraPrice: number }>;
+  }>;
 }
 
 export function POSInterface({
@@ -105,6 +115,7 @@ export function POSInterface({
   businessType = "RETAIL",
   tables: initialTables = [],
   initialTableId,
+  initialCartItems = [],
 }: POSInterfaceProps) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -116,12 +127,13 @@ export function POSInterface({
   // F&B: state meja
   const isFnB = businessType === "FNB";
   const [tables, setTables] = useState<TableInfo[]>(initialTables);
-  const [selectedTable, setSelectedTable] = useState<TableInfo | null>(null);
-  const [showTableSelector, setShowTableSelector] = useState(false);
 
-  // F&B: auto-select meja dari URL param ?tableId=
-  // dan load order items ke keranjang
-  // CATATAN: useEffect ini dipindah ke bawah deklarasi cart agar cart tersedia
+  // F&B: auto-select meja dari URL param ?tableId= (server sudah validasi)
+  const initialTable = initialTableId
+    ? initialTables.find((t) => t.id === initialTableId) ?? null
+    : null;
+  const [selectedTable, setSelectedTable] = useState<TableInfo | null>(initialTable);
+  const [showTableSelector, setShowTableSelector] = useState(false);
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
@@ -266,6 +278,37 @@ export function POSInterface({
   // F&B: state kirim ke dapur
   const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
 
+  // F&B: isi keranjang dari initialCartItems (order items dari dapur, di-fetch server-side)
+  useEffect(() => {
+    if (initialCartItems.length === 0) return;
+    const { clearCart, addItem } = useCartStore.getState();
+    clearCart();
+    for (const item of initialCartItems) {
+      addItem({
+        productId: item.productId,
+        name: item.productName,
+        sku: item.productSku ?? undefined,
+        variantSkuId: item.variantSkuId ?? undefined,
+        variantLabel: item.variantLabel ?? undefined,
+        price: item.unitPrice,
+        quantity: item.quantity,
+        discount: 0,
+        modifiers: item.modifiers.map((m) => ({
+          groupId: "",
+          groupName: m.groupName,
+          optionId: "",
+          optionName: m.optionName,
+          extraPrice: m.extraPrice,
+        })),
+      });
+    }
+    if (initialTable) {
+      toast.success(`${initialCartItems.length} item dari meja #${initialTable.number} dimuat ke keranjang.`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // hanya saat mount — initialCartItems dari server tidak berubah
+
+  // F&B: load order items saat kasir pilih meja manual (OCCUPIED/BILL)
   const loadOrderItemsToCart = useCallback(async (table: TableInfo) => {
     if (!table.activeOrderId) return;
     try {
@@ -273,7 +316,6 @@ export function POSInterface({
       if (!res.ok) return;
       const data = await res.json() as {
         items: Array<{
-          id: string;
           productId: string;
           productName: string;
           productSku: string | null;
@@ -293,10 +335,8 @@ export function POSInterface({
       const activeItems = data.items.filter(
         (i) => i.status !== "SERVED" && i.status !== "CANCELLED"
       );
-
       if (activeItems.length === 0) return;
 
-      // Pakai cart dari hook (subscribe ke React) agar CartPanel re-render
       cart.clearCart();
       for (const item of activeItems) {
         cart.addItem({
@@ -317,27 +357,11 @@ export function POSInterface({
           })),
         });
       }
-
       toast.success(`${activeItems.length} item dari meja #${table.number} dimuat ke keranjang.`);
     } catch {
       console.warn("Failed to load order items to cart");
     }
   }, [cart]);
-
-  // F&B: auto-select meja dari URL param ?tableId=
-  // Gunakan ref agar useEffect hanya jalan sekali tapi dapat loadOrderItemsToCart terbaru
-  const loadOrderItemsRef = useRef(loadOrderItemsToCart);
-  loadOrderItemsRef.current = loadOrderItemsToCart;
-
-  useEffect(() => {
-    if (!isFnB || !initialTableId || initialTables.length === 0) return;
-    const table = initialTables.find((t) => t.id === initialTableId);
-    if (table && table.activeOrderId) {
-      setSelectedTable(table);
-      loadOrderItemsRef.current(table);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // hanya saat mount
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       search === "" ||
