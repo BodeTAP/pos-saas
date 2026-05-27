@@ -16,6 +16,9 @@ interface PaymentModalProps {
   discountAmount: number;
   taxAmount: number;
   taxPct: number;
+  serviceChargePct?: number;
+  serviceChargeAmount?: number;
+  tableOrderId?: string | null;
   cashierId: string;
   cashierName: string;
   tenantId: string;
@@ -72,6 +75,9 @@ export function PaymentModal({
   discountAmount,
   taxAmount,
   taxPct,
+  serviceChargePct = 0,
+  serviceChargeAmount = 0,
+  tableOrderId,
   cashierId,
   cashierName,
   tenantId,
@@ -220,6 +226,7 @@ export function PaymentModal({
             discount: discountAmount,
             discountPct: discountNominal > 0 ? 0 : discountPct,
             discountNominal,
+            serviceChargePct,
             tax: taxAmount,
             taxPct,
             total,
@@ -231,6 +238,7 @@ export function PaymentModal({
             tenantId,
             customerId: customerId || null,
             pointsRedeemed: pointsRedeemed || 0,
+            tableOrderId: tableOrderId || null,
           }),
         });
       } catch {

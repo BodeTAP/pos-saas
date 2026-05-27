@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       customerId,
       pointsRedeemed,
       tenantId: bodyTenantId,
+      tableOrderId,
+      serviceChargePct: bodyServiceChargePct,
     } = parsed.data;
     const nominalDiscount = discountNominal ?? 0;
     const percentageDiscount = discountPct ?? 0;
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
         taxRate: true,
         activePaymentMethods: true,
         invoicePrefix: true,
+        serviceChargePct: true,
       },
     });
     if (!tenantConfig) {
@@ -226,9 +229,12 @@ export async function POST(req: NextRequest) {
     }
 
     const discountedSubtotal = Math.max(0, subtotal - transactionDiscount - pointsDiscount);
+    // Service charge dihitung dari subtotal setelah diskon (sebelum pajak)
+    const serviceChargePct = bodyServiceChargePct ?? tenantConfig.serviceChargePct ?? 0;
+    const serviceCharge = discountedSubtotal * (serviceChargePct / 100);
     const taxPct = tenantConfig.taxRate;
-    const tax = discountedSubtotal * (taxPct / 100);
-    const total = discountedSubtotal + tax;
+    const tax = (discountedSubtotal + serviceCharge) * (taxPct / 100);
+    const total = discountedSubtotal + serviceCharge + tax;
     const finalAmountPaid = paymentMethod === "CASH" ? amountPaid : total;
     if (paymentMethod === "CASH" && finalAmountPaid < total) {
       return NextResponse.json(
@@ -253,6 +259,8 @@ export async function POST(req: NextRequest) {
           subtotal,
           discount,
           discountPct: percentageDiscount,
+          serviceCharge,
+          serviceChargePct,
           tax,
           taxPct,
           total,
@@ -265,6 +273,7 @@ export async function POST(req: NextRequest) {
           cashierId,
           customerId: customerId || null,
           outletId: activeOutletId,
+          tableOrderId: tableOrderId || null,
           items: {
             create: transactionItems.map((item) => ({
                 productId: item.productId,
@@ -380,8 +389,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let transaction = null;
-    for (let attempt = 0; attempt < MAX_INVOICE_ATTEMPTS; attempt++) {
+    let transaction = null;    for (let attempt = 0; attempt < MAX_INVOICE_ATTEMPTS; attempt++) {
       const invoiceNumber = generateInvoiceNumber(tenantConfig.invoicePrefix || "INV");
       try {
         transaction = await createCompletedTransaction(invoiceNumber);
@@ -395,6 +403,26 @@ export async function POST(req: NextRequest) {
 
     if (!transaction) {
       throw new Error("Gagal membuat nomor invoice transaksi.");
+    }
+
+    // F&B: Jika ada tableOrderId, tutup order meja dan set status EMPTY
+    if (tableOrderId) {
+      await prisma.$transaction(async (tx) => {
+        const tableOrder = await tx.tableOrder.findFirst({
+          where: { id: tableOrderId, tenantId, closedAt: null },
+          select: { id: true, tableId: true },
+        });
+        if (tableOrder) {
+          await tx.tableOrder.update({
+            where: { id: tableOrder.id },
+            data: { closedAt: new Date(), transactionId: transaction!.id },
+          });
+          await tx.table.update({
+            where: { id: tableOrder.tableId },
+            data: { status: "EMPTY" },
+          });
+        }
+      }).catch((err) => console.error("Failed to close table order:", err));
     }
 
     // Notifikasi in-app: transaksi baru (hanya untuk OWNER, bukan kasir sendiri)

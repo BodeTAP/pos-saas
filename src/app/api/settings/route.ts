@@ -63,6 +63,7 @@ export async function PUT(req: NextRequest) {
         activePaymentMethods: activePaymentMethods
           ? JSON.stringify(activePaymentMethods)
           : undefined,
+        serviceChargePct: parsed.data.serviceChargePct ?? undefined,
       },
     });
 

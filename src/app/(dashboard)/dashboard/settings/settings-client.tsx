@@ -55,6 +55,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
     pointsPerAmount: (tenant.pointsPerAmount ?? 10000).toString(),
     pointValue: (tenant.pointValue ?? 100).toString(),
     activePaymentMethods: parsedMethods,
+    serviceChargePct: ((tenant as { serviceChargePct?: number }).serviceChargePct ?? 0).toString(),
   });
 
   function handleChange(
@@ -99,6 +100,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
           pointsPerAmount: parseInt(form.pointsPerAmount) || 10000,
           pointValue: parseInt(form.pointValue) || 100,
           activePaymentMethods: form.activePaymentMethods,
+          serviceChargePct: parseFloat(form.serviceChargePct) || 0,
         }),
       });
 
@@ -192,6 +194,21 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
               <p className="text-xs text-gray-400 mt-1">Contoh prefix: INV</p>
             </div>
           </div>
+
+          {/* Service charge — hanya tampil untuk F&B */}
+          {(tenant as { businessType?: string }).businessType === "FNB" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Service Charge (%)
+              </label>
+              <input name="serviceChargePct" type="number" min={0} max={100} step={0.5}
+                value={form.serviceChargePct} onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <p className="text-xs text-gray-400 mt-1">
+                Biaya layanan yang ditambahkan ke setiap transaksi. 0 = tidak ada service charge.
+              </p>
+            </div>
+          )}
 
           {/* Metode Pembayaran */}
           <div>

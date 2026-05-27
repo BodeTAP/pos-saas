@@ -145,6 +145,9 @@ model Tenant {
   pointsPerAmount  Int @default(10000) // Rp X belanja = 1 poin
   pointValue       Int @default(100)   // 1 poin = Rp X diskon
 
+  // F&B: Service charge
+  serviceChargePct Float @default(0)   // % biaya layanan (misal 5 = 5%)
+
   // Metode pembayaran yang aktif (JSON array: ["CASH","QRIS","TRANSFER","CARD"])
   activePaymentMethods String @default("[\"CASH\",\"QRIS\",\"TRANSFER\"]")
 
@@ -567,6 +570,8 @@ model Transaction {
   subtotal    Float // Sebelum diskon & pajak
   discount    Float @default(0) // Nominal diskon
   discountPct Float @default(0) // Persen diskon
+  serviceCharge Float @default(0) // Nominal service charge (F&B)
+  serviceChargePct Float @default(0) // Persen service charge
   tax         Float @default(0) // Nominal pajak
   taxPct      Float @default(0) // Persen pajak
   total       Float // Total akhir = (subtotal - discount) * (1 + taxPct/100)
@@ -577,6 +582,9 @@ model Transaction {
 
   note     String?
   isHeld   Boolean @default(false) // Hold transaction
+
+  // F&B: link ke order meja (null untuk retail/takeaway)
+  tableOrderId String? @unique
 
   tenantId   String
   tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)

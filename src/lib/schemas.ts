@@ -85,6 +85,7 @@ export const createTransactionSchema = z.object({
   discount: z.number().nonnegative().default(0),
   discountPct: z.number().min(0).max(100).default(0),
   discountNominal: z.number().nonnegative().default(0),
+  serviceChargePct: z.number().min(0).max(100).default(0), // F&B service charge
   tax: z.number().nonnegative().default(0),
   taxPct: z.number().min(0).max(100).default(0),
   total: z.number().positive("Total harus lebih dari 0."),
@@ -97,6 +98,7 @@ export const createTransactionSchema = z.object({
   customerId: z.string().cuid().optional().nullable(),
   pointsRedeemed: z.number().int().nonnegative().default(0),
   tenantId: z.string().cuid().optional(), // hanya untuk Super Admin
+  tableOrderId: z.string().cuid().optional().nullable(), // F&B: link ke order meja
 });
 
 // ─────────────────────────────────────────────
@@ -165,6 +167,11 @@ export const settingsSchema = z.object({
   activePaymentMethods: z
     .array(z.enum(VALID_PAYMENT_METHODS))
     .min(1, "Minimal 1 metode pembayaran harus aktif.")
+    .optional(),
+  serviceChargePct: z
+    .number()
+    .min(0, "Service charge tidak boleh negatif.")
+    .max(100, "Service charge maksimal 100%.")
     .optional(),
 });
 

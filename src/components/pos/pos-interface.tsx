@@ -332,8 +332,20 @@ export function POSInterface({
       );
       cart.clearCart();
       setShowPayment(false);
+      // F&B: reset meja setelah transaksi selesai
+      if (selectedTable) {
+        setSelectedTable(null);
+        // Update status meja di local state
+        setTables((prev) =>
+          prev.map((t) =>
+            t.id === selectedTable.id
+              ? { ...t, status: "EMPTY" as const, activeOrderId: null }
+              : t
+          )
+        );
+      }
     },
-    [cart]
+    [cart, selectedTable]
   );
 
   // Computed values
@@ -344,8 +356,11 @@ export function POSInterface({
       : subtotal * (cart.discountPct / 100);
   const pointsDiscount = cart.pointsToRedeem * pointValue;
   const afterDiscounts = Math.max(0, subtotal - discountAmount - pointsDiscount);
-  const taxAmount = afterDiscounts * (taxPct / 100);
-  const total = afterDiscounts + taxAmount;
+  // F&B: service charge dari tenant config
+  const serviceChargePct = (tenant as { serviceChargePct?: number } | null)?.serviceChargePct ?? 0;
+  const serviceChargeAmount = afterDiscounts * (serviceChargePct / 100);
+  const taxAmount = (afterDiscounts + serviceChargeAmount) * (taxPct / 100);
+  const total = afterDiscounts + serviceChargeAmount + taxAmount;
 
   function handleHold() {
     if (cart.items.length === 0) return;
@@ -542,6 +557,9 @@ export function POSInterface({
           discountAmount={discountAmount + pointsDiscount}
           taxAmount={taxAmount}
           taxPct={taxPct}
+          serviceChargePct={serviceChargePct}
+          serviceChargeAmount={serviceChargeAmount}
+          tableOrderId={selectedTable?.activeOrderId ?? null}
           cashierId={cashierId}
           cashierName={cashierName}
           tenantId={tenantId}
