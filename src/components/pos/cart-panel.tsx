@@ -95,7 +95,9 @@ export function CartPanel({
           items.map((item) => {
             const stockAvailable = item.stock ?? Infinity;
             const isOverStock = item.quantity > stockAvailable;
+            // F&B pakai availableToday flag, bukan stock numeric — skip low stock warning
             const isLowStock =
+              !isFnB &&
               item.stock !== undefined &&
               item.stock <= (item.minStock ?? 5) &&
               item.stock > 0;

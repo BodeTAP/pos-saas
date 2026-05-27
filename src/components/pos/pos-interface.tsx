@@ -1188,12 +1188,10 @@ function ModifierPickerModal({
                         }`}
                       >
                         <p className="font-medium text-sm text-gray-900">{option.name}</p>
-                        {option.extraPrice > 0 ? (
+                        {option.extraPrice > 0 && (
                           <p className="text-xs text-gray-500 mt-0.5">
                             +{option.extraPrice.toLocaleString("id-ID")}
                           </p>
-                        ) : (
-                          <p className="text-xs text-green-600 mt-0.5">Gratis</p>
                         )}
                       </button>
                     );

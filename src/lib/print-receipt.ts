@@ -105,9 +105,9 @@ function generateReceiptHTML(data: ReceiptData): string {
     .info-table td:last-child { text-align: right; }
 
     .item { margin: 2px 0; }
-    .item-name { font-weight: bold; }
-    .item-row { display: flex; justify-content: space-between; padding-left: 4px; }
-    .modifier-row { display: flex; justify-content: space-between; padding-left: 8px; color: #555; font-size: ${fontSizePx - 1}px; }
+    .item-name { font-weight: bold; word-break: break-word; }
+    .item-row { display: flex; justify-content: space-between; padding-left: 4px; gap: 4px; }
+    .modifier-row { display: flex; justify-content: space-between; padding-left: 8px; color: #555; font-size: ${fontSizePx - 1}px; gap: 4px; word-break: break-word; }
 
     .row { display: flex; justify-content: space-between; margin: 1px 0; }
     .row.bold { font-weight: bold; font-size: ${fontSizePx + 1}px; }
