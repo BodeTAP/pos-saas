@@ -212,7 +212,8 @@ export default async function POSPage({
       const orderItems = await prisma.orderItem.findMany({
         where: {
           tableOrderId: targetTable.activeOrderId,
-          status: { notIn: ["SERVED", "CANCELLED"] },
+          // Hanya exclude CANCELLED — item SERVED tetap harus ditagih ke pelanggan
+          status: { not: "CANCELLED" },
         },
         include: { modifiers: true },
         orderBy: { sentAt: "asc" },

@@ -333,7 +333,7 @@ export function POSInterface({
       };
 
       const activeItems = data.items.filter(
-        (i) => i.status !== "SERVED" && i.status !== "CANCELLED"
+        (i) => i.status !== "CANCELLED"
       );
       if (activeItems.length === 0) return;
 
