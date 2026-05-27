@@ -39,6 +39,15 @@ type ProductWithCategory = Product & {
     label: string;
     optionIds: string[];
   }>;
+  modifierGroups?: Array<{
+    id: string;
+    name: string;
+    required: boolean;
+    multiple: boolean;
+    minSelect: number;
+    maxSelect: number;
+    options: Array<{ id: string; name: string; extraPrice: number; isDefault: boolean }>;
+  }>;
 };
 
 export interface TableInfo {
@@ -155,6 +164,7 @@ export function POSInterface({
             : null,
           variantTypes: p.variantTypes,
           variantSKUs: p.variantSKUs,
+          availableToday: true, // offline: anggap semua tersedia
         }));
 
         setProducts(mapped);
@@ -176,6 +186,20 @@ export function POSInterface({
 
   // State untuk variant picker
   const [variantProduct, setVariantProduct] = useState<ProductForVariant | null>(null);
+
+  // State untuk modifier picker (F&B)
+  const [modifierProduct, setModifierProduct] = useState<{
+    product: ProductWithCategory;
+    variantParams?: {
+      productId: string;
+      variantSkuId: string;
+      variantLabel: string;
+      price: number;
+      stock: number;
+      minStock: number;
+      sku: string | null;
+    };
+  } | null>(null);
 
   // State PIN offline — true jika kasir butuh input PIN untuk mode offline
   const [needsOfflinePin, setNeedsOfflinePin] = useState(false);
@@ -256,6 +280,11 @@ export function POSInterface({
         });
         return;
       }
+      // Produk dengan modifier (F&B) → buka modifier picker
+      if (isFnB && product.modifierGroups && product.modifierGroups.length > 0) {
+        setModifierProduct({ product });
+        return;
+      }
       // Produk biasa → langsung tambah ke keranjang
       cart.addItem({
         productId: product.id,
@@ -268,7 +297,7 @@ export function POSInterface({
         minStock: product.minStock,
       });
     },
-    [cart]
+    [cart, isFnB]
   );
 
   const handleVariantConfirm = useCallback(
@@ -283,6 +312,14 @@ export function POSInterface({
     }) => {
       const product = products.find((p) => p.id === params.productId);
       if (!product) return;
+
+      // Jika produk punya modifier, buka modifier picker setelah pilih varian
+      if (isFnB && product.modifierGroups && product.modifierGroups.length > 0) {
+        setVariantProduct(null);
+        setModifierProduct({ product, variantParams: params });
+        return;
+      }
+
       cart.addItem({
         productId: params.productId,
         variantSkuId: params.variantSkuId,
@@ -297,7 +334,7 @@ export function POSInterface({
       });
       setVariantProduct(null);
     },
-    [cart, products]
+    [cart, products, isFnB]
   );
 
   /**
@@ -594,6 +631,36 @@ export function POSInterface({
         />
       )}
 
+      {/* Modifier Picker Modal (F&B) */}
+      {modifierProduct && (
+        <ModifierPickerModal
+          product={modifierProduct.product}
+          variantParams={modifierProduct.variantParams}
+          onClose={() => setModifierProduct(null)}
+          onConfirm={(selectedModifiers) => {
+            const { product, variantParams } = modifierProduct;
+            const modifierExtraTotal = selectedModifiers.reduce((s, m) => s + m.extraPrice, 0);
+            const basePrice = variantParams ? variantParams.price : product.sellPrice;
+            const finalPrice = basePrice + modifierExtraTotal;
+
+            cart.addItem({
+              productId: product.id,
+              variantSkuId: variantParams?.variantSkuId,
+              variantLabel: variantParams?.variantLabel,
+              name: product.name,
+              sku: variantParams?.sku ?? product.sku ?? undefined,
+              price: finalPrice,
+              quantity: 1,
+              discount: 0,
+              stock: variantParams?.stock ?? product.stock,
+              minStock: variantParams?.minStock ?? product.minStock,
+              modifiers: selectedModifiers,
+            });
+            setModifierProduct(null);
+          }}
+        />
+      )}
+
       {/* PIN Offline Modal — muncul saat offline & sesi expired */}
       {needsOfflinePin && outlet && (
         <OfflinePinModal
@@ -766,6 +833,207 @@ function TableSelectorModal({
               );
             })
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// F&B: Modifier Picker Modal
+// ─────────────────────────────────────────────
+
+interface SelectedModifier {
+  groupId: string;
+  groupName: string;
+  optionId: string;
+  optionName: string;
+  extraPrice: number;
+}
+
+function ModifierPickerModal({
+  product,
+  variantParams,
+  onClose,
+  onConfirm,
+}: {
+  product: ProductWithCategory;
+  variantParams?: {
+    productId: string;
+    variantSkuId: string;
+    variantLabel: string;
+    price: number;
+    stock: number;
+    minStock: number;
+    sku: string | null;
+  };
+  onClose: () => void;
+  onConfirm: (modifiers: SelectedModifier[]) => void;
+}) {
+  const groups = product.modifierGroups ?? [];
+  const basePrice = variantParams ? variantParams.price : product.sellPrice;
+
+  // State: Map groupId → selected optionId(s)
+  const [selections, setSelections] = useState<Map<string, Set<string>>>(() => {
+    const map = new Map<string, Set<string>>();
+    for (const group of groups) {
+      const defaults = group.options.filter((o) => o.isDefault).map((o) => o.id);
+      if (defaults.length > 0) {
+        map.set(group.id, new Set(defaults));
+      } else {
+        map.set(group.id, new Set());
+      }
+    }
+    return map;
+  });
+
+  function toggleOption(group: typeof groups[0], optionId: string) {
+    setSelections((prev) => {
+      const next = new Map(prev);
+      const current = new Set(next.get(group.id) ?? []);
+
+      if (group.multiple) {
+        if (current.has(optionId)) {
+          current.delete(optionId);
+        } else {
+          if (current.size < group.maxSelect) {
+            current.add(optionId);
+          }
+        }
+      } else {
+        // Single select
+        current.clear();
+        current.add(optionId);
+      }
+      next.set(group.id, current);
+      return next;
+    });
+  }
+
+  // Validasi: semua grup required harus punya pilihan
+  const isValid = groups.every((group) => {
+    if (!group.required) return true;
+    const selected = selections.get(group.id);
+    return selected && selected.size >= group.minSelect;
+  });
+
+  // Hitung total extra price
+  const extraTotal = groups.reduce((sum, group) => {
+    const selected = selections.get(group.id) ?? new Set();
+    return sum + group.options
+      .filter((o) => selected.has(o.id))
+      .reduce((s, o) => s + o.extraPrice, 0);
+  }, 0);
+
+  function handleConfirm() {
+    const modifiers: SelectedModifier[] = [];
+    for (const group of groups) {
+      const selected = selections.get(group.id) ?? new Set();
+      for (const option of group.options) {
+        if (selected.has(option.id)) {
+          modifiers.push({
+            groupId: group.id,
+            groupName: group.name,
+            optionId: option.id,
+            optionName: option.name,
+            extraPrice: option.extraPrice,
+          });
+        }
+      }
+    }
+    onConfirm(modifiers);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{product.name}</h2>
+            {variantParams?.variantLabel && (
+              <p className="text-sm text-gray-500">{variantParams.variantLabel}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {groups.map((group) => {
+            const selected = selections.get(group.id) ?? new Set();
+            return (
+              <div key={group.id}>
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="font-semibold text-gray-900 text-sm">{group.name}</p>
+                  {group.required && (
+                    <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Wajib</span>
+                  )}
+                  {group.multiple && (
+                    <span className="text-xs text-gray-400">Pilih maks. {group.maxSelect}</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.options.map((option) => {
+                    const isSelected = selected.has(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => toggleOption(group, option.id)}
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <p className="font-medium text-sm text-gray-900">{option.name}</p>
+                        {option.extraPrice > 0 ? (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            +{option.extraPrice.toLocaleString("id-ID")}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-green-600 mt-0.5">Gratis</p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-gray-200 flex-shrink-0">
+          <div className="flex justify-between text-sm text-gray-600 mb-3">
+            <span>Harga dasar</span>
+            <span>{basePrice.toLocaleString("id-ID")}</span>
+          </div>
+          {extraTotal > 0 && (
+            <div className="flex justify-between text-sm text-gray-600 mb-3">
+              <span>Tambahan modifier</span>
+              <span>+{extraTotal.toLocaleString("id-ID")}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold text-gray-900 mb-4">
+            <span>Total</span>
+            <span>{(basePrice + extraTotal).toLocaleString("id-ID")}</span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!isValid}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl transition-colors"
+            >
+              Tambah ke Keranjang
+            </button>
+          </div>
         </div>
       </div>
     </div>

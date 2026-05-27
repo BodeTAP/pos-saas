@@ -40,6 +40,7 @@ export async function PUT(req: NextRequest) {
         taxRate: true, receiptNote: true, receiptHeader: true,
         receiptWidth: true, invoicePrefix: true,
         pointsPerAmount: true, pointValue: true, activePaymentMethods: true,
+        serviceChargePct: true,
       },
     });
 
@@ -73,6 +74,7 @@ export async function PUT(req: NextRequest) {
       receiptWidth: tenant.receiptWidth, invoicePrefix: tenant.invoicePrefix,
       pointsPerAmount: tenant.pointsPerAmount, pointValue: tenant.pointValue,
       activePaymentMethods: tenant.activePaymentMethods,
+      serviceChargePct: tenant.serviceChargePct,
     };
 
     const diff = beforeTenant

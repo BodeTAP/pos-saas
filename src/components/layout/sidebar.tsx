@@ -7,6 +7,7 @@ import {
   Users, UserCircle, CreditCard, ShoppingBag, Store, Tag,
   ChevronLeft, ChevronRight, History, X, Warehouse, Truck,
   PanelLeftClose, PanelLeftOpen, ClipboardList, UtensilsCrossed,
+  ChefHat, ClipboardCheck, SlidersHorizontal,
 } from "lucide-react";
 import { UserRole, BusinessType } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,30 @@ const tenantNavItems: NavItem[] = [
     label: "Meja",
     href: "/dashboard/tables",
     icon: UtensilsCrossed,
+    roles: ["OWNER"],
+    businessTypes: ["FNB"] as BusinessType[],
+  },
+  // F&B only: Kitchen Display
+  {
+    label: "Kitchen Display",
+    href: "/dashboard/kitchen",
+    icon: ChefHat,
+    roles: ["OWNER", "KASIR"],
+    businessTypes: ["FNB"] as BusinessType[],
+  },
+  // F&B only: Ketersediaan Menu
+  {
+    label: "Menu Hari Ini",
+    href: "/dashboard/menu-availability",
+    icon: ClipboardCheck,
+    roles: ["OWNER"],
+    businessTypes: ["FNB"] as BusinessType[],
+  },
+  // F&B only: Modifier
+  {
+    label: "Modifier Menu",
+    href: "/dashboard/modifiers",
+    icon: SlidersHorizontal,
     roles: ["OWNER"],
     businessTypes: ["FNB"] as BusinessType[],
   },

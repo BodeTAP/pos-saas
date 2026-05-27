@@ -12,6 +12,14 @@ export interface CartItem {
   subtotal: number;
   stock?: number;
   minStock?: number;
+  // F&B: modifier yang dipilih
+  modifiers?: Array<{
+    groupId: string;
+    groupName: string;
+    optionId: string;
+    optionName: string;
+    extraPrice: number;
+  }>;
 }
 
 export interface CartCustomer {

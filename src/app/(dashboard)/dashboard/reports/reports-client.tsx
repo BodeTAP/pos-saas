@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toaster";
 import { formatCurrency } from "@/lib/utils";
@@ -75,9 +75,10 @@ interface ReportsClientProps {
   grossProfitData: GrossProfitProduct[];
   startDate: string;
   endDate: string;
+  isFnB?: boolean;
 }
 
-type ActiveTab = "penjualan" | "laba";
+type ActiveTab = "penjualan" | "laba" | "fnb";
 
 export function ReportsClient({
   summary,
@@ -87,12 +88,42 @@ export function ReportsClient({
   grossProfitData,
   startDate,
   endDate,
+  isFnB = false,
 }: ReportsClientProps) {
   const router = useRouter();
   const [isExporting, setIsExporting] = useState<"excel" | "csv" | null>(null);
   const [start, setStart] = useState(startDate);
   const [end, setEnd] = useState(endDate);
   const [activeTab, setActiveTab] = useState<ActiveTab>("penjualan");
+
+  // F&B report state
+  const [fnbData, setFnbData] = useState<{
+    summary: { totalRevenue: number; totalTransactions: number; avgTransaction: number; avgDurationMinutes: number };
+    revenueByArea: Array<{ area: string; revenue: number; transactions: number; avgDurationMinutes: number }>;
+    topItems: Array<{ productName: string; quantity: number; revenue: number }>;
+    dailyData: DailyDataPoint[];
+  } | null>(null);
+  const [fnbLoading, setFnbLoading] = useState(false);
+
+  const loadFnbData = useCallback(async () => {
+    setFnbLoading(true);
+    try {
+      const res = await fetch(`/api/reports/fnb?start=${start}&end=${end}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setFnbData(data);
+    } catch {
+      toast.error("Gagal memuat laporan F&B.");
+    } finally {
+      setFnbLoading(false);
+    }
+  }, [start, end]);
+
+  useEffect(() => {
+    if (activeTab === "fnb" && !fnbData) {
+      loadFnbData();
+    }
+  }, [activeTab, fnbData, loadFnbData]);
 
   function applyFilter() {
     if (new Date(start) > new Date(end)) {
@@ -353,6 +384,18 @@ export function ReportsClient({
         >
           Laba Kotor
         </button>
+        {isFnB && (
+          <button
+            onClick={() => setActiveTab("fnb")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === "fnb"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            🍽️ F&B
+          </button>
+        )}
       </div>
 
       {/* TAB: PENJUALAN */}
@@ -618,6 +661,130 @@ export function ReportsClient({
                   </table>
                 </div>
               </div>
+            </>
+          )}
+        </>
+      )}
+      {/* TAB: F&B */}
+      {activeTab === "fnb" && (
+        <>
+          {fnbLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            </div>
+          ) : !fnbData ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+              <p className="text-gray-500">Gagal memuat data F&B.</p>
+              <button
+                onClick={loadFnbData}
+                className="mt-3 text-sm text-blue-600 hover:underline"
+              >
+                Coba lagi
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* F&B Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs text-gray-500 mb-1">Pendapatan F&B</p>
+                  <p className="text-lg font-bold text-gray-900 truncate">
+                    {formatCurrency(fnbData.summary.totalRevenue)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs text-gray-500 mb-1">Transaksi Meja</p>
+                  <p className="text-lg font-bold text-gray-900">{fnbData.summary.totalTransactions}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs text-gray-500 mb-1">Rata-rata / Meja</p>
+                  <p className="text-lg font-bold text-gray-900 truncate">
+                    {formatCurrency(fnbData.summary.avgTransaction)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <p className="text-xs text-gray-500 mb-1">Rata-rata Durasi</p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {fnbData.summary.avgDurationMinutes > 0
+                      ? `${fnbData.summary.avgDurationMinutes} mnt`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Revenue per Area */}
+              {fnbData.revenueByArea.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <h2 className="font-semibold text-gray-900">Revenue per Area</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Area</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Transaksi</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Pendapatan</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Rata-rata Durasi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {fnbData.revenueByArea.map((area) => (
+                          <tr key={area.area} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-medium text-gray-900">{area.area}</td>
+                            <td className="px-4 py-3 text-right text-gray-700">{area.transactions}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                              {formatCurrency(area.revenue)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-gray-600">
+                              {area.avgDurationMinutes > 0 ? `${area.avgDurationMinutes} mnt` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Top Menu Items */}
+              {fnbData.topItems.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-100">
+                    <h2 className="font-semibold text-gray-900">Menu Terlaris</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                          <th className="text-left px-4 py-3 font-medium text-gray-600">Menu</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Terjual</th>
+                          <th className="text-right px-4 py-3 font-medium text-gray-600">Pendapatan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {fnbData.topItems.map((item, i) => (
+                          <tr key={item.productName} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900">{item.productName}</td>
+                            <td className="px-4 py-3 text-right text-gray-700">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                              {formatCurrency(item.revenue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {fnbData.summary.totalTransactions === 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+                  <p className="text-gray-500">Belum ada transaksi F&B di periode ini.</p>
+                </div>
+              )}
             </>
           )}
         </>

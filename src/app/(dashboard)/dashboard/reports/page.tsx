@@ -31,6 +31,12 @@ export default async function ReportsPage({
   startDate.setHours(0, 0, 0, 0);
   endDate.setHours(23, 59, 59, 999);
 
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { businessType: true },
+  });
+  const isFnB = tenant?.businessType === "FNB";
+
   const baseTxWhere = {
     tenantId,
     status: "COMPLETED" as const,
@@ -191,6 +197,7 @@ export default async function ReportsPage({
       grossProfitData={grossProfitData}
       startDate={startDate.toISOString().slice(0, 10)}
       endDate={endDate.toISOString().slice(0, 10)}
+      isFnB={isFnB}
     />
   );
 }

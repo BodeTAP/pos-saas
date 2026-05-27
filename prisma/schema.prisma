@@ -187,6 +187,7 @@ model Tenant {
   notifications AppNotification[]
   tables        Table[]
   tableOrders   TableOrder[]
+  modifierGroups ModifierGroup[]
 
   @@map("tenants")
 }
@@ -386,6 +387,9 @@ model Product {
   // Varian produk
   hasVariants Boolean @default(false) // true = stok & harga dikelola per SKU varian
 
+  // F&B: ketersediaan menu hari ini (bisa di-toggle tanpa ubah stok)
+  availableToday Boolean @default(true)
+
   isActive Boolean @default(true)
 
   tenantId   String
@@ -403,6 +407,7 @@ model Product {
   variantTypes     ProductVariantType[]
   variantSKUs      ProductVariantSKU[]
   purchaseOrderItems PurchaseOrderItem[]
+  modifierGroups   ProductModifierGroup[]
 
   @@unique([sku, tenantId])
   @@index([tenantId])
@@ -627,6 +632,8 @@ model TransactionItem {
   variantSkuId   String?
   variantSku     ProductVariantSKU? @relation(fields: [variantSkuId], references: [id])
   variantLabel   String? // Snapshot label varian, e.g. "M / Merah"
+
+  modifiers TransactionItemModifier[]
 
   @@map("transaction_items")
 }
@@ -894,4 +901,77 @@ model TableOrder {
   @@index([tableId])
   @@index([tenantId])
   @@map("table_orders")
+}
+
+// ─────────────────────────────────────────────
+// F&B — MENU MODIFIER / ADD-ON
+// ─────────────────────────────────────────────
+
+// Grup modifier: "Tingkat Kepedasan", "Suhu", "Ukuran", "Topping"
+model ModifierGroup {
+  id       String  @id @default(cuid())
+  name     String  // e.g. "Tingkat Kepedasan"
+  required Boolean @default(false) // wajib dipilih atau opsional
+  multiple Boolean @default(false) // bisa pilih lebih dari satu opsi
+  minSelect Int    @default(0)     // min pilihan (0 = opsional)
+  maxSelect Int    @default(1)     // max pilihan
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  options  ModifierOption[]
+  products ProductModifierGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("modifier_groups")
+}
+
+// Opsi dalam grup: "Tidak Pedas", "Sedang", "Pedas", "Extra Pedas"
+model ModifierOption {
+  id          String  @id @default(cuid())
+  name        String  // e.g. "Pedas"
+  extraPrice  Float   @default(0) // tambahan harga (0 = gratis)
+  isDefault   Boolean @default(false)
+  position    Int     @default(0)
+
+  groupId String
+  group   ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+  @@map("modifier_options")
+}
+
+// Junction: Produk ↔ ModifierGroup (many-to-many)
+model ProductModifierGroup {
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  position  Int           @default(0)
+
+  @@id([productId, groupId])
+  @@index([productId])
+  @@map("product_modifier_groups")
+}
+
+// Snapshot modifier yang dipilih saat transaksi
+model TransactionItemModifier {
+  id            String @id @default(cuid())
+  transactionItemId String
+  transactionItem   TransactionItem @relation(fields: [transactionItemId], references: [id], onDelete: Cascade)
+
+  modifierGroupId   String
+  modifierGroupName String  // snapshot nama grup
+  modifierOptionId  String
+  modifierOptionName String // snapshot nama opsi
+  extraPrice        Float  @default(0) // snapshot harga tambahan
+
+  @@index([transactionItemId])
+  @@map("transaction_item_modifiers")
 }

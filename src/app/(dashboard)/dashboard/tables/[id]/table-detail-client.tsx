@@ -1,0 +1,424 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/toaster";
+import { formatCurrency } from "@/lib/utils";
+import {
+  ArrowLeft, Clock, Users, AlertCircle, CheckCircle,
+  Loader2, ShoppingCart, X, Printer,
+} from "lucide-react";
+import Link from "next/link";
+import { KitchenReceipt, type KitchenReceiptData } from "@/components/pos/receipt";
+import { printReceipt } from "@/lib/print-receipt";
+
+interface TransactionItem {
+  id: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  subtotal: number;
+  variantLabel: string | null;
+  modifiers: Array<{
+    modifierGroupName: string;
+    modifierOptionName: string;
+    extraPrice: number;
+  }>;
+}
+
+interface ActiveOrder {
+  id: string;
+  openedAt: string;
+  note: string | null;
+  transaction: {
+    id: string;
+    invoiceNumber: string;
+    total: number;
+    status: string;
+    items: TransactionItem[];
+  } | null;
+}
+
+interface TableDetailClientProps {
+  table: {
+    id: string;
+    number: string;
+    name: string | null;
+    area: string | null;
+    capacity: number;
+    status: string;
+    outletId: string;
+    outletName: string;
+  };
+  activeOrder: ActiveOrder | null;
+  serviceChargePct: number;
+  taxRate: number;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  EMPTY: { label: "Kosong", color: "text-green-700", bg: "bg-green-50 border-green-200" },
+  OCCUPIED: { label: "Terisi", color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+  BILL: { label: "Minta Bill", color: "text-orange-700", bg: "bg-orange-50 border-orange-200" },
+  RESERVED: { label: "Dipesan", color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
+};
+
+export function TableDetailClient({
+  table,
+  activeOrder,
+  serviceChargePct,
+  taxRate,
+}: TableDetailClientProps) {
+  const router = useRouter();
+  const [status, setStatus] = useState(table.status);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.EMPTY;
+  const durationMinutes = activeOrder
+    ? Math.floor((Date.now() - new Date(activeOrder.openedAt).getTime()) / 60000)
+    : 0;
+
+  // Hitung total dari items jika ada transaksi
+  const items = activeOrder?.transaction?.items ?? [];
+  const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
+  const modifierTotal = items.reduce(
+    (s, i) => s + i.modifiers.reduce((ms, m) => ms + m.extraPrice * i.quantity, 0),
+    0
+  );
+  const subtotalWithModifiers = subtotal + modifierTotal;
+  const serviceCharge = subtotalWithModifiers * (serviceChargePct / 100);
+  const tax = (subtotalWithModifiers + serviceCharge) * (taxRate / 100);
+  const total = subtotalWithModifiers + serviceCharge + tax;
+
+  async function handleRequestBill() {
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/tables/${table.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "BILL" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Gagal update status.");
+        return;
+      }
+      setStatus("BILL");
+      toast.success("Status meja diubah ke Minta Bill.");
+    } catch {
+      toast.error("Terjadi kesalahan.");
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleCancelOrder() {
+    if (!activeOrder) return;
+    if (!confirm("Batalkan order meja ini? Meja akan dikosongkan.")) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/tables/${table.id}/order`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Gagal membatalkan order.");
+        return;
+      }
+      toast.success("Order dibatalkan. Meja dikosongkan.");
+      router.push("/dashboard/tables");
+      router.refresh();
+    } catch {
+      toast.error("Terjadi kesalahan.");
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
+  function handlePrintKitchen() {
+    if (!activeOrder) return;
+    const kitchenData: KitchenReceiptData = {
+      invoiceNumber: activeOrder.transaction?.invoiceNumber ?? `TABLE-${table.number}`,
+      tableNumber: table.number,
+      tableArea: table.area,
+      cashierName: "—",
+      note: activeOrder.note,
+      createdAt: new Date(activeOrder.openedAt),
+      items: items.map((item) => ({
+        name: item.variantLabel ? `${item.productName} (${item.variantLabel})` : item.productName,
+        quantity: item.quantity,
+        modifiers: item.modifiers.map((m) => ({
+          groupName: m.modifierGroupName,
+          optionName: m.modifierOptionName,
+        })),
+      })),
+    };
+
+    // Render dan print
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    document.body.appendChild(container);
+
+    // Gunakan printReceipt dengan kitchen receipt HTML
+    const html = renderKitchenReceiptHTML(kitchenData);
+    const win = window.open("", "_blank", "width=400,height=600");
+    if (win) {
+      win.document.write(`
+        <html><head><title>Struk Dapur</title>
+        <style>
+          body { font-family: monospace; margin: 0; padding: 8px; }
+          @media print { body { margin: 0; } }
+        </style>
+        </head><body>${html}</body></html>
+      `);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 300);
+    }
+    document.body.removeChild(container);
+  }
+
+  return (
+    <div className="space-y-5 max-w-2xl">
+      {/* Back */}
+      <Link
+        href="/dashboard/tables"
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Kembali ke Daftar Meja
+      </Link>
+
+      {/* Table Info */}
+      <div className={`bg-white rounded-xl border-2 p-5 ${cfg.bg}`}>
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">Meja #{table.number}</h1>
+              <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${cfg.color} ${cfg.bg}`}>
+                {cfg.label}
+              </span>
+            </div>
+            {table.name && <p className="text-gray-500 text-sm mt-0.5">{table.name}</p>}
+            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+              {table.area && <span>📍 {table.area}</span>}
+              <span className="flex items-center gap-1">
+                <Users className="w-3.5 h-3.5" />
+                {table.capacity} orang
+              </span>
+              <span className="text-xs text-gray-400">{table.outletName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Duration */}
+        {activeOrder && (
+          <div className="mt-3 flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <span className="text-gray-600">
+              Buka sejak{" "}
+              {new Date(activeOrder.openedAt).toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              {" "}({durationMinutes} menit)
+            </span>
+          </div>
+        )}
+
+        {/* Note */}
+        {activeOrder?.note && (
+          <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-yellow-800 italic">📝 {activeOrder.note}</p>
+          </div>
+        )}
+      </div>
+
+      {/* No active order */}
+      {!activeOrder && (
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+          <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-3" />
+          <p className="text-gray-500">Tidak ada order aktif di meja ini.</p>
+          <Link
+            href="/dashboard/pos"
+            className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Buka POS
+          </Link>
+        </div>
+      )}
+
+      {/* Order items */}
+      {activeOrder && items.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Item Pesanan</h2>
+            <button
+              onClick={handlePrintKitchen}
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Struk Dapur
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {items.map((item) => (
+              <div key={item.id} className="px-5 py-3">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 text-sm">
+                      {item.quantity}x {item.productName}
+                      {item.variantLabel && (
+                        <span className="text-gray-500 font-normal"> ({item.variantLabel})</span>
+                      )}
+                    </p>
+                    {/* Modifiers */}
+                    {item.modifiers.length > 0 && (
+                      <div className="mt-0.5 space-y-0.5">
+                        {item.modifiers.map((mod, i) => (
+                          <p key={i} className="text-xs text-gray-500">
+                            + {mod.modifierOptionName}
+                            {mod.extraPrice > 0 && (
+                              <span className="text-gray-400"> (+{formatCurrency(mod.extraPrice)})</span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-4">
+                    <p className="text-sm font-medium text-gray-900">{formatCurrency(item.subtotal)}</p>
+                    <p className="text-xs text-gray-400">
+                      {formatCurrency(item.unitPrice)} / pcs
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div className="px-5 py-4 border-t border-gray-200 bg-gray-50 space-y-1.5">
+            <div className="flex justify-between text-sm text-gray-600">
+              <span>Subtotal</span>
+              <span>{formatCurrency(subtotalWithModifiers)}</span>
+            </div>
+            {serviceChargePct > 0 && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Service Charge ({serviceChargePct}%)</span>
+                <span>{formatCurrency(serviceCharge)}</span>
+              </div>
+            )}
+            {taxRate > 0 && (
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>PPN ({taxRate}%)</span>
+                <span>{formatCurrency(tax)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-gray-200">
+              <span>Estimasi Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+            <p className="text-xs text-gray-400">* Total final dihitung saat pembayaran di POS</p>
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      {activeOrder && (
+        <div className="flex flex-col sm:flex-row gap-3">
+          {status === "OCCUPIED" && (
+            <button
+              onClick={handleRequestBill}
+              disabled={isUpdating}
+              className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 rounded-xl transition-colors"
+            >
+              {isUpdating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <AlertCircle className="w-4 h-4" />
+              )}
+              Minta Bill
+            </button>
+          )}
+
+          <Link
+            href={`/dashboard/pos?tableId=${table.id}&orderId=${activeOrder.id}`}
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Bayar di POS
+          </Link>
+
+          {!activeOrder.transaction && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={isCancelling}
+              className="flex items-center justify-center gap-2 px-4 py-3 border border-red-300 text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {isCancelling ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <X className="w-4 h-4" />
+              )}
+              Batalkan Order
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper: render kitchen receipt sebagai HTML string
+function renderKitchenReceiptHTML(data: KitchenReceiptData): string {
+  const formatTime = (d: Date) =>
+    d.toLocaleString("id-ID", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+  const itemsHTML = data.items
+    .map(
+      (item) => `
+      <div style="margin-bottom:8px">
+        <div style="display:flex;gap:8px">
+          <strong style="width:24px;text-align:right">${item.quantity}x</strong>
+          <strong>${item.name}</strong>
+        </div>
+        ${
+          item.modifiers && item.modifiers.length > 0
+            ? item.modifiers
+                .map((m) => `<div style="padding-left:32px;font-size:12px">→ ${m.optionName}</div>`)
+                .join("")
+            : ""
+        }
+        ${item.note ? `<div style="padding-left:32px;font-size:12px;font-style:italic">! ${item.note}</div>` : ""}
+      </div>
+    `
+    )
+    .join("");
+
+  return `
+    <div style="font-family:monospace;width:80mm;padding:4mm;font-size:12px;line-height:1.5">
+      <div style="text-align:center;margin-bottom:8px">
+        <strong style="font-size:14px">*** STRUK DAPUR ***</strong><br>
+        <strong style="font-size:18px">${data.tableNumber ? `MEJA #${data.tableNumber}${data.tableArea ? ` — ${data.tableArea}` : ""}` : "TAKEAWAY"}</strong>
+      </div>
+      <div style="text-align:center">================================</div>
+      <div style="font-size:11px;margin:4px 0">
+        <div style="display:flex;justify-content:space-between"><span>No.</span><span>${data.invoiceNumber}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Waktu</span><span>${formatTime(data.createdAt)}</span></div>
+      </div>
+      <div style="text-align:center">================================</div>
+      <div style="margin:8px 0">${itemsHTML}</div>
+      <div style="text-align:center">--------------------------------</div>
+      ${data.note ? `<div style="font-style:italic;text-align:center;font-size:11px">Catatan: ${data.note}</div>` : ""}
+      <div style="text-align:center;font-size:11px;margin-top:4px">*** SEGERA DIPROSES ***</div>
+    </div>
+  `;
+}
+
+// Re-export printReceipt untuk digunakan di komponen ini
+export { printReceipt };

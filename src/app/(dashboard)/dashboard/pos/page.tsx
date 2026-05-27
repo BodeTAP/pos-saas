@@ -25,8 +25,19 @@ export default async function POSPage() {
   }
 
   // Ambil produk dengan stok di outlet aktif + varian
+  // F&B: filter availableToday = true jika businessType FNB
+  const tenantBizType = await prisma.tenant.findUnique({
+    where: { id: session.user.tenantId },
+    select: { businessType: true },
+  });
+  const isFnB = tenantBizType?.businessType === "FNB";
+
   const productsRaw = await prisma.product.findMany({
-    where: { tenantId: session.user.tenantId, isActive: true },
+    where: {
+      tenantId: session.user.tenantId,
+      isActive: true,
+      ...(isFnB ? { availableToday: true } : {}),
+    },
     include: {
       category: true,
       outletStocks: { where: { outletId }, take: 1 },
@@ -42,6 +53,17 @@ export default async function POSPage() {
           },
           outletStocks: { where: { outletId }, take: 1 },
         },
+      },
+      // F&B: modifier groups
+      modifierGroups: {
+        include: {
+          group: {
+            include: {
+              options: { orderBy: { position: "asc" } },
+            },
+          },
+        },
+        orderBy: { position: "asc" },
       },
     },
     orderBy: { name: "asc" },
@@ -72,6 +94,21 @@ export default async function POSPage() {
       minStock: outletStock?.minStock ?? p.minStock,
       outletStocks: undefined,
       variantSKUs,
+      // F&B: modifier groups
+      modifierGroups: p.modifierGroups.map((pmg) => ({
+        id: pmg.group.id,
+        name: pmg.group.name,
+        required: pmg.group.required,
+        multiple: pmg.group.multiple,
+        minSelect: pmg.group.minSelect,
+        maxSelect: pmg.group.maxSelect,
+        options: pmg.group.options.map((o) => ({
+          id: o.id,
+          name: o.name,
+          extraPrice: o.extraPrice,
+          isDefault: o.isDefault,
+        })),
+      })),
     };
   });
 

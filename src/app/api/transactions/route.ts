@@ -408,8 +408,14 @@ export async function POST(req: NextRequest) {
     // F&B: Jika ada tableOrderId, tutup order meja dan set status EMPTY
     if (tableOrderId) {
       await prisma.$transaction(async (tx) => {
+        // Validasi tableOrder milik tenant dan outlet yang sama
         const tableOrder = await tx.tableOrder.findFirst({
-          where: { id: tableOrderId, tenantId, closedAt: null },
+          where: {
+            id: tableOrderId,
+            tenantId,
+            closedAt: null,
+            table: { outletId: activeOutletId }, // harus outlet yang sama
+          },
           select: { id: true, tableId: true },
         });
         if (tableOrder) {
@@ -421,6 +427,8 @@ export async function POST(req: NextRequest) {
             where: { id: tableOrder.tableId },
             data: { status: "EMPTY" },
           });
+        } else {
+          console.warn(`TableOrder ${tableOrderId} not found or not owned by tenant ${tenantId}`);
         }
       }).catch((err) => console.error("Failed to close table order:", err));
     }
