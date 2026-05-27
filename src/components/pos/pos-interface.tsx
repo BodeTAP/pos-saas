@@ -255,6 +255,9 @@ export function POSInterface({
   const taxPct = tenant?.taxRate ?? 0;
   const pointValue = tenant?.pointValue || 100;
 
+  // F&B: state kirim ke dapur
+  const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
+
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       search === "" ||
@@ -418,6 +421,53 @@ export function POSInterface({
     setHeldCount(getHeldTransactions(cashierId).length);
   }
 
+  /**
+   * F&B: Kirim item keranjang ke dapur (simpan sebagai OrderItem di TableOrder).
+   * Setelah berhasil, keranjang dikosongkan tapi meja tetap terpilih.
+   */
+  async function handleSendToKitchen() {
+    if (!selectedTable?.activeOrderId || cart.items.length === 0) return;
+    setIsSendingToKitchen(true);
+    try {
+      const res = await fetch(`/api/tables/${selectedTable.id}/order/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cart.items.map((i) => ({
+            productId: i.productId,
+            productName: i.name,
+            productSku: i.sku ?? null,
+            variantSkuId: i.variantSkuId ?? null,
+            variantLabel: i.variantLabel ?? null,
+            quantity: i.quantity,
+            unitPrice: i.price,
+            note: null,
+            modifiers: i.modifiers?.map((m) => ({
+              groupName: m.groupName,
+              optionName: m.optionName,
+              extraPrice: m.extraPrice,
+            })) ?? [],
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const { toast: toastFn } = await import("@/components/ui/toaster");
+        toastFn.error(data.error || "Gagal mengirim ke dapur.");
+        return;
+      }
+      // Kosongkan keranjang, meja tetap terpilih
+      cart.clearCart();
+      const { toast: toastFn } = await import("@/components/ui/toaster");
+      toastFn.success(`${data.items.length} item dikirim ke dapur.`);
+    } catch {
+      const { toast: toastFn } = await import("@/components/ui/toaster");
+      toastFn.error("Gagal terhubung ke server.");
+    } finally {
+      setIsSendingToKitchen(false);
+    }
+  }
+
   return (
     <div className="flex h-full gap-4 -m-6 p-0 relative">
       {/* Left: Product Grid */}
@@ -531,10 +581,16 @@ export function POSInterface({
           discountAmount={discountAmount}
           pointsDiscount={pointsDiscount}
           taxAmount={taxAmount}
+          serviceChargeAmount={serviceChargeAmount}
+          serviceChargePct={serviceChargePct}
           total={total}
           pointValue={tenant?.pointValue || 100}
           onCheckout={() => setShowPayment(true)}
           onHold={handleHold}
+          isFnB={isFnB}
+          hasTable={!!selectedTable}
+          onSendToKitchen={handleSendToKitchen}
+          isSendingToKitchen={isSendingToKitchen}
         />
       </div>
 
@@ -576,10 +632,16 @@ export function POSInterface({
                 discountAmount={discountAmount}
                 pointsDiscount={pointsDiscount}
                 taxAmount={taxAmount}
+                serviceChargeAmount={serviceChargeAmount}
+                serviceChargePct={serviceChargePct}
                 total={total}
                 pointValue={tenant?.pointValue || 100}
                 onCheckout={() => { setShowMobileCart(false); setShowPayment(true); }}
                 onHold={() => { handleHold(); setShowMobileCart(false); }}
+                isFnB={isFnB}
+                hasTable={!!selectedTable}
+                onSendToKitchen={async () => { await handleSendToKitchen(); setShowMobileCart(false); }}
+                isSendingToKitchen={isSendingToKitchen}
               />
             </div>
           </div>

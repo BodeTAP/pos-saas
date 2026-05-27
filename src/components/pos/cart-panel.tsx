@@ -2,7 +2,7 @@
 
 import { useCartStore, POINT_VALUE } from "@/stores/cart-store";
 import { formatCurrency } from "@/lib/utils";
-import { Trash2, Plus, Minus, ShoppingCart, Star, PauseCircle, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Star, PauseCircle, AlertTriangle, ChefHat, Loader2 } from "lucide-react";
 import { CustomerSelector } from "./customer-selector";
 
 interface CartPanelProps {
@@ -11,10 +11,17 @@ interface CartPanelProps {
   discountAmount: number;
   pointsDiscount: number;
   taxAmount: number;
+  serviceChargeAmount?: number;
+  serviceChargePct?: number;
   total: number;
   pointValue?: number;
   onCheckout: () => void;
   onHold: () => void;
+  // F&B
+  isFnB?: boolean;
+  hasTable?: boolean;
+  onSendToKitchen?: () => void;
+  isSendingToKitchen?: boolean;
 }
 
 export function CartPanel({
@@ -23,10 +30,16 @@ export function CartPanel({
   discountAmount,
   pointsDiscount,
   taxAmount,
+  serviceChargeAmount = 0,
+  serviceChargePct = 0,
   total,
   pointValue = POINT_VALUE,
   onCheckout,
   onHold,
+  isFnB = false,
+  hasTable = false,
+  onSendToKitchen,
+  isSendingToKitchen = false,
 }: CartPanelProps) {
   const {
     items,
@@ -256,6 +269,12 @@ export function CartPanel({
               <span>- {formatCurrency(pointsDiscount)}</span>
             </div>
           )}
+          {serviceChargePct > 0 && (
+            <div className="flex justify-between text-gray-600">
+              <span>Service Charge ({serviceChargePct}%)</span>
+              <span>{formatCurrency(serviceChargeAmount)}</span>
+            </div>
+          )}
           {taxPct > 0 && (
             <div className="flex justify-between text-gray-600">
               <span>PPN ({taxPct}%)</span>
@@ -286,6 +305,26 @@ export function CartPanel({
             Bayar
           </button>
         </div>
+
+        {/* F&B: Kirim ke Dapur */}
+        {isFnB && hasTable && onSendToKitchen && (
+          <button
+            onClick={onSendToKitchen}
+            disabled={items.length === 0 || isSendingToKitchen}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            {isSendingToKitchen ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Mengirim...</>
+            ) : (
+              <><ChefHat className="w-4 h-4" /> Kirim ke Dapur</>
+            )}
+          </button>
+        )}
+        {isFnB && !hasTable && items.length > 0 && (
+          <p className="text-xs text-center text-amber-600">
+            Pilih meja terlebih dahulu untuk kirim ke dapur
+          </p>
+        )}
       </div>
     </div>
   );

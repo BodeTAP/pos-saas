@@ -898,9 +898,64 @@ model TableOrder {
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  items OrderItem[]
+
   @@index([tableId])
   @@index([tenantId])
   @@map("table_orders")
+}
+
+// ─────────────────────────────────────────────
+// F&B — ORDER ITEM (item pesanan per meja, sebelum dibayar)
+// ─────────────────────────────────────────────
+
+enum OrderItemStatus {
+  PENDING   // Baru dipesan, belum diproses dapur
+  COOKING   // Sedang dimasak
+  READY     // Siap disajikan
+  SERVED    // Sudah disajikan ke meja
+  CANCELLED // Dibatalkan
+}
+
+model OrderItem {
+  id     String          @id @default(cuid())
+  status OrderItemStatus @default(PENDING)
+
+  // Snapshot produk saat dipesan
+  productId    String
+  productName  String
+  productSku   String?
+  variantSkuId String?
+  variantLabel String?
+  quantity     Int
+  unitPrice    Float   // harga final (sudah include modifier extra)
+  note         String? // catatan per item (misal: "tanpa bawang")
+
+  tableOrderId String
+  tableOrder   TableOrder @relation(fields: [tableOrderId], references: [id], onDelete: Cascade)
+
+  sentAt    DateTime  @default(now()) // kapan item dikirim ke dapur
+  cookedAt  DateTime?                 // kapan mulai dimasak
+  readyAt   DateTime?                 // kapan siap
+  servedAt  DateTime?                 // kapan disajikan
+
+  modifiers OrderItemModifier[]
+
+  @@index([tableOrderId])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id          String @id @default(cuid())
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  modifierGroupName  String
+  modifierOptionName String
+  extraPrice         Float @default(0)
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
 }
 
 // ─────────────────────────────────────────────

@@ -29,6 +29,13 @@ export default async function KitchenPage() {
         where: { closedAt: null },
         take: 1,
         orderBy: { openedAt: "desc" },
+        include: {
+          items: {
+            where: { status: { not: "CANCELLED" } },
+            include: { modifiers: true },
+            orderBy: { sentAt: "asc" },
+          },
+        },
       },
       outlet: { select: { name: true } },
     },
@@ -53,6 +60,22 @@ export default async function KitchenPage() {
             durationMinutes: Math.floor(
               (Date.now() - order.openedAt.getTime()) / 60000
             ),
+            items: order.items.map((item) => ({
+              id: item.id,
+              status: item.status as "PENDING" | "COOKING" | "READY" | "SERVED" | "CANCELLED",
+              productName: item.productName,
+              variantLabel: item.variantLabel,
+              quantity: item.quantity,
+              note: item.note,
+              sentAt: item.sentAt.toISOString(),
+              cookedAt: item.cookedAt?.toISOString() ?? null,
+              readyAt: item.readyAt?.toISOString() ?? null,
+              servedAt: item.servedAt?.toISOString() ?? null,
+              modifiers: item.modifiers.map((m) => ({
+                groupName: m.modifierGroupName,
+                optionName: m.modifierOptionName,
+              })),
+            })),
           }
         : null,
     };
