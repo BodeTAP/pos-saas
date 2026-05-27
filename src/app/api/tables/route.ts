@@ -10,7 +10,7 @@ const createTableSchema = z.object({
   name: z.string().max(50).optional().nullable(),
   capacity: z.number().int().positive().default(4),
   area: z.string().max(50).optional().nullable(),
-  outletId: z.string().cuid().optional(), // opsional, default ke outlet aktif
+  outletId: z.string().cuid().optional().nullable(), // opsional, default ke outlet aktif
 });
 
 /**
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
 
     const { number, name, capacity, area, outletId: bodyOutletId } = parsed.data;
 
-    // Resolve outlet
-    const outletId = bodyOutletId || await getActiveOutletId();
+    // Resolve outlet — pakai dari body jika ada, fallback ke outlet aktif session
+    const outletId = (bodyOutletId ?? null) || await getActiveOutletId();
     if (!outletId) {
       return NextResponse.json({ error: "Cabang tidak ditemukan." }, { status: 400 });
     }
