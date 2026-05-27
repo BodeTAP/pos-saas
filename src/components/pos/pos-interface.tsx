@@ -120,11 +120,14 @@ export function POSInterface({
   const [showTableSelector, setShowTableSelector] = useState(false);
 
   // F&B: auto-select meja dari URL param ?tableId=
+  // dan load order items ke keranjang
   useEffect(() => {
     if (!isFnB || !initialTableId || initialTables.length === 0) return;
     const table = initialTables.find((t) => t.id === initialTableId);
     if (table && table.activeOrderId) {
       setSelectedTable(table);
+      // Load order items ke keranjang
+      loadOrderItemsToCart(table);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // hanya saat mount
@@ -271,6 +274,71 @@ export function POSInterface({
 
   // F&B: state kirim ke dapur
   const [isSendingToKitchen, setIsSendingToKitchen] = useState(false);
+
+  /**
+   * F&B: Load order items dari dapur ke keranjang.
+   * Dipanggil saat kasir memilih meja yang sudah ada order aktif.
+   * Hanya load item yang belum SERVED/CANCELLED.
+   */
+  async function loadOrderItemsToCart(table: TableInfo) {
+    if (!table.activeOrderId) return;
+    try {
+      const res = await fetch(`/api/tables/${table.id}/order/items`);
+      if (!res.ok) return;
+      const data = await res.json() as {
+        items: Array<{
+          id: string;
+          productId: string;
+          productName: string;
+          productSku: string | null;
+          variantSkuId: string | null;
+          variantLabel: string | null;
+          quantity: number;
+          unitPrice: number;
+          status: string;
+          modifiers: Array<{
+            modifierGroupName: string;
+            modifierOptionName: string;
+            extraPrice: number;
+          }>;
+        }>;
+      };
+
+      // Filter hanya item yang aktif (bukan SERVED/CANCELLED)
+      const activeItems = data.items.filter(
+        (i) => i.status !== "SERVED" && i.status !== "CANCELLED"
+      );
+
+      if (activeItems.length === 0) return;
+
+      // Kosongkan keranjang dulu, lalu isi dengan order items
+      cart.clearCart();
+      for (const item of activeItems) {
+        cart.addItem({
+          productId: item.productId,
+          name: item.productName,
+          sku: item.productSku ?? undefined,
+          variantSkuId: item.variantSkuId ?? undefined,
+          variantLabel: item.variantLabel ?? undefined,
+          price: item.unitPrice,
+          quantity: item.quantity,
+          discount: 0,
+          modifiers: item.modifiers.map((m) => ({
+            groupId: "",
+            groupName: m.modifierGroupName,
+            optionId: "",
+            optionName: m.modifierOptionName,
+            extraPrice: m.extraPrice,
+          })),
+        });
+      }
+
+      toast.success(`${activeItems.length} item dari meja #${table.number} dimuat ke keranjang.`);
+    } catch {
+      // Gagal load — biarkan keranjang kosong, kasir bisa input manual
+      console.warn("Failed to load order items to cart");
+    }
+  }
 
   const filteredProducts = products.filter((p) => {
     const matchSearch =
@@ -755,6 +823,13 @@ export function POSInterface({
           onSelect={(table) => {
             setSelectedTable(table);
             setShowTableSelector(false);
+            // Jika meja punya order aktif, load items ke keranjang
+            if (table && table.activeOrderId) {
+              loadOrderItemsToCart(table);
+            } else if (!table) {
+              // Pilih takeaway — kosongkan keranjang jika sebelumnya ada meja
+              if (selectedTable) cart.clearCart();
+            }
           }}
           onClose={() => setShowTableSelector(false)}
         />
