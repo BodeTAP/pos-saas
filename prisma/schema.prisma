@@ -73,6 +73,13 @@ enum BillingStatus {
   EXPIRED
 }
 
+enum BusinessType {
+  RETAIL    // Toko, warung, minimarket
+  FNB       // Kafe, restoran, warung makan
+  SERVICE   // Salon, laundry, bengkel
+  OTHER     // Lainnya
+}
+
 // ─────────────────────────────────────────────
 // PLATFORM CONFIG (dikelola Super Admin)
 // ─────────────────────────────────────────────
@@ -146,6 +153,9 @@ model Tenant {
   subscriptionStatus SubscriptionStatus @default(TRIAL)
   trialEndsAt       DateTime?
   subscriptionEndsAt DateTime?
+
+  // Tipe bisnis — menentukan fitur & tampilan sidebar
+  businessType      BusinessType @default(RETAIL)
 
   // Limits berdasarkan plan
   maxProducts   Int @default(50)   // FREE: 50, PRO: unlimited

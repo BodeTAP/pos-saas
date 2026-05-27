@@ -8,9 +8,10 @@ import {
   ChevronLeft, ChevronRight, History, X, Warehouse, Truck,
   PanelLeftClose, PanelLeftOpen, ClipboardList,
 } from "lucide-react";
-import { UserRole } from "@prisma/client";
+import { UserRole, BusinessType } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { getBusinessFeatures } from "@/lib/business-features";
 
 interface NavItem {
   label: string;
@@ -18,17 +19,28 @@ interface NavItem {
   icon: React.ElementType;
   roles: UserRole[];
   exact?: boolean;
+  /** Jika diisi, item hanya tampil jika businessType ada di array ini */
+  businessTypes?: BusinessType[];
+  /** Jika diisi, label akan di-override berdasarkan businessType */
+  labelKey?: "products" | "inventory" | "purchaseOrders" | "transactions";
 }
 
 const tenantNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER"], exact: true },
   { label: "Kasir (POS)", href: "/dashboard/pos", icon: ShoppingCart, roles: ["KASIR", "OWNER"], exact: true },
   { label: "Riwayat Shift", href: "/dashboard/pos/history", icon: History, roles: ["KASIR"] },
-  { label: "Produk", href: "/dashboard/products", icon: Package, roles: ["OWNER"] },
+  { label: "Produk", href: "/dashboard/products", icon: Package, roles: ["OWNER"], labelKey: "products" },
   { label: "Kategori", href: "/dashboard/categories", icon: Tag, roles: ["OWNER"] },
-  { label: "Inventaris", href: "/dashboard/inventory", icon: Warehouse, roles: ["OWNER"] },
-  { label: "Pembelian (PO)", href: "/dashboard/purchase-orders", icon: Truck, roles: ["OWNER"] },
-  { label: "Transaksi", href: "/dashboard/transactions", icon: ShoppingBag, roles: ["OWNER"] },
+  { label: "Inventaris", href: "/dashboard/inventory", icon: Warehouse, roles: ["OWNER"], labelKey: "inventory" },
+  {
+    label: "Pembelian (PO)",
+    href: "/dashboard/purchase-orders",
+    icon: Truck,
+    roles: ["OWNER"],
+    labelKey: "purchaseOrders",
+    // Semua tipe bisnis bisa pakai PO — filter di feature config
+  },
+  { label: "Transaksi", href: "/dashboard/transactions", icon: ShoppingBag, roles: ["OWNER"], labelKey: "transactions" },
   { label: "Laporan", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER"] },
   { label: "Log Aktivitas", href: "/dashboard/audit-log", icon: ClipboardList, roles: ["OWNER"] },
   { label: "Karyawan", href: "/dashboard/staff", icon: Users, roles: ["OWNER"] },
@@ -40,6 +52,7 @@ const tenantNavItems: NavItem[] = [
 
 interface SidebarProps {
   role: UserRole;
+  businessType?: BusinessType;
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -221,10 +234,27 @@ function MobileNavContent({
 }
 
 // ── Main Sidebar ─────────────────────────────────────────────
-export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
+export function Sidebar({ role, businessType = "RETAIL", isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const filteredItems = tenantNavItems.filter((item) => item.roles.includes(role));
+
+  const features = getBusinessFeatures(businessType);
+
+  // Filter items berdasarkan role dan businessType
+  const filteredItems = tenantNavItems
+    .filter((item) => item.roles.includes(role))
+    .filter((item) => {
+      // Filter berdasarkan businessTypes jika ada
+      if (item.businessTypes && !item.businessTypes.includes(businessType)) return false;
+      // Filter purchaseOrders berdasarkan feature config
+      if (item.href === "/dashboard/purchase-orders" && !features.features.purchaseOrders) return false;
+      return true;
+    })
+    .map((item) => ({
+      ...item,
+      // Override label berdasarkan businessType
+      label: item.labelKey ? features.labels[item.labelKey] : item.label,
+    }));
 
   // Close mobile sidebar on route change
   useEffect(() => {

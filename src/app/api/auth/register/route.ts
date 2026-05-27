@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { ownerName, email, password, storeName, phone } = body;
+    const { ownerName, email, password, storeName, phone, businessType } = body;
+
+    // Validasi businessType
+    const VALID_BUSINESS_TYPES = ["RETAIL", "FNB", "SERVICE", "OTHER"];
+    const safeBusinessType = VALID_BUSINESS_TYPES.includes(businessType) ? businessType : "RETAIL";
 
     // Cek apakah registrasi diaktifkan
     const registrationEnabled = await getPlatformConfig(PLATFORM_CONFIG_KEYS.REGISTRATION_ENABLED);
@@ -89,6 +93,7 @@ export async function POST(req: NextRequest) {
           plan: "FREE",
           subscriptionStatus: "TRIAL",
           trialEndsAt,
+          businessType: safeBusinessType,
         },
       });
 

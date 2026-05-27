@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
-import { UserRole } from "@prisma/client";
+import { UserRole, BusinessType } from "@prisma/client";
 import { EmailVerificationBanner } from "@/components/ui/email-verification-banner";
 
 interface DashboardShellProps {
@@ -11,11 +11,17 @@ interface DashboardShellProps {
   children: React.ReactNode;
   emailVerified?: boolean;
   userEmail?: string;
+  businessType?: BusinessType;
 }
 
-export function DashboardShell({ user, children, emailVerified = true, userEmail }: DashboardShellProps) {
+export function DashboardShell({
+  user,
+  children,
+  emailVerified = true,
+  userEmail,
+  businessType = "RETAIL",
+}: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Delay render banner hingga setelah hydration selesai — mencegah mismatch server/client
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -28,6 +34,7 @@ export function DashboardShell({ user, children, emailVerified = true, userEmail
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar
         role={user.role}
+        businessType={businessType}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

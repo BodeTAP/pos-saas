@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Tenant } from "@prisma/client";
+import { Tenant, BusinessType } from "@prisma/client";
 import { Loader2, Save } from "lucide-react";
 import { toast } from "@/components/ui/toaster";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { OfflinePinManager } from "@/components/pwa/offline-pin-manager";
+import { BUSINESS_FEATURES } from "@/lib/business-features";
+import { useRouter } from "next/navigation";
 
 interface StaffMember {
   id: string;
@@ -26,7 +28,9 @@ const PAYMENT_METHODS = [
 ];
 
 export function SettingsClient({ tenant, staff }: SettingsClientProps) {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isChangingType, setIsChangingType] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(tenant.logoUrl || null);
 
   // Parse activePaymentMethods dari JSON string
@@ -304,6 +308,61 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
           </p>
         </div>
         <OfflinePinManager staff={staff} />
+      </div>
+
+      {/* Tipe Bisnis */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+        <div>
+          <h2 className="font-semibold text-gray-900">Tipe Bisnis</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Mengubah tipe bisnis akan menyesuaikan tampilan sidebar dan label menu. Data tidak akan hilang.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {(Object.keys(BUSINESS_FEATURES) as BusinessType[]).map((type) => {
+            const config = BUSINESS_FEATURES[type];
+            const isCurrent = tenant.businessType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                disabled={isCurrent || isChangingType}
+                onClick={async () => {
+                  setIsChangingType(true);
+                  try {
+                    const res = await fetch("/api/settings/business-type", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ businessType: type }),
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      toast.error(data.error || "Gagal mengubah tipe bisnis.");
+                      return;
+                    }
+                    toast.success(`Tipe bisnis diubah ke ${config.displayName}. Halaman akan dimuat ulang.`);
+                    setTimeout(() => router.refresh(), 1000);
+                  } catch {
+                    toast.error("Terjadi kesalahan.");
+                  } finally {
+                    setIsChangingType(false);
+                  }
+                }}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  isCurrent
+                    ? "border-blue-500 bg-blue-50 cursor-default"
+                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                }`}
+              >
+                <div className="text-xl mb-1">{config.emoji}</div>
+                <p className="font-semibold text-gray-900 text-sm">{config.displayName}</p>
+                {isCurrent && (
+                  <span className="text-xs text-blue-600 font-medium">Aktif</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
