@@ -75,7 +75,7 @@ export default async function POSPage() {
     };
   });
 
-  const [categories, tenant, outlet] = await Promise.all([
+  const [categories, tenant, outlet, businessType] = await Promise.all([
     prisma.category.findMany({
       where: { tenantId: session.user.tenantId },
       orderBy: { name: "asc" },
@@ -101,7 +101,34 @@ export default async function POSPage() {
       where: { id: outletId },
       select: { id: true, name: true, isMain: true },
     }),
+    prisma.tenant.findUnique({
+      where: { id: session.user.tenantId },
+      select: { businessType: true },
+    }).then((t) => t?.businessType ?? "RETAIL"),
   ]);
+
+  // Ambil meja untuk F&B
+  const tables = businessType === "FNB"
+    ? await prisma.table.findMany({
+        where: { outletId, tenantId: session.user.tenantId, isActive: true },
+        include: {
+          tableOrders: {
+            where: { closedAt: null },
+            select: { id: true, openedAt: true },
+            take: 1,
+          },
+        },
+        orderBy: [{ area: "asc" }, { number: "asc" }],
+      }).then((ts) => ts.map((t) => ({
+        id: t.id,
+        number: t.number,
+        name: t.name,
+        capacity: t.capacity,
+        area: t.area,
+        status: t.status,
+        activeOrderId: t.tableOrders[0]?.id ?? null,
+      })))
+    : [];
 
   return (
     <POSInterface
@@ -113,6 +140,8 @@ export default async function POSPage() {
       cashierRole={session.user.role}
       tenantId={session.user.tenantId}
       outlet={outlet}
+      businessType={businessType}
+      tables={tables}
     />
   );
 }

@@ -56,8 +56,8 @@ export const BUSINESS_FEATURES: Record<BusinessType, BusinessFeatureConfig> = {
     },
     features: {
       purchaseOrders: true,
-      tableManagement: false, // akan aktif saat fitur meja diimplementasi
-      kitchenDisplay: false,  // akan aktif saat KDS diimplementasi
+      tableManagement: true,  // ✅ aktif
+      kitchenDisplay: false,
     },
   },
   SERVICE: {

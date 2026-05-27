@@ -9,14 +9,14 @@ import { HeldTransactionsModal } from "./held-transactions-modal";
 import { ShiftModal } from "./shift-modal";
 import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
-import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
-import { useOfflineSync } from "@/hooks/use-offline-sync";
+import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";import { useOfflineSync } from "@/hooks/use-offline-sync";
 import { useOfflinePinSync } from "@/hooks/use-offline-pin-sync";
 import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
 import { OfflinePinModal } from "@/components/pwa/offline-pin-modal";
 import { getActiveOfflineSession, hasValidOfflinePin } from "@/lib/offline-pin";
 import { VariantPickerModal, type ProductForVariant } from "./variant-picker-modal";
+import { TableStatus } from "@prisma/client";
 
 type ProductWithCategory = Product & {
   category: Category | null;
@@ -40,6 +40,16 @@ type ProductWithCategory = Product & {
     optionIds: string[];
   }>;
 };
+
+export interface TableInfo {
+  id: string;
+  number: string;
+  name: string | null;
+  capacity: number;
+  area: string | null;
+  status: TableStatus;
+  activeOrderId: string | null;
+}
 
 interface POSInterfaceProps {
   products: ProductWithCategory[];
@@ -67,6 +77,8 @@ interface POSInterfaceProps {
     name: string;
     isMain: boolean;
   } | null;
+  businessType?: string;
+  tables?: TableInfo[];
 }
 
 export function POSInterface({
@@ -78,6 +90,8 @@ export function POSInterface({
   cashierRole,
   tenantId,
   outlet,
+  businessType = "RETAIL",
+  tables: initialTables = [],
 }: POSInterfaceProps) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -85,6 +99,12 @@ export function POSInterface({
   const [showHeld, setShowHeld] = useState(false);
   const [showShift, setShowShift] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
+
+  // F&B: state meja
+  const isFnB = businessType === "FNB";
+  const [tables, setTables] = useState<TableInfo[]>(initialTables);
+  const [selectedTable, setSelectedTable] = useState<TableInfo | null>(null);
+  const [showTableSelector, setShowTableSelector] = useState(false);
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
@@ -398,6 +418,23 @@ export function POSInterface({
               <Clock className="w-4 h-4 text-green-500" />
               <span className="hidden sm:inline">Shift</span>
             </button>
+            {/* F&B: Pilih Meja */}
+            {isFnB && (
+              <button
+                onClick={() => setShowTableSelector(true)}
+                className={`flex items-center gap-2 px-3 py-2.5 border rounded-lg text-sm font-medium transition-colors ${
+                  selectedTable
+                    ? "border-blue-500 bg-blue-50 text-blue-700"
+                    : "border-gray-300 hover:bg-gray-50 text-gray-700"
+                }`}
+                title="Pilih meja"
+              >
+                <span className="text-base">🍽️</span>
+                <span className="hidden sm:inline">
+                  {selectedTable ? `Meja ${selectedTable.number}` : "Pilih Meja"}
+                </span>
+              </button>
+            )}
             {/* Offline queue status */}
             <OfflineSyncStatus />
           </div>
@@ -551,6 +588,112 @@ export function POSInterface({
 
       {/* Offline status indicator */}
       <OfflineIndicator onSyncRequest={forceSync} />
+
+      {/* F&B: Table Selector Modal */}
+      {showTableSelector && (
+        <TableSelectorModal
+          tables={tables}
+          selectedTableId={selectedTable?.id ?? null}
+          onSelect={(table) => {
+            setSelectedTable(table);
+            setShowTableSelector(false);
+          }}
+          onClose={() => setShowTableSelector(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// F&B: Table Selector Modal
+// ─────────────────────────────────────────────
+
+const TABLE_STATUS_CONFIG: Record<TableStatus, { label: string; color: string; bg: string }> = {
+  EMPTY: { label: "Kosong", color: "text-green-700", bg: "bg-green-50 border-green-200" },
+  OCCUPIED: { label: "Terisi", color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+  BILL: { label: "Minta Bill", color: "text-orange-700", bg: "bg-orange-50 border-orange-200" },
+  RESERVED: { label: "Dipesan", color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
+};
+
+function TableSelectorModal({
+  tables,
+  selectedTableId,
+  onSelect,
+  onClose,
+}: {
+  tables: TableInfo[];
+  selectedTableId: string | null;
+  onSelect: (table: TableInfo | null) => void;
+  onClose: () => void;
+}) {
+  const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900">Pilih Meja</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Opsi tanpa meja (takeaway) */}
+          <button
+            onClick={() => onSelect(null)}
+            className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+              selectedTableId === null
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <p className="font-semibold text-gray-900 text-sm">🥡 Takeaway / Tanpa Meja</p>
+            <p className="text-xs text-gray-500 mt-0.5">Order dibawa pulang atau tanpa meja</p>
+          </button>
+
+          {tables.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-sm">Belum ada meja. Tambahkan di halaman Meja.</p>
+            </div>
+          ) : (
+            areas.map((area) => {
+              const areaTables = tables.filter((t) => (t.area || "Umum") === area);
+              return (
+                <div key={area}>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{area}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {areaTables.map((table) => {
+                      const cfg = TABLE_STATUS_CONFIG[table.status];
+                      const isSelected = selectedTableId === table.id;
+                      return (
+                        <button
+                          key={table.id}
+                          onClick={() => onSelect(table)}
+                          className={`p-3 rounded-xl border-2 text-left transition-all ${
+                            isSelected
+                              ? "border-blue-500 bg-blue-50"
+                              : `${cfg.bg} hover:opacity-80`
+                          }`}
+                        >
+                          <p className="font-bold text-gray-900">#{table.number}</p>
+                          {table.name && (
+                            <p className="text-xs text-gray-500 truncate">{table.name}</p>
+                          )}
+                          <span className={`text-xs font-medium ${cfg.color}`}>
+                            {cfg.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
     </div>
   );
 }
