@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
         taxRate: true, receiptNote: true, receiptHeader: true,
         receiptWidth: true, invoicePrefix: true,
         pointsPerAmount: true, pointValue: true, activePaymentMethods: true,
-        serviceChargePct: true, paymentFlow: true,
+        serviceChargePct: true, paymentFlow: true, autoPrintKitchen: true,
       },
     });
 
@@ -85,6 +85,7 @@ export async function PUT(req: NextRequest) {
           : undefined,
         serviceChargePct: parsed.data.serviceChargePct ?? undefined,
         paymentFlow: parsed.data.paymentFlow ?? undefined,
+        autoPrintKitchen: parsed.data.autoPrintKitchen ?? undefined,
       },
     });
 
@@ -96,6 +97,7 @@ export async function PUT(req: NextRequest) {
       activePaymentMethods: tenant.activePaymentMethods,
       serviceChargePct: tenant.serviceChargePct,
       paymentFlow: tenant.paymentFlow,
+      autoPrintKitchen: tenant.autoPrintKitchen,
     };
 
     const diff = beforeTenant

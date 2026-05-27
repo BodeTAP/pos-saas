@@ -59,6 +59,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
     activePaymentMethods: parsedMethods,
     serviceChargePct: (tenant.serviceChargePct ?? 0).toString(),
     paymentFlow: (tenant.paymentFlow ?? "PAY_FIRST") as "PAY_FIRST" | "PAY_LATER",
+    autoPrintKitchen: tenant.autoPrintKitchen ?? false,
   };
 
   const [form, setForm] = useState(initialForm);
@@ -133,6 +134,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
           activePaymentMethods: form.activePaymentMethods,
           serviceChargePct: parseFloat(form.serviceChargePct) || 0,
           paymentFlow: form.paymentFlow,
+          autoPrintKitchen: form.autoPrintKitchen,
         }),
       });
 
@@ -331,6 +333,26 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                   Tidak bisa diubah saat ada order meja aktif
                 </p>
+              </div>
+
+              {/* Auto-print struk dapur */}
+              <div>
+                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={form.autoPrintKitchen}
+                    onChange={(e) => setForm((p) => ({ ...p, autoPrintKitchen: e.target.checked }))}
+                    className="mt-0.5 flex-shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Auto-Cetak Struk Dapur
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Setelah klik &quot;Kirim ke Dapur&quot;, struk dapur otomatis dicetak. Pastikan printer tersambung & pop-up browser diizinkan.
+                    </p>
+                  </div>
+                </label>
               </div>
             </>
           )}

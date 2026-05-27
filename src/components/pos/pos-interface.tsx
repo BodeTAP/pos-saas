@@ -80,6 +80,7 @@ interface POSInterfaceProps {
     invoicePrefix?: string | null;
     serviceChargePct?: number;
     paymentFlow?: "PAY_FIRST" | "PAY_LATER";
+    autoPrintKitchen?: boolean;
   } | null;
   cashierId: string;
   cashierName: string;
@@ -609,6 +610,29 @@ export function POSInterface({
       // Kosongkan keranjang, meja tetap terpilih
       cart.clearCart();
       toast.success(`${data.items.length} item dikirim ke dapur.`);
+
+      // Auto-print struk dapur kalau diaktifkan
+      if (tenant?.autoPrintKitchen) {
+        try {
+          const { printKitchenReceipt } = await import("@/lib/print-kitchen-receipt");
+          printKitchenReceipt({
+            invoiceNumber: `MEJA-${selectedTable.number}-${Date.now().toString().slice(-4)}`,
+            tableNumber: selectedTable.number,
+            tableArea: selectedTable.area,
+            cashierName,
+            note: null,
+            createdAt: new Date(),
+            items: data.items.map((item: { productName: string; variantLabel?: string | null; quantity: number; modifiers?: Array<{ groupName: string; optionName: string }>; note?: string | null }) => ({
+              name: item.variantLabel ? `${item.productName} (${item.variantLabel})` : item.productName,
+              quantity: item.quantity,
+              modifiers: item.modifiers ?? [],
+              note: item.note ?? undefined,
+            })),
+          });
+        } catch (err) {
+          console.warn("Failed to print kitchen receipt:", err);
+        }
+      }
     } catch {
       toast.error("Gagal terhubung ke server.");
     } finally {

@@ -186,6 +186,7 @@ export const settingsSchema = z.object({
     .max(100, "Service charge maksimal 100%.")
     .optional(),
   paymentFlow: z.enum(["PAY_FIRST", "PAY_LATER"]).optional(),
+  autoPrintKitchen: z.boolean().optional(),
 });
 
 // ─────────────────────────────────────────────

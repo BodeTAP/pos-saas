@@ -157,6 +157,9 @@ model Tenant {
   // F&B: alur pembayaran (default PAY_FIRST untuk self-service/fast food)
   paymentFlow PaymentFlow @default(PAY_FIRST)
 
+  // F&B: auto-print struk dapur saat "Kirim ke Dapur"
+  autoPrintKitchen Boolean @default(false)
+
   // Metode pembayaran yang aktif (JSON array: ["CASH","QRIS","TRANSFER","CARD"])
   activePaymentMethods String @default("[\"CASH\",\"QRIS\",\"TRANSFER\"]")
 
