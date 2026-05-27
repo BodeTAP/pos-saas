@@ -764,3 +764,43 @@ MIT License — bebas digunakan dan dimodifikasi.
 - **POS auto-select meja** dari URL `?tableId=xxx` saat halaman dimuat (`useEffect` saat mount)
 - **Auto-load order items ke keranjang** saat meja dipilih (baik dari URL param maupun manual): fetch `GET /api/tables/[id]/order/items`, filter item aktif (bukan SERVED/CANCELLED), masukkan ke keranjang dengan modifier — kasir langsung bisa klik "Bayar"
 - **Halaman Meja** (`/dashboard/tables`): kartu meja OCCUPIED/BILL sekarang bisa diklik (link ke detail meja), kartu BILL punya shortcut "Proses Pembayaran"
+
+
+### ✅ Fase 23 — F&B Dual Payment Flow (PAY_FIRST / PAY_LATER)
+
+**Schema baru:**
+- Enum `PaymentFlow` (`PAY_FIRST` default / `PAY_LATER`) di `Tenant.paymentFlow`
+- `OrderItem` sekarang punya dua relasi opsional: `tableOrderId` (dine-in) ATAU `transactionId` (takeaway PAY_FIRST)
+- Field `OrderItem.tenantId` (denormalize untuk filter cepat di Kitchen Display takeaway)
+- Field `Transaction.orderItems` (relasi balik untuk takeaway PAY_FIRST)
+
+**Setting per toko** (`/dashboard/settings` — section F&B):
+- Radio button: "Bayar Di Depan" (PAY_FIRST default) vs "Bayar Belakangan" (PAY_LATER)
+
+**Alur PAY_FIRST + Meja (self-service, fast food, kantin):**
+1. Kasir pilih meja EMPTY → TableOrder dibuka
+2. Tambah item ke keranjang → klik **Bayar** (tombol "Kirim ke Dapur" disembunyikan)
+3. Server auto-create `OrderItem` dari `TransactionItem` dengan status PENDING — langsung muncul di Kitchen Display
+4. Meja **tetap OCCUPIED** (TableOrder tidak ditutup setelah bayar)
+5. Dapur tandai item: PENDING → COOKING → READY → SERVED
+6. Saat **semua item SERVED**, auto-close TableOrder + meja jadi EMPTY (di endpoint `PATCH /api/order-items/[id]`)
+
+**Alur PAY_FIRST + Takeaway:**
+1. Tanpa pilih meja → tambah item → klik Bayar
+2. Server auto-create `OrderItem` terhubung ke `Transaction` (tanpa `tableOrderId`)
+3. Muncul di Kitchen Display section **🥡 Takeaway** (warna ungu, badge "Sudah Dibayar", tampil invoice number)
+4. Dapur masak → tandai SERVED → kartu otomatis hilang saat semua item SERVED
+
+**Alur PAY_LATER (kafe/restoran tradisional, alur sebelumnya):**
+- Tombol "Kirim ke Dapur" tampil — kasir kirim item dulu, bayar belakangan
+- Meja tutup + jadi EMPTY langsung setelah bayar (alur sekarang)
+
+**API yang berubah:**
+- `POST /api/transactions` — sekarang auto-create OrderItem berdasarkan `paymentFlow`; tidak tutup TableOrder untuk PAY_FIRST
+- `PATCH /api/order-items/[id]` — saat semua item TableOrder SERVED → auto-close TableOrder + meja EMPTY
+- `GET /api/kitchen` — return `{ tables, takeaway }` (sebelumnya hanya `tables`)
+
+**UI:**
+- Settings: 2 radio card untuk pilih PaymentFlow (hanya untuk FNB)
+- POS: tombol "Kirim ke Dapur" di CartPanel hanya tampil untuk PAY_LATER
+- Kitchen Display: section baru "🥡 Takeaway" untuk transaksi PAY_FIRST tanpa meja
