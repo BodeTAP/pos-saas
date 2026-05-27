@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "@/components/ui/toaster";
 import {
-  RefreshCw, Clock, UtensilsCrossed, CheckCircle,
-  AlertCircle, ChefHat, Flame, Bell, CreditCard,
+  RefreshCw, Clock, CheckCircle, AlertCircle, ChefHat,
+  Flame, Bell, CreditCard, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 interface OrderItemModifier {
@@ -47,7 +47,7 @@ interface KitchenTable {
 }
 
 interface KitchenTakeaway {
-  id: string; // transaction id
+  id: string;
   invoiceNumber: string;
   outletName: string;
   activeOrder: ActiveOrder;
@@ -64,54 +64,25 @@ const TABLE_STATUS_CONFIG = {
 };
 
 const ITEM_STATUS_CONFIG: Record<OrderItem["status"], {
-  label: string;
-  color: string;
-  bg: string;
-  nextStatus?: OrderItem["status"];
-  nextLabel?: string;
+  label: string; color: string; bg: string;
+  nextStatus?: OrderItem["status"]; nextLabel?: string;
   icon: React.ElementType;
 }> = {
-  PENDING: {
-    label: "Antri",
-    color: "text-gray-600",
-    bg: "bg-gray-100",
-    nextStatus: "COOKING",
-    nextLabel: "Mulai Masak",
-    icon: Clock,
-  },
-  COOKING: {
-    label: "Dimasak",
-    color: "text-orange-700",
-    bg: "bg-orange-100",
-    nextStatus: "READY",
-    nextLabel: "Siap Saji",
-    icon: Flame,
-  },
-  READY: {
-    label: "Siap",
-    color: "text-green-700",
-    bg: "bg-green-100",
-    nextStatus: "SERVED",
-    nextLabel: "Sudah Disajikan",
-    icon: Bell,
-  },
-  SERVED: {
-    label: "Disajikan",
-    color: "text-blue-600",
-    bg: "bg-blue-100",
-    icon: CheckCircle,
-  },
-  CANCELLED: {
-    label: "Dibatalkan",
-    color: "text-red-500",
-    bg: "bg-red-100",
-    icon: AlertCircle,
-  },
+  PENDING:  { label: "Antri",      color: "text-gray-600",   bg: "bg-gray-100",   nextStatus: "COOKING", nextLabel: "Mulai Masak",      icon: Clock },
+  COOKING:  { label: "Dimasak",    color: "text-orange-700", bg: "bg-orange-100", nextStatus: "READY",   nextLabel: "Siap Saji",        icon: Flame },
+  READY:    { label: "Siap",       color: "text-green-700",  bg: "bg-green-100",  nextStatus: "SERVED",  nextLabel: "Sudah Disajikan",  icon: Bell },
+  SERVED:   { label: "Disajikan",  color: "text-blue-600",   bg: "bg-blue-100",   icon: CheckCircle },
+  CANCELLED:{ label: "Dibatalkan", color: "text-red-500",    bg: "bg-red-100",    icon: AlertCircle },
+};
+
+// Urutan prioritas status untuk sorting item
+const STATUS_ORDER: Record<OrderItem["status"], number> = {
+  PENDING: 0, COOKING: 1, READY: 2, SERVED: 3, CANCELLED: 4,
 };
 
 function getDurationColor(minutes: number): string {
-  if (minutes < 30) return "text-green-600";
-  if (minutes < 60) return "text-yellow-600";
+  if (minutes < 15) return "text-green-600";
+  if (minutes < 30) return "text-yellow-600";
   return "text-red-600";
 }
 
@@ -129,6 +100,10 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [updatingItem, setUpdatingItem] = useState<string | null>(null);
   const [updatingTableStatus, setUpdatingTableStatus] = useState<string | null>(null);
+  const [markingAllServed, setMarkingAllServed] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(10);
+  const [showServedMap, setShowServedMap] = useState<Record<string, boolean>>({});
+  const countdownRef = useRef(10);
 
   const fetchTables = useCallback(async (silent = false) => {
     if (!silent) setIsRefreshing(true);
@@ -139,6 +114,8 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
       setTables(data.tables);
       setTakeaway(data.takeaway ?? []);
       setLastUpdated(new Date());
+      countdownRef.current = 10;
+      setCountdown(10);
     } catch {
       if (!silent) toast.error("Gagal memuat data.");
     } finally {
@@ -146,13 +123,21 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
     }
   }, []);
 
-  // Auto-refresh setiap 10 detik — skip jika user sedang update item (cegah override optimistic)
+  // Auto-refresh setiap 10 detik dengan countdown visual
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (updatingItem) return; // skip polling saat user klik tombol
-      fetchTables(true);
-    }, 10000);
-    return () => clearInterval(interval);
+    const tick = setInterval(() => {
+      if (updatingItem) {
+        countdownRef.current = 10;
+        setCountdown(10);
+        return;
+      }
+      countdownRef.current -= 1;
+      setCountdown(countdownRef.current);
+      if (countdownRef.current <= 0) {
+        fetchTables(true);
+      }
+    }, 1000);
+    return () => clearInterval(tick);
   }, [fetchTables, updatingItem]);
 
   // Update durasi setiap menit
@@ -162,12 +147,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
         prev.map((t) => ({
           ...t,
           activeOrder: t.activeOrder
-            ? {
-                ...t.activeOrder,
-                durationMinutes: Math.floor(
-                  (Date.now() - new Date(t.activeOrder.openedAt).getTime()) / 60000
-                ),
-              }
+            ? { ...t.activeOrder, durationMinutes: Math.floor((Date.now() - new Date(t.activeOrder.openedAt).getTime()) / 60000) }
             : null,
         }))
       );
@@ -176,9 +156,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
           ...t,
           activeOrder: {
             ...t.activeOrder,
-            durationMinutes: Math.floor(
-              (Date.now() - new Date(t.activeOrder.openedAt).getTime()) / 60000
-            ),
+            durationMinutes: Math.floor((Date.now() - new Date(t.activeOrder.openedAt).getTime()) / 60000),
           },
         }))
       );
@@ -205,42 +183,70 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
         return;
       }
       const data = await res.json();
+      const updater = (items: OrderItem[]) =>
+        items.map((i) => (i.id === itemId ? { ...i, ...data.item } : i));
 
       if (isTakeaway) {
         setTakeaway((prev) =>
-          prev.map((t) => {
-            if (t.id !== containerId) return t;
-            return {
-              ...t,
-              activeOrder: {
-                ...t.activeOrder,
-                items: t.activeOrder.items.map((i) =>
-                  i.id === itemId ? { ...i, ...data.item } : i
-                ),
-              },
-            };
-          })
+          prev.map((t) =>
+            t.id !== containerId ? t : { ...t, activeOrder: { ...t.activeOrder, items: updater(t.activeOrder.items) } }
+          )
         );
       } else {
         setTables((prev) =>
-          prev.map((t) => {
-            if (t.id !== containerId || !t.activeOrder) return t;
-            return {
-              ...t,
-              activeOrder: {
-                ...t.activeOrder,
-                items: t.activeOrder.items.map((i) =>
-                  i.id === itemId ? { ...i, ...data.item } : i
-                ),
-              },
-            };
-          })
+          prev.map((t) =>
+            t.id !== containerId || !t.activeOrder ? t
+              : { ...t, activeOrder: { ...t.activeOrder, items: updater(t.activeOrder.items) } }
+          )
         );
       }
     } catch {
       toast.error("Terjadi kesalahan.");
     } finally {
       setUpdatingItem(null);
+    }
+  }
+
+  // Tandai semua item aktif di satu container sebagai SERVED
+  async function handleMarkAllServed(containerId: string, items: OrderItem[], isTakeaway = false) {
+    const toServe = items.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
+    if (toServe.length === 0) return;
+    setMarkingAllServed(containerId);
+    try {
+      await Promise.all(
+        toServe.map((item) =>
+          fetch(`/api/order-items/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "SERVED" }),
+          })
+        )
+      );
+      const markServed = (items: OrderItem[]) =>
+        items.map((i) =>
+          i.status !== "SERVED" && i.status !== "CANCELLED"
+            ? { ...i, status: "SERVED" as const, servedAt: new Date().toISOString() }
+            : i
+        );
+      if (isTakeaway) {
+        setTakeaway((prev) =>
+          prev.map((t) =>
+            t.id !== containerId ? t : { ...t, activeOrder: { ...t.activeOrder, items: markServed(t.activeOrder.items) } }
+          )
+        );
+      } else {
+        setTables((prev) =>
+          prev.map((t) =>
+            t.id !== containerId || !t.activeOrder ? t
+              : { ...t, activeOrder: { ...t.activeOrder, items: markServed(t.activeOrder.items) } }
+          )
+        );
+      }
+      toast.success("Semua item ditandai SERVED.");
+    } catch {
+      toast.error("Gagal menandai semua item.");
+    } finally {
+      setMarkingAllServed(null);
     }
   }
 
@@ -257,9 +263,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
         toast.error(data.error || "Gagal update status.");
         return;
       }
-      setTables((prev) =>
-        prev.map((t) => (t.id === tableId ? { ...t, status: "BILL" } : t))
-      );
+      setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, status: "BILL" } : t)));
       toast.success("Status meja diubah ke Minta Bill.");
     } catch {
       toast.error("Terjadi kesalahan.");
@@ -268,18 +272,19 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
     }
   }
 
-  const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
-  const billCount = tables.filter((t) => t.status === "BILL").length;
+  function toggleShowServed(id: string) {
+    setShowServedMap((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
-  // Hitung item yang perlu perhatian (PENDING atau COOKING) — termasuk takeaway
+  const areas = [...new Set(tables.map((t) => t.area || "Umum"))];
+  const billCount = tables.filter((t) => t.status === "BILL" && !t.activeOrder?.isPaid).length;
   const pendingItemCount =
     tables.reduce((sum, t) => {
       if (!t.activeOrder) return sum;
       return sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length;
     }, 0) +
     takeaway.reduce(
-      (sum, t) =>
-        sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length,
+      (sum, t) => sum + t.activeOrder.items.filter((i) => i.status === "PENDING" || i.status === "COOKING").length,
       0
     );
 
@@ -292,21 +297,37 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
             <ChefHat className="w-6 h-6 text-gray-600" />
             Kitchen Display
           </h1>
-          <p className="text-gray-500 mt-0.5 text-sm">
-            {tables.length} meja aktif
-            {pendingItemCount > 0 && (
-              <span className="ml-2 text-orange-600 font-medium">· {pendingItemCount} item perlu diproses</span>
+          {/* Subtitle: info penting di depan */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+            {pendingItemCount > 0 ? (
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-orange-600">
+                <Flame className="w-3.5 h-3.5" />
+                {pendingItemCount} item perlu diproses
+              </span>
+            ) : (
+              <span className="text-sm text-green-600 font-medium flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Semua item diproses
+              </span>
             )}
+            <span className="text-gray-300">·</span>
+            <span className="text-sm text-gray-500">{tables.length} meja aktif</span>
             {billCount > 0 && (
-              <span className="ml-2 text-orange-600 font-medium">· {billCount} minta bill</span>
+              <>
+                <span className="text-gray-300">·</span>
+                <span className="text-sm font-medium text-orange-600">{billCount} menunggu bayar</span>
+              </>
             )}
-            · Update otomatis setiap 10 detik
-          </p>
+          </div>
         </div>
+        {/* Refresh + countdown */}
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">
-            {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-          </span>
+          <div className="flex items-center gap-1.5 text-xs text-gray-400">
+            <span>Refresh dalam</span>
+            <span className={`font-bold tabular-nums w-5 text-center ${countdown <= 3 ? "text-orange-500" : "text-gray-500"}`}>
+              {countdown}s
+            </span>
+          </div>
           <button
             onClick={() => fetchTables(false)}
             disabled={isRefreshing}
@@ -332,12 +353,12 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
         })}
       </div>
 
-      {/* Alert: meja minta bill */}
+      {/* Alert: meja minta bill (PAY_LATER only) */}
       {billCount > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
           <p className="text-sm text-orange-800 font-medium">
-            {billCount} meja sedang menunggu pembayaran
+            {billCount} meja menunggu pembayaran — arahkan kasir ke POS
           </p>
         </div>
       )}
@@ -353,196 +374,224 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
         <>
           {/* Tables section */}
           {tables.length > 0 && areas.map((area) => {
-          const areaTables = tables.filter((t) => (t.area || "Umum") === area);
-          return (
-            <div key={area}>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{area}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {areaTables.map((table) => {
-                  const cfg = TABLE_STATUS_CONFIG[table.status];
-                  const duration = table.activeOrder?.durationMinutes ?? 0;
-                  const items = table.activeOrder?.items ?? [];
-                  const activeItems = items.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
-                  const allServed = items.length > 0 && items.every((i) => i.status === "SERVED" || i.status === "CANCELLED");
+            const areaTables = tables.filter((t) => (t.area || "Umum") === area);
+            return (
+              <div key={area}>
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{area}</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {areaTables.map((table) => {
+                    const cfg = TABLE_STATUS_CONFIG[table.status];
+                    const duration = table.activeOrder?.durationMinutes ?? 0;
+                    const isUrgent = duration >= 30;
+                    const items = table.activeOrder?.items ?? [];
+                    // Sort: PENDING → COOKING → READY → SERVED
+                    const sortedItems = [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+                    const activeItems = sortedItems.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
+                    const servedItems = sortedItems.filter((i) => i.status === "SERVED");
+                    const allServed = items.length > 0 && items.every((i) => i.status === "SERVED" || i.status === "CANCELLED");
+                    const hasActionable = activeItems.some((i) => i.status !== "SERVED");
+                    const showServed = showServedMap[table.id] ?? false;
 
-                  return (
-                    <div
-                      key={table.id}
-                      className={`bg-white rounded-xl border-2 overflow-hidden ${cfg.bg} transition-all`}
-                    >
-                      {/* Table header */}
-                      <div className="px-4 pt-4 pb-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-2xl font-bold text-gray-900">#{table.number}</p>
-                              <span className={`w-2 h-2 rounded-full ${cfg.dot} animate-pulse`} />
-                            </div>
-                            {table.name && (
-                              <p className="text-xs text-gray-500">{table.name}</p>
-                            )}
-                          </div>
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color} ${cfg.bg}`}>
-                            {cfg.label}
-                          </span>
-                        </div>
-
-                        {/* Duration */}
-                        {table.activeOrder && (
-                          <div className="flex items-center gap-1.5">
-                            <Clock className={`w-3.5 h-3.5 ${getDurationColor(duration)}`} />
-                            <span className={`text-xs font-semibold ${getDurationColor(duration)}`}>
-                              {formatDuration(duration)}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              sejak {new Date(table.activeOrder.openedAt).toLocaleTimeString("id-ID", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
+                    return (
+                      <div
+                        key={table.id}
+                        className={`bg-white rounded-xl border-2 overflow-hidden transition-all ${
+                          isUrgent ? "border-red-400 shadow-md shadow-red-100" : cfg.bg
+                        }`}
+                      >
+                        {/* Urgent banner */}
+                        {isUrgent && (
+                          <div className="bg-red-500 px-4 py-1.5 flex items-center gap-2">
+                            <AlertCircle className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                            <span className="text-xs font-bold text-white">Menunggu {formatDuration(duration)} — Segera diproses!</span>
                           </div>
                         )}
 
-                        {/* Note */}
-                        {table.activeOrder?.note && (
-                          <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1.5">
-                            <p className="text-xs text-yellow-800 italic">📝 {table.activeOrder.note}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Order Items */}
-                      {items.length === 0 ? (
-                        <div className="px-4 pb-4">
-                          <p className="text-xs text-gray-400 text-center py-3 border border-dashed border-gray-200 rounded-lg">
-                            Belum ada item dikirim ke dapur
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="border-t border-gray-100">
-                          {/* All served indicator */}
-                          {allServed && (
-                            <div className="px-4 py-2 bg-green-50 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-green-600" />
-                              <p className="text-xs text-green-700 font-medium">Semua item sudah disajikan</p>
+                        {/* Table header */}
+                        <div className="px-4 pt-4 pb-3">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-2xl font-bold text-gray-900">#{table.number}</p>
+                                <span className={`w-2 h-2 rounded-full ${cfg.dot} animate-pulse`} />
+                              </div>
+                              {table.name && <p className="text-xs text-gray-500">{table.name}</p>}
                             </div>
-                          )}
-
-                          <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-                            {activeItems.map((item) => {
-                              const itemCfg = ITEM_STATUS_CONFIG[item.status];
-                              const ItemIcon = itemCfg.icon;
-                              const isUpdating = updatingItem === item.id;
-
-                              return (
-                                <div key={item.id} className="px-4 py-2.5">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-bold text-gray-900 text-sm">{item.quantity}x</span>
-                                        <span className="font-medium text-gray-900 text-sm truncate">
-                                          {item.productName}
-                                          {item.variantLabel && (
-                                            <span className="text-gray-500 font-normal"> ({item.variantLabel})</span>
-                                          )}
-                                        </span>
-                                      </div>
-                                      {/* Modifiers */}
-                                      {item.modifiers.length > 0 && (
-                                        <div className="mt-0.5 space-y-0.5">
-                                          {item.modifiers.map((mod, i) => (
-                                            <p key={i} className="text-xs text-gray-500 pl-4">
-                                              → {mod.optionName}
-                                            </p>
-                                          ))}
-                                        </div>
-                                      )}
-                                      {/* Note */}
-                                      {item.note && (
-                                        <p className="text-xs text-amber-700 italic pl-4 mt-0.5">
-                                          ! {item.note}
-                                        </p>
-                                      )}
-                                    </div>
-
-                                    {/* Status badge + action */}
-                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${itemCfg.color} ${itemCfg.bg}`}>
-                                        <ItemIcon className="w-3 h-3" />
-                                        {itemCfg.label}
-                                      </span>
-                                      {itemCfg.nextStatus && (
-                                        <button
-                                          onClick={() => handleUpdateItemStatus(table.id, item.id, itemCfg.nextStatus!)}
-                                          disabled={isUpdating}
-                                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
-                                        >
-                                          {isUpdating ? "..." : itemCfg.nextLabel}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {/* Served items (collapsed) */}
-                          {items.filter((i) => i.status === "SERVED").length > 0 && (
-                            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                              <p className="text-xs text-gray-400">
-                                ✓ {items.filter((i) => i.status === "SERVED").length} item sudah disajikan
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Table actions */}
-                      <div className="px-4 pb-4 pt-2 space-y-2">
-                        {table.activeOrder?.isPaid ? (
-                          // PAY_FIRST: order sudah dibayar, tidak perlu tombol bill/payment
-                          <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center gap-2">
-                            <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                            <span className="text-xs text-green-700 font-medium">
-                              Sudah Dibayar — Tandai SERVED untuk tutup meja
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${cfg.color} ${cfg.bg}`}>
+                              {cfg.label}
                             </span>
+                          </div>
+
+                          {/* Duration */}
+                          {table.activeOrder && (
+                            <div className="flex items-center gap-1.5">
+                              <Clock className={`w-3.5 h-3.5 ${getDurationColor(duration)}`} />
+                              <span className={`text-xs font-semibold ${getDurationColor(duration)}`}>
+                                {formatDuration(duration)}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                sejak {new Date(table.activeOrder.openedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Note */}
+                          {table.activeOrder?.note && (
+                            <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1.5">
+                              <p className="text-xs text-yellow-800 italic">📝 {table.activeOrder.note}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Order Items */}
+                        {items.length === 0 ? (
+                          <div className="px-4 pb-4">
+                            <p className="text-xs text-gray-400 text-center py-3 border border-dashed border-gray-200 rounded-lg">
+                              Belum ada item dikirim ke dapur
+                            </p>
                           </div>
                         ) : (
-                          <>
-                            {table.status === "OCCUPIED" && (
-                              <button
-                                onClick={() => handleRequestBill(table.id)}
-                                disabled={updatingTableStatus === table.id}
-                                className="w-full px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                              >
-                                {updatingTableStatus === table.id ? (
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <AlertCircle className="w-3.5 h-3.5" />
+                          <div className="border-t border-gray-100">
+                            {allServed && (
+                              <div className="px-4 py-2 bg-green-50 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <p className="text-xs text-green-700 font-medium">Semua item sudah disajikan</p>
+                              </div>
+                            )}
+
+                            {/* Active items — sorted by priority */}
+                            <div className="divide-y divide-gray-100">
+                              {activeItems.map((item) => {
+                                const itemCfg = ITEM_STATUS_CONFIG[item.status];
+                                const ItemIcon = itemCfg.icon;
+                                const isUpdating = updatingItem === item.id;
+                                return (
+                                  <div key={item.id} className="px-4 py-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-bold text-gray-900">{item.quantity}x</span>
+                                          <span className="font-medium text-gray-900 text-sm">
+                                            {item.productName}
+                                            {item.variantLabel && (
+                                              <span className="text-gray-500 font-normal"> ({item.variantLabel})</span>
+                                            )}
+                                          </span>
+                                        </div>
+                                        {item.modifiers.length > 0 && (
+                                          <div className="mt-0.5 space-y-0.5">
+                                            {item.modifiers.map((mod, i) => (
+                                              <p key={i} className="text-xs text-gray-500 pl-4">→ {mod.optionName}</p>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {item.note && (
+                                          <p className="text-xs text-amber-700 italic pl-4 mt-0.5">! {item.note}</p>
+                                        )}
+                                      </div>
+                                      {/* Status badge + action button (lebih besar, mudah di-tap) */}
+                                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${itemCfg.color} ${itemCfg.bg}`}>
+                                          <ItemIcon className="w-3 h-3" />
+                                          {itemCfg.label}
+                                        </span>
+                                        {itemCfg.nextStatus && (
+                                          <button
+                                            onClick={() => handleUpdateItemStatus(table.id, item.id, itemCfg.nextStatus!)}
+                                            disabled={isUpdating}
+                                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-semibold rounded-lg transition-colors min-w-[90px] text-center"
+                                          >
+                                            {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin mx-auto" /> : itemCfg.nextLabel}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Served items — collapsible */}
+                            {servedItems.length > 0 && (
+                              <div className="border-t border-gray-100">
+                                <button
+                                  onClick={() => toggleShowServed(table.id)}
+                                  className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-400 hover:bg-gray-50 transition-colors"
+                                >
+                                  <span>✓ {servedItems.length} item sudah disajikan</span>
+                                  {showServed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
+                                {showServed && (
+                                  <div className="divide-y divide-gray-100 bg-gray-50">
+                                    {servedItems.map((item) => (
+                                      <div key={item.id} className="px-4 py-2 flex items-center gap-2 opacity-60">
+                                        <CheckCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                        <span className="text-xs text-gray-600">{item.quantity}x {item.productName}</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 )}
-                                Minta Bill
-                              </button>
+                              </div>
                             )}
-                            {table.status === "BILL" && (
-                              <a
-                                href={`/dashboard/pos?tableId=${table.id}`}
-                                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                Proses Pembayaran
-                              </a>
-                            )}
-                          </>
+                          </div>
                         )}
+
+                        {/* Table actions */}
+                        <div className="px-4 pb-4 pt-3 space-y-2 border-t border-gray-100">
+                          {/* Tandai Semua SERVED — tampil kalau ada item aktif */}
+                          {hasActionable && (
+                            <button
+                              onClick={() => handleMarkAllServed(table.id, items)}
+                              disabled={markingAllServed === table.id}
+                              className="w-full px-3 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                            >
+                              {markingAllServed === table.id
+                                ? <RefreshCw className="w-4 h-4 animate-spin" />
+                                : <CheckCircle className="w-4 h-4" />
+                              }
+                              Tandai Semua SERVED
+                            </button>
+                          )}
+
+                          {table.activeOrder?.isPaid ? (
+                            // PAY_FIRST: sudah dibayar, cukup info singkat
+                            <p className="text-xs text-center text-green-700 font-medium">
+                              ✓ Sudah dibayar
+                            </p>
+                          ) : (
+                            <>
+                              {table.status === "OCCUPIED" && (
+                                <button
+                                  onClick={() => handleRequestBill(table.id)}
+                                  disabled={updatingTableStatus === table.id}
+                                  className="w-full px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                  {updatingTableStatus === table.id
+                                    ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    : <AlertCircle className="w-3.5 h-3.5" />
+                                  }
+                                  Minta Bill
+                                </button>
+                              )}
+                              {table.status === "BILL" && (
+                                <a
+                                  href={`/dashboard/pos?tableId=${table.id}`}
+                                  className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  Proses Pembayaran
+                                </a>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
           {/* Takeaway section */}
           {takeaway.length > 0 && (
@@ -551,15 +600,29 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {takeaway.map((tx) => {
                   const items = tx.activeOrder.items;
-                  const activeItems = items.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
+                  const sortedItems = [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+                  const activeItems = sortedItems.filter((i) => i.status !== "SERVED" && i.status !== "CANCELLED");
+                  const servedItems = sortedItems.filter((i) => i.status === "SERVED");
                   const duration = tx.activeOrder.durationMinutes;
+                  const isUrgent = duration >= 15;
                   const allServed = items.length > 0 && items.every((i) => i.status === "SERVED" || i.status === "CANCELLED");
+                  const hasActionable = activeItems.length > 0;
+                  const showServed = showServedMap[tx.id] ?? false;
 
                   return (
                     <div
                       key={tx.id}
-                      className="rounded-xl border-2 overflow-hidden bg-purple-50 border-purple-200 transition-all"
+                      className={`rounded-xl border-2 overflow-hidden transition-all ${
+                        isUrgent ? "border-red-400 shadow-md shadow-red-100 bg-white" : "bg-purple-50 border-purple-200"
+                      }`}
                     >
+                      {isUrgent && (
+                        <div className="bg-red-500 px-4 py-1.5 flex items-center gap-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                          <span className="text-xs font-bold text-white">Takeaway menunggu {formatDuration(duration)}</span>
+                        </div>
+                      )}
+
                       {/* Header takeaway */}
                       <div className="px-4 pt-4 pb-3">
                         <div className="flex items-start justify-between mb-2">
@@ -571,17 +634,11 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                             Sudah Dibayar
                           </span>
                         </div>
-
                         <div className="flex items-center gap-1.5">
                           <Clock className={`w-3.5 h-3.5 ${getDurationColor(duration)}`} />
-                          <span className={`text-xs font-semibold ${getDurationColor(duration)}`}>
-                            {formatDuration(duration)}
-                          </span>
+                          <span className={`text-xs font-semibold ${getDurationColor(duration)}`}>{formatDuration(duration)}</span>
                           <span className="text-xs text-gray-400">
-                            sejak {new Date(tx.activeOrder.openedAt).toLocaleTimeString("id-ID", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            sejak {new Date(tx.activeOrder.openedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
                       </div>
@@ -594,20 +651,18 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                             <p className="text-xs text-green-700 font-medium">Semua item sudah disajikan</p>
                           </div>
                         )}
-
-                        <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                        <div className="divide-y divide-gray-100">
                           {activeItems.map((item) => {
                             const itemCfg = ITEM_STATUS_CONFIG[item.status];
                             const ItemIcon = itemCfg.icon;
                             const isUpdating = updatingItem === item.id;
-
                             return (
-                              <div key={item.id} className="px-4 py-2.5">
+                              <div key={item.id} className="px-4 py-3">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-bold text-gray-900 text-sm">{item.quantity}x</span>
-                                      <span className="font-medium text-gray-900 text-sm truncate">
+                                      <span className="font-bold text-gray-900">{item.quantity}x</span>
+                                      <span className="font-medium text-gray-900 text-sm">
                                         {item.productName}
                                         {item.variantLabel && (
                                           <span className="text-gray-500 font-normal"> ({item.variantLabel})</span>
@@ -617,9 +672,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                                     {item.modifiers.length > 0 && (
                                       <div className="mt-0.5 space-y-0.5">
                                         {item.modifiers.map((mod, i) => (
-                                          <p key={i} className="text-xs text-gray-500 pl-4">
-                                            → {mod.optionName}
-                                          </p>
+                                          <p key={i} className="text-xs text-gray-500 pl-4">→ {mod.optionName}</p>
                                         ))}
                                       </div>
                                     )}
@@ -627,7 +680,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                                       <p className="text-xs text-amber-700 italic pl-4 mt-0.5">! {item.note}</p>
                                     )}
                                   </div>
-                                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${itemCfg.color} ${itemCfg.bg}`}>
                                       <ItemIcon className="w-3 h-3" />
                                       {itemCfg.label}
@@ -636,9 +689,9 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                                       <button
                                         onClick={() => handleUpdateItemStatus(tx.id, item.id, itemCfg.nextStatus!, true)}
                                         disabled={isUpdating}
-                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-semibold rounded-lg transition-colors min-w-[90px] text-center"
                                       >
-                                        {isUpdating ? "..." : itemCfg.nextLabel}
+                                        {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin mx-auto" /> : itemCfg.nextLabel}
                                       </button>
                                     )}
                                   </div>
@@ -648,14 +701,46 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                           })}
                         </div>
 
-                        {items.filter((i) => i.status === "SERVED").length > 0 && (
-                          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                            <p className="text-xs text-gray-400">
-                              ✓ {items.filter((i) => i.status === "SERVED").length} item sudah disajikan
-                            </p>
+                        {/* Served items — collapsible */}
+                        {servedItems.length > 0 && (
+                          <div className="border-t border-gray-100">
+                            <button
+                              onClick={() => toggleShowServed(tx.id)}
+                              className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-400 hover:bg-gray-50 transition-colors"
+                            >
+                              <span>✓ {servedItems.length} item sudah disajikan</span>
+                              {showServed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                            {showServed && (
+                              <div className="divide-y divide-gray-100 bg-gray-50">
+                                {servedItems.map((item) => (
+                                  <div key={item.id} className="px-4 py-2 flex items-center gap-2 opacity-60">
+                                    <CheckCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">{item.quantity}x {item.productName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
+
+                      {/* Tandai Semua SERVED */}
+                      {hasActionable && (
+                        <div className="px-4 pb-4 pt-3 border-t border-gray-100">
+                          <button
+                            onClick={() => handleMarkAllServed(tx.id, items, true)}
+                            disabled={markingAllServed === tx.id}
+                            className="w-full px-3 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            {markingAllServed === tx.id
+                              ? <RefreshCw className="w-4 h-4 animate-spin" />
+                              : <CheckCircle className="w-4 h-4" />
+                            }
+                            Tandai Semua SERVED
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
