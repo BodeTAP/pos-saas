@@ -101,8 +101,13 @@ npm run dev           # Jalankan dev server
 - Takeaway tampil di Kitchen Display
 - Modifier/add-on dengan validasi server (kepedasan, suhu, ukuran)
 - Service charge per toko
-- Struk dapur (tanpa harga)
+- Struk dapur (tanpa harga) — auto-print opsional saat kirim ke dapur
 - Ketersediaan menu harian (toggle tanpa ubah stok)
+- **Reservasi meja** — jadwal tamu, kapasitas, status lifecycle (Terjadwal → Datang → Selesai/No-show)
+- **Pindah meja** — geser order ke meja lain saat tamu pindah
+- **Void item** — batalkan item individu di Kitchen Display
+- **Notifikasi READY** — alert otomatis ke kasir/pelayan saat item siap diantar
+- **Tutup paksa** (owner only) — bersihkan order yang stuck setelah pembayaran
 
 ### Inventaris
 - Stok per cabang, mutasi stok, stock opname
@@ -144,6 +149,7 @@ src/
 │   │   └── dashboard/
 │   │       ├── pos/         # Kasir + Riwayat Shift
 │   │       ├── tables/      # Manajemen Meja (F&B)
+│   │       ├── reservations/# Reservasi Meja (F&B)
 │   │       ├── kitchen/     # Kitchen Display (F&B)
 │   │       ├── modifiers/   # Modifier Menu (F&B)
 │   │       ├── menu-availability/ # Ketersediaan Menu (F&B)
