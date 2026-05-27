@@ -81,8 +81,18 @@ export function PWAInstallPrompt() {
     // Android/Chrome: tangkap event beforeinstallprompt
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
+
+      // Re-check dismiss setiap kali event fire (browser bisa fire ulang tiap navigasi)
+      const dismissedNow = localStorage.getItem(DISMISS_KEY);
+      if (dismissedNow) {
+        const daysSince = (Date.now() - parseInt(dismissedNow)) / (1000 * 60 * 60 * 24);
+        if (daysSince < DISMISS_DAYS) return;
+      }
+      if (localStorage.getItem(INSTALLED_KEY) === "1") return;
+
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       // Tampilkan prompt setelah delay
+      if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setShowPrompt(true), remainingMs);
     };
 
@@ -127,6 +137,8 @@ export function PWAInstallPrompt() {
 
   function handleDismiss() {
     setShowPrompt(false);
+    setDeferredPrompt(null); // clear agar tidak bisa trigger ulang
+    if (timerRef.current) clearTimeout(timerRef.current);
     localStorage.setItem(DISMISS_KEY, Date.now().toString());
   }
 
