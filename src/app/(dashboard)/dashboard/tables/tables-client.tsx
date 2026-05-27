@@ -232,13 +232,6 @@ function TableFormModal({
     setIsLoading(true);
     setError("");
 
-    // Validasi outletId tersedia
-    if (!outletId) {
-      setError("Cabang aktif tidak ditemukan. Pastikan Anda sudah memilih cabang.");
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const url = table ? `/api/tables/${table.id}` : "/api/tables";
       const method = table ? "PUT" : "POST";
@@ -250,7 +243,7 @@ function TableFormModal({
           name: form.name.trim() || null,
           capacity: parseInt(form.capacity) || 4,
           area: form.area.trim() || null,
-          outletId, // sudah dipastikan tidak null di atas
+          // outletId tidak dikirim — API resolve dari session
         }),
       });
       const data = await res.json();

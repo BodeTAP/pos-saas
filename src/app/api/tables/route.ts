@@ -10,7 +10,7 @@ const createTableSchema = z.object({
   name: z.string().max(50).optional().nullable(),
   capacity: z.number().int().positive().default(4),
   area: z.string().max(50).optional().nullable(),
-  outletId: z.string().cuid().optional().nullable(), // opsional, default ke outlet aktif
+  // outletId tidak diterima dari client — selalu resolve dari session
 });
 
 /**
@@ -80,12 +80,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: parsed.status });
     }
 
-    const { number, name, capacity, area, outletId: bodyOutletId } = parsed.data;
+    const { number, name, capacity, area } = parsed.data;
 
-    // Resolve outlet — pakai dari body jika ada, fallback ke outlet aktif session
-    const outletId = (bodyOutletId ?? null) || await getActiveOutletId();
+    // Selalu resolve outlet dari session — tidak terima dari client untuk keamanan
+    const outletId = await getActiveOutletId();
     if (!outletId) {
-      return NextResponse.json({ error: "Cabang tidak ditemukan." }, { status: 400 });
+      return NextResponse.json({ error: "Cabang aktif tidak ditemukan." }, { status: 400 });
     }
 
     // Validasi outlet milik tenant
