@@ -804,3 +804,44 @@ MIT License — bebas digunakan dan dimodifikasi.
 - Settings: 2 radio card untuk pilih PaymentFlow (hanya untuk FNB)
 - POS: tombol "Kirim ke Dapur" di CartPanel hanya tampil untuk PAY_LATER
 - Kitchen Display: section baru "🥡 Takeaway" untuk transaksi PAY_FIRST tanpa meja
+
+
+### ✅ Fase 24 — F&B Hardening (Audit Komprehensif & Perbaikan Bug)
+
+Audit menyeluruh menemukan 46 bug di seluruh fitur F&B (Sprint 1-3 + Fase 20-23). 34 di antaranya diperbaiki dalam 3 batch.
+
+**Race Condition & Data Integrity:**
+- **Partial unique index** `table_orders_one_active_per_table` — cegah 2 kasir buka order di meja yang sama bersamaan (P2002 di-handle dengan return 409 + existing order)
+- **Composite index** `OrderItem(tenantId, status, transactionId)` — query Kitchen Display takeaway lebih cepat
+- **Atomic settle TableOrder** dengan try-catch proper — error tidak di-swallow, kembalikan `warning` field di response transaksi
+- **Reject double-charge** — tolak transaksi jika `tableOrder.transactionId` sudah ada (cegah bayar 2x)
+- **Cart store key fix** — semua action (`updateQuantity`, `removeItem`, `updateItemDiscount`) include modifier hash agar item dengan modifier berbeda tidak saling override
+
+**Multi-Outlet Security:**
+- Filter outlet aktif di semua API: `tables/[id]`, `tables/[id]/order`, `tables/[id]/order/items`, `tables/[id]/status`, `order-items/[id]` (PATCH/DELETE) — cegah cross-outlet leak antar cabang dalam tenant sama
+
+**Server-Side Validation:**
+- **Modifier validation** di `POST /api/tables/[id]/order/items`: validasi produk milik tenant, varian SKU milik produk, modifier `required`/`minSelect`/`maxSelect`, option name match (cegah injection), `extraPrice` selalu re-compute dari DB (cegah harga manipulation)
+- **ModifierGroup Zod refine** di POST/PUT `/api/modifiers`: `maxSelect >= minSelect`, single-select harus `maxSelect=1`, jumlah default option tidak melebihi batas
+- **Service charge** dari client diabaikan — server otoritas (cegah bypass via direct API call)
+- **Settings paymentFlow guard** — tolak ubah `paymentFlow` jika ada `TableOrder` aktif (cegah limbo state mid-shift)
+
+**API Baru:**
+- `PATCH /api/products/availability/batch` — bulk update menu availability dalam 1 request (sebelumnya N request paralel)
+
+**Modifier & Receipt Consistency:**
+- `TransactionItemModifier` snapshot saat transaksi dibuat (online & offline sync)
+- `OrderItemModifier` propagate ke auto-create OrderItem (PAY_FIRST meja & takeaway)
+- Receipt thermal (`print-receipt.ts`) include service charge, modifier add-on, info meja
+- Reprint receipt di `/dashboard/transactions` & `/dashboard/pos/history` mapping modifier + serviceCharge + tableOrder
+
+**Auto-Load Cart & Kitchen Display:**
+- POS server fetch `initialCartItems` skip jika `tableOrder.transactionId` sudah ada (cegah double-load)
+- Kitchen Display polling skip saat `updatingItem !== null` (cegah override optimistic update)
+- `loadOrderItemsToCart` set `stock`/`minStock` dari product state (warning low/over stock akurat)
+- Reports F&B include takeaway PAY_FIRST + outlier filter 24 jam (sebelumnya 8 jam, hilang restoran late night)
+
+**Migration Baru:**
+- `20260527100000_add_order_items_kitchen` — schema OrderItem + OrderItemModifier + enum OrderItemStatus + paymentFlow (hilang dari Sprint 3 awal)
+- `20260527110000_table_order_unique_active` — partial unique index
+- `20260527120000_order_items_composite_index` — composite index Kitchen Display
