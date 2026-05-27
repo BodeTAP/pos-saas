@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { OrderItemStatus } from "@prisma/client";
 import { getActiveOutletId } from "@/lib/active-outlet";
+import { notifyItemReady } from "@/lib/notifications";
 
 const STATUS_TIMESTAMPS: Partial<Record<OrderItemStatus, string>> = {
   COOKING: "cookedAt",
@@ -78,6 +79,28 @@ export async function PATCH(
       data: updateData,
       include: { modifiers: true },
     });
+
+    // Trigger notifikasi saat item siap disajikan (READY)
+    if (status === "READY") {
+      // Ambil info meja / invoice untuk pesan notifikasi
+      const ctx = await prisma.orderItem.findUnique({
+        where: { id },
+        select: {
+          productName: true,
+          quantity: true,
+          tableOrder: { select: { table: { select: { number: true } } } },
+          transaction: { select: { invoiceNumber: true } },
+        },
+      });
+      if (ctx) {
+        notifyItemReady(session.user.tenantId, {
+          itemName: ctx.productName,
+          quantity: ctx.quantity,
+          tableNumber: ctx.tableOrder?.table.number ?? null,
+          invoiceNumber: ctx.transaction?.invoiceNumber ?? null,
+        });
+      }
+    }
 
     // Jika status diubah ke SERVED, cek apakah semua item di order sudah SERVED/CANCELLED
     // Hanya auto-close TableOrder yang SUDAH DIBAYAR (PAY_FIRST) — biarkan PAY_LATER tunggu kasir

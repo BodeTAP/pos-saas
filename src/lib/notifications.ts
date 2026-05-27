@@ -91,3 +91,33 @@ export function notifyLowStock(
     });
   }
 }
+
+/**
+ * F&B: notifikasi item siap disajikan (READY).
+ * Dipanggil dari API saat juru masak set status item → READY.
+ * Tidak ada deduplication karena setiap item harus dinotifikasi.
+ */
+export function notifyItemReady(
+  tenantId: string,
+  opts: {
+    itemName: string;
+    quantity: number;
+    tableNumber?: string | null;
+    invoiceNumber?: string | null; // untuk takeaway
+  }
+): void {
+  const isTakeaway = !opts.tableNumber;
+  const title = isTakeaway
+    ? `🔔 Siap Antar — Takeaway`
+    : `🔔 Siap Antar — Meja #${opts.tableNumber}`;
+  const message = isTakeaway
+    ? `${opts.quantity}x ${opts.itemName} siap untuk takeaway ${opts.invoiceNumber ?? ""}.`
+    : `${opts.quantity}x ${opts.itemName} siap diantar ke meja #${opts.tableNumber}.`;
+  createNotification({
+    tenantId,
+    type: "SYSTEM",
+    title,
+    message,
+    link: isTakeaway ? "/dashboard/kitchen" : `/dashboard/tables`,
+  });
+}
