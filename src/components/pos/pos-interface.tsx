@@ -741,7 +741,7 @@ function TableSelectorModal({
       const updatedTable: TableInfo = {
         ...table,
         status: "OCCUPIED",
-        activeOrderId: data.tableOrder.id,
+        activeOrderId: data.order.id,
       };
       onSelect(updatedTable);
     } catch {
@@ -914,7 +914,9 @@ function ModifierPickerModal({
   const isValid = groups.every((group) => {
     if (!group.required) return true;
     const selected = selections.get(group.id);
-    return selected && selected.size >= group.minSelect;
+    // required group harus minimal 1 pilihan (minSelect bisa 0 tapi required tetap butuh 1)
+    const minRequired = Math.max(1, group.minSelect);
+    return selected && selected.size >= minRequired;
   });
 
   // Hitung total extra price

@@ -720,3 +720,27 @@ Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
 ## Lisensi
 
 MIT License — bebas digunakan dan dimodifikasi.
+
+### ✅ Fase 20 — F&B Sprint 1 & 2 — Manajemen Meja & Integrasi POS
+- **Schema baru**: `Table`, `TableOrder`, enum `TableStatus` (EMPTY/OCCUPIED/BILL/RESERVED), field `serviceChargePct` di `Tenant`, field `tableOrderId` di `Transaction`, field `serviceCharge`/`serviceChargePct` di `Transaction`
+- **Tipe bisnis**: enum `BusinessType` (RETAIL/FNB/SERVICE/OTHER) di `Tenant` — menentukan fitur & tampilan sidebar
+- **Manajemen Meja** (`/dashboard/tables`) — CRUD meja dengan nomor, nama, kapasitas, area; summary cards per status; grid per area
+- **API Meja**: `GET/POST /api/tables`, `GET/PUT/DELETE /api/tables/[id]`, `POST/GET/DELETE /api/tables/[id]/order`
+- **TableSelectorModal di POS** — kasir pilih meja sebelum transaksi; meja EMPTY otomatis dibuka TableOrder baru; meja OCCUPIED langsung dipilih
+- **Service charge** — dikonfigurasi per toko (%), dihitung setelah diskon sebelum pajak, tampil di payment modal dan struk
+- **Integrasi transaksi F&B** — `tableOrderId` dikirim ke API, TableOrder ditutup dan meja di-set EMPTY setelah bayar
+- **Offline support F&B** — `tableOrderId` disertakan di `OfflineTransactionPayload`, sync-transactions menutup TableOrder saat sync
+- Sidebar: menu "Meja" hanya muncul untuk businessType FNB
+
+### ✅ Fase 21 — F&B Sprint 3 — Kitchen Display, Modifier, Laporan F&B
+- **Schema baru**: `ModifierGroup`, `ModifierOption`, `ProductModifierGroup`, `TransactionItemModifier`, field `availableToday` di `Product`
+- **Modifier / Add-on** (`/dashboard/modifiers`) — buat grup modifier (Tingkat Kepedasan, Suhu, Ukuran, dll), tambah opsi dengan harga tambahan, assign ke produk; support wajib/opsional, single/multi-pilih
+- **ModifierPickerModal di POS** — kasir pilih add-on setelah pilih produk/varian; harga final = harga dasar + total extra modifier; produk dengan modifier berbeda jadi item terpisah di keranjang
+- **Kitchen Display** (`/dashboard/kitchen`) — tampilan real-time semua meja aktif (OCCUPIED/BILL); auto-refresh polling 10 detik; durasi duduk dengan warna (hijau/kuning/merah); tombol Minta Bill; alert meja menunggu pembayaran
+- **Order Meja Detail** (`/dashboard/tables/[id]`) — detail order aktif per meja: daftar item + modifier, estimasi total (subtotal + service charge + pajak), tombol Minta Bill / Bayar di POS / Batalkan Order
+- **Struk Dapur** (`KitchenReceipt`) — struk tanpa harga, font besar untuk dapur, tampilkan modifier per item, info meja/area; print via popup window
+- **Service charge di struk pelanggan** — tampil di `Receipt` dengan persentase dan nominal; info nomor meja juga tampil di struk
+- **Ketersediaan Menu** (`/dashboard/menu-availability`) — toggle menu tersedia/habis hari ini tanpa ubah stok; bulk set semua tersedia/habis; filter per kategori; POS otomatis filter `availableToday = true` untuk FNB
+- **Laporan F&B** — tab baru "F&B" di halaman Laporan (hanya muncul untuk FNB): summary (pendapatan, transaksi, rata-rata, durasi duduk), revenue per area, menu terlaris; data di-fetch client-side saat tab diklik
+- **API baru**: `GET /api/kitchen`, `PATCH /api/tables/[id]/status`, `GET/POST /api/modifiers`, `PUT/DELETE /api/modifiers/[id]`, `POST/DELETE /api/modifiers/[id]/products`, `PATCH /api/products/[id]/availability`, `GET /api/reports/fnb`
+- Sidebar F&B: 4 menu baru (Meja, Kitchen Display, Menu Hari Ini, Modifier Menu) — hanya muncul untuk FNB

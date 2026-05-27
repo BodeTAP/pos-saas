@@ -71,14 +71,26 @@ export const useCartStore = create<CartState>((set) => ({
 
   addItem: (newItem) => {
     set((state) => {
-      // Key unik: productId + variantSkuId (null untuk produk tanpa varian)
-      const itemKey = `${newItem.productId}:${newItem.variantSkuId ?? ""}`;
+      // Key unik: productId + variantSkuId + modifier options (untuk F&B)
+      // Produk yang sama dengan modifier berbeda harus jadi item terpisah
+      const modifierKey = newItem.modifiers && newItem.modifiers.length > 0
+        ? newItem.modifiers.map((m) => m.optionId).sort().join(",")
+        : "";
+      const itemKey = `${newItem.productId}:${newItem.variantSkuId ?? ""}:${modifierKey}`;
       const existing = state.items.find(
-        (i) => `${i.productId}:${i.variantSkuId ?? ""}` === itemKey
+        (i) => {
+          const iModifierKey = i.modifiers && i.modifiers.length > 0
+            ? i.modifiers.map((m) => m.optionId).sort().join(",")
+            : "";
+          return `${i.productId}:${i.variantSkuId ?? ""}:${iModifierKey}` === itemKey;
+        }
       );
       if (existing) {
         const updatedItems = state.items.map((i) => {
-          if (`${i.productId}:${i.variantSkuId ?? ""}` !== itemKey) return i;
+          const iModifierKey = i.modifiers && i.modifiers.length > 0
+            ? i.modifiers.map((m) => m.optionId).sort().join(",")
+            : "";
+          if (`${i.productId}:${i.variantSkuId ?? ""}:${iModifierKey}` !== itemKey) return i;
           return {
             ...i,
             quantity: i.quantity + newItem.quantity,

@@ -9,8 +9,7 @@ import {
   Loader2, ShoppingCart, X, Printer,
 } from "lucide-react";
 import Link from "next/link";
-import { KitchenReceipt, type KitchenReceiptData } from "@/components/pos/receipt";
-import { printReceipt } from "@/lib/print-receipt";
+import { type KitchenReceiptData } from "@/components/pos/receipt";
 
 interface TransactionItem {
   id: string;
@@ -80,16 +79,13 @@ export function TableDetailClient({
     : 0;
 
   // Hitung total dari items jika ada transaksi
+  // item.subtotal sudah mencakup harga final (basePrice + modifierExtra) * qty - discount
+  // karena price di cart sudah = basePrice + modifierExtraTotal saat ditambahkan
   const items = activeOrder?.transaction?.items ?? [];
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
-  const modifierTotal = items.reduce(
-    (s, i) => s + i.modifiers.reduce((ms, m) => ms + m.extraPrice * i.quantity, 0),
-    0
-  );
-  const subtotalWithModifiers = subtotal + modifierTotal;
-  const serviceCharge = subtotalWithModifiers * (serviceChargePct / 100);
-  const tax = (subtotalWithModifiers + serviceCharge) * (taxRate / 100);
-  const total = subtotalWithModifiers + serviceCharge + tax;
+  const serviceCharge = subtotal * (serviceChargePct / 100);
+  const tax = (subtotal + serviceCharge) * (taxRate / 100);
+  const total = subtotal + serviceCharge + tax;
 
   async function handleRequestBill() {
     setIsUpdating(true);
@@ -302,7 +298,7 @@ export function TableDetailClient({
           <div className="px-5 py-4 border-t border-gray-200 bg-gray-50 space-y-1.5">
             <div className="flex justify-between text-sm text-gray-600">
               <span>Subtotal</span>
-              <span>{formatCurrency(subtotalWithModifiers)}</span>
+              <span>{formatCurrency(subtotal)}</span>
             </div>
             {serviceChargePct > 0 && (
               <div className="flex justify-between text-sm text-gray-600">
@@ -419,6 +415,3 @@ function renderKitchenReceiptHTML(data: KitchenReceiptData): string {
     </div>
   `;
 }
-
-// Re-export printReceipt untuk digunakan di komponen ini
-export { printReceipt };

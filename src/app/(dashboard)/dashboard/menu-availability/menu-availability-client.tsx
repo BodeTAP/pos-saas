@@ -79,6 +79,9 @@ export function MenuAvailabilityClient({
     const targets = products.filter((p) => p.availableToday !== available);
     if (targets.length === 0) return;
 
+    // Snapshot state sebelum bulk update untuk rollback
+    const prevProducts = [...products];
+
     // Optimistic
     setProducts((prev) => prev.map((p) => ({ ...p, availableToday: available })));
 
@@ -98,8 +101,8 @@ export function MenuAvailabilityClient({
           : "Semua menu ditandai habis."
       );
     } catch {
-      // Rollback
-      setProducts(initialProducts);
+      // Rollback ke state sebelum bulk update
+      setProducts(prevProducts);
       toast.error("Gagal update semua menu.");
     }
   }
