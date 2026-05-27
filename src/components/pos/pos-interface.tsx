@@ -9,7 +9,8 @@ import { HeldTransactionsModal } from "./held-transactions-modal";
 import { ShiftModal } from "./shift-modal";
 import { Category, Product } from "@prisma/client";
 import { saveHeldTransaction, getHeldTransactions } from "@/lib/hold-transactions";
-import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";import { useOfflineSync } from "@/hooks/use-offline-sync";
+import { PauseCircle, Clock, ShoppingCart, X } from "lucide-react";
+import { useOfflineSync } from "@/hooks/use-offline-sync";
 import { useOfflinePinSync } from "@/hooks/use-offline-pin-sync";
 import { OfflineBanner, OfflineIndicator, StaleBanner } from "@/components/pwa/offline-indicator";
 import { OfflineSyncStatus } from "@/components/pwa/offline-sync-status";
@@ -17,6 +18,7 @@ import { OfflinePinModal } from "@/components/pwa/offline-pin-modal";
 import { getActiveOfflineSession, hasValidOfflinePin } from "@/lib/offline-pin";
 import { VariantPickerModal, type ProductForVariant } from "./variant-picker-modal";
 import { TableStatus } from "@prisma/client";
+import { toast } from "@/components/ui/toaster";
 
 type ProductWithCategory = Product & {
   category: Category | null;
@@ -452,17 +454,14 @@ export function POSInterface({
       });
       const data = await res.json();
       if (!res.ok) {
-        const { toast: toastFn } = await import("@/components/ui/toaster");
-        toastFn.error(data.error || "Gagal mengirim ke dapur.");
+        toast.error(data.error || "Gagal mengirim ke dapur.");
         return;
       }
       // Kosongkan keranjang, meja tetap terpilih
       cart.clearCart();
-      const { toast: toastFn } = await import("@/components/ui/toaster");
-      toastFn.success(`${data.items.length} item dikirim ke dapur.`);
+      toast.success(`${data.items.length} item dikirim ke dapur.`);
     } catch {
-      const { toast: toastFn } = await import("@/components/ui/toaster");
-      toastFn.error("Gagal terhubung ke server.");
+      toast.error("Gagal terhubung ke server.");
     } finally {
       setIsSendingToKitchen(false);
     }

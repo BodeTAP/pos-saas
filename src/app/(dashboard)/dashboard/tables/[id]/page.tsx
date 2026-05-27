@@ -28,30 +28,19 @@ export default async function TableDetailPage({
         take: 1,
         orderBy: { openedAt: "desc" },
         include: {
+          // OrderItems — item yang dikirim ke dapur (sebelum bayar)
+          items: {
+            where: { status: { not: "CANCELLED" } },
+            include: { modifiers: true },
+            orderBy: { sentAt: "asc" },
+          },
+          // Transaction — hanya ada setelah dibayar
           transaction: {
             select: {
               id: true,
               invoiceNumber: true,
               total: true,
               status: true,
-              items: {
-                select: {
-                  id: true,
-                  productName: true,
-                  quantity: true,
-                  unitPrice: true,
-                  discount: true,
-                  subtotal: true,
-                  variantLabel: true,
-                  modifiers: {
-                    select: {
-                      modifierGroupName: true,
-                      modifierOptionName: true,
-                      extraPrice: true,
-                    },
-                  },
-                },
-              },
             },
           },
         },
@@ -81,24 +70,31 @@ export default async function TableDetailPage({
               id: activeOrder.id,
               openedAt: activeOrder.openedAt.toISOString(),
               note: activeOrder.note,
+              isPaid: !!activeOrder.transaction,
               transaction: activeOrder.transaction
                 ? {
                     id: activeOrder.transaction.id,
                     invoiceNumber: activeOrder.transaction.invoiceNumber,
                     total: activeOrder.transaction.total,
                     status: activeOrder.transaction.status,
-                    items: activeOrder.transaction.items.map((item) => ({
-                      id: item.id,
-                      productName: item.productName,
-                      quantity: item.quantity,
-                      unitPrice: item.unitPrice,
-                      discount: item.discount,
-                      subtotal: item.subtotal,
-                      variantLabel: item.variantLabel,
-                      modifiers: item.modifiers,
-                    })),
                   }
                 : null,
+              // OrderItems — item yang dikirim ke dapur
+              orderItems: activeOrder.items.map((item) => ({
+                id: item.id,
+                status: item.status,
+                productName: item.productName,
+                variantLabel: item.variantLabel,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                note: item.note,
+                sentAt: item.sentAt.toISOString(),
+                modifiers: item.modifiers.map((m) => ({
+                  groupName: m.modifierGroupName,
+                  optionName: m.modifierOptionName,
+                  extraPrice: m.extraPrice,
+                })),
+              })),
             }
           : null
       }
