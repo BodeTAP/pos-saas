@@ -121,16 +121,7 @@ export function POSInterface({
 
   // F&B: auto-select meja dari URL param ?tableId=
   // dan load order items ke keranjang
-  useEffect(() => {
-    if (!isFnB || !initialTableId || initialTables.length === 0) return;
-    const table = initialTables.find((t) => t.id === initialTableId);
-    if (table && table.activeOrderId) {
-      setSelectedTable(table);
-      // Load order items ke keranjang
-      loadOrderItemsToCart(table);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // hanya saat mount
+  // CATATAN: useEffect ini dipindah ke bawah deklarasi cart agar cart tersedia
   const [heldCount, setHeldCount] = useState(() =>
     typeof window !== "undefined" ? getHeldTransactions(cashierId).length : 0
   );
@@ -279,6 +270,7 @@ export function POSInterface({
    * F&B: Load order items dari dapur ke keranjang.
    * Dipanggil saat kasir memilih meja yang sudah ada order aktif.
    * Hanya load item yang belum SERVED/CANCELLED.
+   * Menggunakan getState() agar tidak bergantung pada urutan deklarasi cart.
    */
   async function loadOrderItemsToCart(table: TableInfo) {
     if (!table.activeOrderId) return;
@@ -311,10 +303,11 @@ export function POSInterface({
 
       if (activeItems.length === 0) return;
 
-      // Kosongkan keranjang dulu, lalu isi dengan order items
-      cart.clearCart();
+      // Gunakan getState() agar tidak bergantung pada closure cart
+      const cartStore = useCartStore.getState();
+      cartStore.clearCart();
       for (const item of activeItems) {
-        cart.addItem({
+        cartStore.addItem({
           productId: item.productId,
           name: item.productName,
           sku: item.productSku ?? undefined,
@@ -340,6 +333,16 @@ export function POSInterface({
     }
   }
 
+  // F&B: auto-select meja dari URL param ?tableId= (diletakkan setelah loadOrderItemsToCart)
+  useEffect(() => {
+    if (!isFnB || !initialTableId || initialTables.length === 0) return;
+    const table = initialTables.find((t) => t.id === initialTableId);
+    if (table && table.activeOrderId) {
+      setSelectedTable(table);
+      loadOrderItemsToCart(table);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // hanya saat mount
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       search === "" ||
@@ -828,7 +831,7 @@ export function POSInterface({
               loadOrderItemsToCart(table);
             } else if (!table) {
               // Pilih takeaway — kosongkan keranjang jika sebelumnya ada meja
-              if (selectedTable) cart.clearCart();
+              if (selectedTable) useCartStore.getState().clearCart();
             }
           }}
           onClose={() => setShowTableSelector(false)}
