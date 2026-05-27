@@ -55,7 +55,8 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
     }
     if (!confirm(`Hapus meja ${table.number}?`)) return;
 
-    const original = tables.find((t) => t.id === table.id);
+    // Snapshot urutan sekarang untuk rollback yang akurat
+    const snapshot = [...tables];
     // Optimistic delete
     setTables((prev) => prev.filter((t) => t.id !== table.id));
     setIsDeleting(table.id);
@@ -63,15 +64,15 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
     try {
       const res = await fetch(`/api/tables/${table.id}`, { method: "DELETE" });
       if (!res.ok) {
-        // Rollback
-        if (original) setTables((prev) => [...prev, original]);
+        // Rollback ke snapshot — pertahankan urutan asli
+        setTables(snapshot);
         const data = await res.json();
         toast.error(data.error || "Gagal menghapus meja.");
       } else {
         toast.success(`Meja ${table.number} berhasil dihapus.`);
       }
     } catch {
-      if (original) setTables((prev) => [...prev, original]);
+      setTables(snapshot);
       toast.error("Terjadi kesalahan koneksi.");
     } finally {
       setIsDeleting(null);

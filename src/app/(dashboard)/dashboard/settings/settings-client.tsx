@@ -55,8 +55,8 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
     pointsPerAmount: (tenant.pointsPerAmount ?? 10000).toString(),
     pointValue: (tenant.pointValue ?? 100).toString(),
     activePaymentMethods: parsedMethods,
-    serviceChargePct: ((tenant as { serviceChargePct?: number }).serviceChargePct ?? 0).toString(),
-    paymentFlow: ((tenant as { paymentFlow?: string }).paymentFlow ?? "PAY_FIRST") as "PAY_FIRST" | "PAY_LATER",
+    serviceChargePct: (tenant.serviceChargePct ?? 0).toString(),
+    paymentFlow: (tenant.paymentFlow ?? "PAY_FIRST") as "PAY_FIRST" | "PAY_LATER",
   });
 
   function handleChange(
@@ -198,7 +198,7 @@ export function SettingsClient({ tenant, staff }: SettingsClientProps) {
           </div>
 
           {/* Service charge — hanya tampil untuk F&B */}
-          {(tenant as { businessType?: string }).businessType === "FNB" && (
+          {tenant.businessType === "FNB" && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

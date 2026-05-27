@@ -545,7 +545,7 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
                   return (
                     <div
                       key={tx.id}
-                      className="bg-white rounded-xl border-2 overflow-hidden bg-purple-50 border-purple-200 transition-all"
+                      className="rounded-xl border-2 overflow-hidden bg-purple-50 border-purple-200 transition-all"
                     >
                       {/* Header takeaway */}
                       <div className="px-4 pt-4 pb-3">

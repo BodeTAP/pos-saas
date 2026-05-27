@@ -7,6 +7,12 @@ import { ReprintButton } from "@/components/pos/reprint-button";
 import { RefundModal } from "@/components/transactions/refund-modal";
 import type { ReceiptData } from "@/components/pos/receipt";
 
+interface TransactionItemModifier {
+  modifierGroupName: string;
+  modifierOptionName: string;
+  extraPrice: number;
+}
+
 interface TransactionItem {
   id: string;
   productName: string;
@@ -15,6 +21,8 @@ interface TransactionItem {
   unitPrice: number;
   discount: number;
   subtotal: number;
+  variantLabel?: string | null;
+  modifiers?: TransactionItemModifier[];
 }
 
 interface TransactionData {
@@ -25,6 +33,8 @@ interface TransactionData {
   subtotal: number;
   discount: number;
   discountPct: number;
+  serviceCharge?: number;
+  serviceChargePct?: number;
   tax: number;
   taxPct: number;
   total: number;
@@ -36,6 +46,7 @@ interface TransactionData {
   outlet: { id: string; name: string } | null;
   customer: { name: string } | null;
   items: TransactionItem[];
+  tableOrder?: { table: { number: string; area: string | null } } | null;
 }
 
 interface OutletSummary {
@@ -50,6 +61,7 @@ interface TenantInfo {
   phone: string | null;
   receiptWidth: number;
   receiptNote: string | null;
+  receiptHeader?: string | null;
 }
 
 interface TransactionsClientProps {
@@ -89,17 +101,27 @@ export function TransactionsClient({
       storeAddress: tenant?.address,
       storePhone: tenant?.phone,
       receiptNote: tenant?.receiptNote,
+      receiptHeader: tenant?.receiptHeader,
       receiptWidth: tenant?.receiptWidth || 80,
       cashierName: tx.cashier.name,
+      tableNumber: tx.tableOrder?.table.number ?? null,
+      tableArea: tx.tableOrder?.table.area ?? null,
       items: tx.items.map((i) => ({
-        name: i.productName,
+        name: i.variantLabel ? `${i.productName} (${i.variantLabel})` : i.productName,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         discount: i.discount,
         subtotal: i.subtotal,
+        modifiers: i.modifiers?.map((m) => ({
+          groupName: m.modifierGroupName,
+          optionName: m.modifierOptionName,
+          extraPrice: m.extraPrice,
+        })),
       })),
       subtotal: tx.subtotal,
       discountAmount: tx.discount,
+      serviceChargeAmount: tx.serviceCharge,
+      serviceChargePct: tx.serviceChargePct,
       taxAmount: tx.tax,
       taxPct: tx.taxPct,
       total: tx.total,

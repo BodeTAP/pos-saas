@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { parseBody } from "@/lib/schemas";
+import { getActiveOutletId } from "@/lib/active-outlet";
 
 const updateTableSchema = z.object({
   number: z.string().min(1).max(20).optional(),
@@ -28,8 +29,13 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
-      where: { id, tenantId: session.user.tenantId },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        ...(outletId ? { outletId } : {}),
+      },
     });
     if (!table) {
       return NextResponse.json({ error: "Meja tidak ditemukan." }, { status: 404 });
@@ -98,8 +104,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
-      where: { id, tenantId: session.user.tenantId },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        ...(outletId ? { outletId } : {}),
+      },
       include: { tableOrders: { where: { closedAt: null }, take: 1 } },
     });
     if (!table) {

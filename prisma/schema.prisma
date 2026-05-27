@@ -961,6 +961,8 @@ model OrderItem {
   @@index([tableOrderId])
   @@index([transactionId])
   @@index([tenantId])
+  // Composite index untuk Kitchen Display takeaway query (filter status + transactionId)
+  @@index([tenantId, status, transactionId])
   @@map("order_items")
 }
 

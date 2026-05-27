@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { OrderItemStatus } from "@prisma/client";
+import { getActiveOutletId } from "@/lib/active-outlet";
 
 const STATUS_TIMESTAMPS: Partial<Record<OrderItemStatus, string>> = {
   COOKING: "cookedAt",
@@ -28,11 +29,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Validasi item milik tenant ini (support both dine-in dan takeaway)
+    const outletId = await getActiveOutletId();
+
+    // Validasi item milik tenant ini + outlet aktif (cegah cross-outlet leak)
+    // Item bisa di TableOrder (dine-in via table.outletId) atau Transaction (takeaway via transaction.outletId)
     const item = await prisma.orderItem.findFirst({
       where: {
         id,
         tenantId: session.user.tenantId,
+        ...(outletId
+          ? {
+              OR: [
+                { tableOrder: { table: { outletId } } },
+                { transaction: { outletId } },
+              ],
+            }
+          : {}),
       },
       select: { id: true, status: true, tableOrderId: true, transactionId: true },
     });
@@ -122,10 +134,19 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const item = await prisma.orderItem.findFirst({
       where: {
         id,
         tenantId: session.user.tenantId,
+        ...(outletId
+          ? {
+              OR: [
+                { tableOrder: { table: { outletId } } },
+                { transaction: { outletId } },
+              ],
+            }
+          : {}),
       },
       select: { id: true, status: true },
     });

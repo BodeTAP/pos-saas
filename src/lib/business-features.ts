@@ -57,7 +57,7 @@ export const BUSINESS_FEATURES: Record<BusinessType, BusinessFeatureConfig> = {
     features: {
       purchaseOrders: true,
       tableManagement: true,  // ✅ aktif
-      kitchenDisplay: false,
+      kitchenDisplay: true,   // ✅ aktif
     },
   },
   SERVICE: {

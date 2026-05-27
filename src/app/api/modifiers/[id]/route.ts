@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { z } from "zod";
+
+const modifierOptionSchema = z.object({
+  name: z.string().min(1, "Nama opsi wajib diisi.").max(50),
+  extraPrice: z.number().nonnegative("Harga tambahan tidak boleh negatif.").default(0),
+  isDefault: z.boolean().default(false),
+  position: z.number().int().nonnegative().optional(),
+});
+
+const modifierGroupSchema = z
+  .object({
+    name: z.string().min(1, "Nama grup modifier wajib diisi.").max(100).trim(),
+    required: z.boolean().default(false),
+    multiple: z.boolean().default(false),
+    minSelect: z.number().int().nonnegative().default(0),
+    maxSelect: z.number().int().positive().default(1),
+    options: z.array(modifierOptionSchema).min(1, "Minimal satu opsi modifier wajib diisi."),
+  })
+  .refine((data) => data.maxSelect >= data.minSelect, {
+    message: "maxSelect harus >= minSelect.",
+    path: ["maxSelect"],
+  })
+  .refine((data) => data.multiple || data.maxSelect === 1, {
+    message: "Group single-pilih harus punya maxSelect = 1.",
+    path: ["maxSelect"],
+  })
+  .refine(
+    (data) => {
+      const defaultCount = data.options.filter((o) => o.isDefault).length;
+      if (!data.multiple && defaultCount > 1) return false;
+      if (data.multiple && defaultCount > data.maxSelect) return false;
+      return true;
+    },
+    {
+      message: "Jumlah opsi default melebihi batas.",
+      path: ["options"],
+    }
+  );
 
 /**
  * PUT /api/modifiers/[id]
@@ -25,21 +63,14 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { name, required, multiple, minSelect, maxSelect, options } = body as {
-      name: string;
-      required?: boolean;
-      multiple?: boolean;
-      minSelect?: number;
-      maxSelect?: number;
-      options: Array<{ name: string; extraPrice?: number; isDefault?: boolean; position?: number }>;
-    };
-
-    if (!name?.trim()) {
-      return NextResponse.json({ error: "Nama grup modifier wajib diisi." }, { status: 400 });
+    const result = modifierGroupSchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error.issues[0]?.message ?? "Data tidak valid." },
+        { status: 400 }
+      );
     }
-    if (!options || options.length === 0) {
-      return NextResponse.json({ error: "Minimal satu opsi modifier wajib diisi." }, { status: 400 });
-    }
+    const { name, required, multiple, minSelect, maxSelect, options } = result.data;
 
     // Replace semua options (delete + recreate)
     const group = await prisma.$transaction(async (tx) => {
@@ -47,16 +78,16 @@ export async function PUT(
       return tx.modifierGroup.update({
         where: { id },
         data: {
-          name: name.trim(),
-          required: required ?? false,
-          multiple: multiple ?? false,
-          minSelect: minSelect ?? 0,
-          maxSelect: maxSelect ?? 1,
+          name,
+          required,
+          multiple,
+          minSelect,
+          maxSelect,
           options: {
             create: options.map((opt, idx) => ({
               name: opt.name.trim(),
-              extraPrice: opt.extraPrice ?? 0,
-              isDefault: opt.isDefault ?? false,
+              extraPrice: opt.extraPrice,
+              isDefault: opt.isDefault,
               position: opt.position ?? idx,
             })),
           },

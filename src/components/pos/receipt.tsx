@@ -217,7 +217,7 @@ export interface KitchenReceiptData {
   invoiceNumber: string;
   tableNumber?: string | null;
   tableArea?: string | null;
-  cashierName: string;
+  cashierName?: string | null;
   note?: string | null;
   createdAt: Date;
   items: Array<{
@@ -266,10 +266,12 @@ export const KitchenReceipt = forwardRef<HTMLDivElement, { data: KitchenReceiptD
             <span>Waktu</span>
             <span>{formatDateTime(data.createdAt)}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Kasir</span>
-            <span>{data.cashierName}</span>
-          </div>
+          {data.cashierName && (
+            <div className="flex justify-between">
+              <span>Kasir</span>
+              <span>{data.cashierName}</span>
+            </div>
+          )}
         </div>
 
         <p className="text-center">{"=".repeat(32)}</p>

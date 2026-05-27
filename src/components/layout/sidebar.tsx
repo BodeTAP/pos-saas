@@ -30,12 +30,12 @@ const tenantNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["OWNER"], exact: true },
   { label: "Kasir (POS)", href: "/dashboard/pos", icon: ShoppingCart, roles: ["KASIR", "OWNER"], exact: true },
   { label: "Riwayat Shift", href: "/dashboard/pos/history", icon: History, roles: ["KASIR"] },
-  // F&B only: Meja
+  // F&B only: Meja (kasir juga butuh akses untuk lihat status meja)
   {
     label: "Meja",
     href: "/dashboard/tables",
     icon: UtensilsCrossed,
-    roles: ["OWNER"],
+    roles: ["OWNER", "KASIR"],
     businessTypes: ["FNB"] as BusinessType[],
   },
   // F&B only: Kitchen Display
@@ -71,7 +71,7 @@ const tenantNavItems: NavItem[] = [
     icon: Truck,
     roles: ["OWNER"],
     labelKey: "purchaseOrders",
-    // Semua tipe bisnis bisa pakai PO — filter di feature config
+    // PO: aktif untuk tipe RETAIL/FNB/OTHER, dimatikan untuk SERVICE (filter via business-features)
   },
   { label: "Transaksi", href: "/dashboard/transactions", icon: ShoppingBag, roles: ["OWNER"], labelKey: "transactions" },
   { label: "Laporan", href: "/dashboard/reports", icon: BarChart3, roles: ["OWNER"] },

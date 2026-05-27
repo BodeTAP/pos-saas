@@ -86,22 +86,26 @@ export function MenuAvailabilityClient({
     setProducts((prev) => prev.map((p) => ({ ...p, availableToday: available })));
 
     try {
-      await Promise.all(
-        targets.map((p) =>
-          fetch(`/api/products/${p.id}/availability`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ availableToday: available }),
-          })
-        )
-      );
+      const res = await fetch("/api/products/availability/batch", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productIds: targets.map((p) => p.id),
+          availableToday: available,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setProducts(prevProducts);
+        toast.error(data.error || "Gagal update semua menu.");
+        return;
+      }
       toast.success(
         available
           ? "Semua menu ditandai tersedia."
           : "Semua menu ditandai habis."
       );
     } catch {
-      // Rollback ke state sebelum bulk update
       setProducts(prevProducts);
       toast.error("Gagal update semua menu.");
     }

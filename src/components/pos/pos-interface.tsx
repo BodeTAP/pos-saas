@@ -516,7 +516,7 @@ export function POSInterface({
   const pointsDiscount = cart.pointsToRedeem * pointValue;
   const afterDiscounts = Math.max(0, subtotal - discountAmount - pointsDiscount);
   // F&B: service charge dari tenant config
-  const serviceChargePct = (tenant as { serviceChargePct?: number } | null)?.serviceChargePct ?? 0;
+  const serviceChargePct = tenant?.serviceChargePct ?? 0;
   const serviceChargeAmount = afterDiscounts * (serviceChargePct / 100);
   const taxAmount = (afterDiscounts + serviceChargeAmount) * (taxPct / 100);
   const total = afterDiscounts + serviceChargeAmount + taxAmount;
@@ -858,6 +858,13 @@ export function POSInterface({
           tables={tables}
           selectedTableId={selectedTable?.id ?? null}
           onSelect={(table) => {
+            // Jika user pindah dari meja ke takeaway dengan keranjang berisi → konfirmasi dulu
+            if (!table && selectedTable && cart.items.length > 0) {
+              const ok = window.confirm(
+                "Beralih ke takeaway akan mengosongkan keranjang yang berisi item meja. Lanjutkan?"
+              );
+              if (!ok) return;
+            }
             setSelectedTable(table);
             setShowTableSelector(false);
             // Jika meja punya order aktif, load items ke keranjang

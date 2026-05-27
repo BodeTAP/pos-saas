@@ -17,7 +17,12 @@ export default async function TransactionsPage() {
         cashier: { select: { name: true } },
         outlet: { select: { id: true, name: true } },
         customer: { select: { name: true } },
-        items: true,
+        items: {
+          include: { modifiers: true },
+        },
+        tableOrder: {
+          include: { table: { select: { number: true, area: true } } },
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -29,7 +34,7 @@ export default async function TransactionsPage() {
     }),
     prisma.tenant.findUnique({
       where: { id: session.user.tenantId },
-      select: { name: true, address: true, phone: true, receiptWidth: true, receiptNote: true },
+      select: { name: true, address: true, phone: true, receiptWidth: true, receiptNote: true, receiptHeader: true },
     }),
   ]);
 

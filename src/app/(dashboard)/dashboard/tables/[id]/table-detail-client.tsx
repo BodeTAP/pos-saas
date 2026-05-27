@@ -147,7 +147,7 @@ export function TableDetailClient({
       invoiceNumber: `TABLE-${table.number}`,
       tableNumber: table.number,
       tableArea: table.area,
-      cashierName: "—",
+      cashierName: null,
       note: activeOrder.note,
       createdAt: new Date(activeOrder.openedAt),
       items: activeOrderItems.map((item) => ({

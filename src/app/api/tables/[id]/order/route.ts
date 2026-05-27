@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
+import { getActiveOutletId } from "@/lib/active-outlet";
 
 /**
  * GET /api/tables/[id]/order
@@ -17,8 +19,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
-      where: { id, tenantId: session.user.tenantId },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        ...(outletId ? { outletId } : {}),
+      },
       select: { id: true },
     });
     if (!table) {
@@ -44,6 +51,10 @@ export async function GET(
 /**
  * POST /api/tables/[id]/order
  * Buka order baru di meja (set status OCCUPIED).
+ *
+ * Race-condition handling: partial unique index "table_orders_one_active_per_table"
+ * memastikan hanya 1 active TableOrder per Table. Jika 2 kasir POST bersamaan,
+ * yang kedua akan dapat P2002 → return 409 dengan order yang sudah ada.
  */
 export async function POST(
   req: NextRequest,
@@ -56,42 +67,56 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
-      where: { id, tenantId: session.user.tenantId, isActive: true },
-      include: { tableOrders: { where: { closedAt: null }, take: 1 } },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        isActive: true,
+        ...(outletId ? { outletId } : {}),
+      },
+      select: { id: true },
     });
     if (!table) {
       return NextResponse.json({ error: "Meja tidak ditemukan." }, { status: 404 });
     }
 
-    if (table.tableOrders.length > 0) {
-      return NextResponse.json(
-        { error: "Meja sudah memiliki order aktif.", order: table.tableOrders[0] },
-        { status: 409 }
-      );
-    }
-
     const body = await req.json().catch(() => ({}));
     const note = typeof body.note === "string" ? body.note.slice(0, 200) : null;
 
-    const order = await prisma.$transaction(async (tx) => {
-      const newOrder = await tx.tableOrder.create({
-        data: {
-          tableId: id,
-          tenantId: session.user.tenantId!,
-          note,
-        },
+    try {
+      const order = await prisma.$transaction(async (tx) => {
+        const newOrder = await tx.tableOrder.create({
+          data: {
+            tableId: id,
+            tenantId: session.user.tenantId!,
+            note,
+          },
+        });
+
+        await tx.table.update({
+          where: { id },
+          data: { status: "OCCUPIED" },
+        });
+
+        return newOrder;
       });
 
-      await tx.table.update({
-        where: { id },
-        data: { status: "OCCUPIED" },
-      });
-
-      return newOrder;
-    });
-
-    return NextResponse.json({ order }, { status: 201 });
+      return NextResponse.json({ order }, { status: 201 });
+    } catch (err) {
+      // P2002 = unique constraint violation (partial unique index)
+      // Artinya sudah ada active TableOrder — race condition dengan kasir lain
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const existing = await prisma.tableOrder.findFirst({
+          where: { tableId: id, tenantId: session.user.tenantId, closedAt: null },
+        });
+        return NextResponse.json(
+          { error: "Meja sudah memiliki order aktif.", order: existing },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
   } catch (error) {
     console.error("Open table order error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -113,8 +138,14 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const order = await prisma.tableOrder.findFirst({
-      where: { tableId: id, tenantId: session.user.tenantId, closedAt: null },
+      where: {
+        tableId: id,
+        tenantId: session.user.tenantId,
+        closedAt: null,
+        ...(outletId ? { table: { outletId } } : {}),
+      },
     });
     if (!order) {
       return NextResponse.json({ error: "Tidak ada order aktif di meja ini." }, { status: 404 });
@@ -122,7 +153,7 @@ export async function DELETE(
 
     if (order.transactionId) {
       return NextResponse.json(
-        { error: "Order sudah terhubung ke transaksi. Gunakan fitur retur jika perlu." },
+        { error: "Order sudah dibayar dan tidak bisa dibatalkan." },
         { status: 400 }
       );
     }

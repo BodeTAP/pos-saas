@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { TableStatus } from "@prisma/client";
+import { getActiveOutletId } from "@/lib/active-outlet";
 
 /**
  * PATCH /api/tables/[id]/status
@@ -19,8 +20,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
-      where: { id, tenantId: session.user.tenantId },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        ...(outletId ? { outletId } : {}),
+      },
     });
     if (!table) {
       return NextResponse.json({ error: "Meja tidak ditemukan." }, { status: 404 });
