@@ -44,6 +44,25 @@ export async function PUT(req: NextRequest) {
       },
     });
 
+    // Guard: tolak ubah paymentFlow kalau ada TableOrder aktif (avoid limbo state)
+    if (
+      parsed.data.paymentFlow &&
+      beforeTenant &&
+      parsed.data.paymentFlow !== beforeTenant.paymentFlow
+    ) {
+      const activeOrders = await prisma.tableOrder.count({
+        where: { tenantId: session.user.tenantId, closedAt: null },
+      });
+      if (activeOrders > 0) {
+        return NextResponse.json(
+          {
+            error: `Tidak bisa ubah alur pembayaran saat ada ${activeOrders} order meja aktif. Selesaikan/batalkan order terlebih dahulu.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const tenant = await prisma.tenant.update({
       where: { id: session.user.tenantId },
       data: {

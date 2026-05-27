@@ -212,6 +212,8 @@ Receipt.displayName = "Receipt";
 // ─────────────────────────────────────────────
 // KITCHEN RECEIPT — struk dapur (tanpa harga)
 // ─────────────────────────────────────────────
+// Render helper untuk struk dapur — dipakai via window.open + print
+// (component React-nya tidak ada karena selalu di-render sebagai HTML string)
 
 export interface KitchenReceiptData {
   invoiceNumber: string;
@@ -227,90 +229,3 @@ export interface KitchenReceiptData {
     note?: string | null;
   }>;
 }
-
-export const KitchenReceipt = forwardRef<HTMLDivElement, { data: KitchenReceiptData }>(
-  ({ data }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className="receipt-print font-mono text-black bg-white"
-        style={{
-          width: "80mm",
-          padding: "4mm",
-          fontSize: "12px",
-          lineHeight: "1.5",
-        }}
-      >
-        {/* Header */}
-        <div className="text-center mb-2">
-          <p className="font-bold text-base uppercase">*** STRUK DAPUR ***</p>
-          {data.tableNumber ? (
-            <p className="font-bold text-lg">
-              MEJA #{data.tableNumber}
-              {data.tableArea ? ` — ${data.tableArea}` : ""}
-            </p>
-          ) : (
-            <p className="font-bold text-lg">TAKEAWAY</p>
-          )}
-        </div>
-
-        <p className="text-center">{"=".repeat(32)}</p>
-
-        {/* Info */}
-        <div className="text-xs my-1 space-y-0.5">
-          <div className="flex justify-between">
-            <span>No.</span>
-            <span className="font-semibold">{data.invoiceNumber}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Waktu</span>
-            <span>{formatDateTime(data.createdAt)}</span>
-          </div>
-          {data.cashierName && (
-            <div className="flex justify-between">
-              <span>Kasir</span>
-              <span>{data.cashierName}</span>
-            </div>
-          )}
-        </div>
-
-        <p className="text-center">{"=".repeat(32)}</p>
-
-        {/* Items — besar dan jelas untuk dapur */}
-        <div className="my-2 space-y-2">
-          {data.items.map((item, i) => (
-            <div key={i}>
-              <div className="flex gap-2">
-                <span className="font-bold text-base w-6 text-right flex-shrink-0">{item.quantity}x</span>
-                <span className="font-bold text-base">{item.name}</span>
-              </div>
-              {/* Modifier */}
-              {item.modifiers && item.modifiers.length > 0 && (
-                <div className="pl-8 text-sm space-y-0.5">
-                  {item.modifiers.map((mod, mi) => (
-                    <p key={mi}>→ {mod.optionName}</p>
-                  ))}
-                </div>
-              )}
-              {/* Catatan item */}
-              {item.note && (
-                <p className="pl-8 text-sm italic">! {item.note}</p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <p className="text-center">{"-".repeat(32)}</p>
-
-        {/* Catatan order */}
-        {data.note && (
-          <p className="text-sm italic text-center my-1">Catatan: {data.note}</p>
-        )}
-
-        <p className="text-center text-xs mt-1">*** SEGERA DIPROSES ***</p>
-      </div>
-    );
-  }
-);
-
-KitchenReceipt.displayName = "KitchenReceipt";

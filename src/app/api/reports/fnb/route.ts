@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
         const duration = Math.floor(
           (new Date(tx.tableOrder.closedAt).getTime() - new Date(tx.tableOrder.openedAt).getTime()) / 60000
         );
-        if (duration > 0 && duration < 480) { // filter outlier > 8 jam
+        if (duration > 0 && duration < 1440) { // filter outlier > 24 jam
           current.totalDuration += duration;
           current.durationCount += 1;
         }
@@ -115,7 +115,9 @@ export async function GET(req: NextRequest) {
     });
 
     // 3. Revenue per hari (F&B only)
-    const dayCount = Math.ceil(
+    // dayCount: hitung jumlah hari unik antara startDate dan endDate (inclusive)
+    // Pakai floor karena startDate selalu 00:00 dan endDate 23:59:59
+    const dayCount = Math.floor(
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
     ) + 1;
     const dailyMap = new Map<string, { revenue: number; count: number }>();
@@ -153,7 +155,7 @@ export async function GET(req: NextRequest) {
             new Date(tx.tableOrder!.openedAt).getTime()) / 60000
         )
       )
-      .filter((d) => d > 0 && d < 480);
+      .filter((d) => d > 0 && d < 1440);
     const avgDuration = allDurations.length > 0
       ? Math.round(allDurations.reduce((s, d) => s + d, 0) / allDurations.length)
       : 0;

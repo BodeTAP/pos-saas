@@ -279,6 +279,11 @@ export function PaymentModal({
       if (!res.ok) throw new Error(data.error || "Transaksi gagal");
       const savedTransaction = data.transaction as SavedTransaction;
 
+      // Warning jika settle table order gagal
+      if (data.warning) {
+        toast.error(data.warning);
+      }
+
       const receipt: ReceiptData = {
         invoiceNumber: savedTransaction.invoiceNumber,
         storeName: tenant?.name || "Toko",

@@ -463,74 +463,83 @@ export async function POST(req: NextRequest) {
       tableOrderHasItems = existingCount > 0;
     }
 
+    let tableOrderError: string | null = null;
+
     if (tableOrderId) {
       // Ada meja — alur dine-in
-      await prisma.$transaction(async (tx) => {
-        const tableOrder = await tx.tableOrder.findFirst({
-          where: {
-            id: tableOrderId,
-            tenantId,
-            closedAt: null,
-            table: { outletId: activeOutletId },
-          },
-          select: { id: true, tableId: true },
-        });
-        if (!tableOrder) {
-          console.warn(`TableOrder ${tableOrderId} not found or not owned by tenant ${tenantId}`);
-          return;
-        }
+      try {
+        await prisma.$transaction(async (tx) => {
+          const tableOrder = await tx.tableOrder.findFirst({
+            where: {
+              id: tableOrderId,
+              tenantId,
+              closedAt: null,
+              table: { outletId: activeOutletId },
+            },
+            select: { id: true, tableId: true },
+          });
+          if (!tableOrder) {
+            throw new Error(`TableOrder ${tableOrderId} tidak ditemukan atau bukan milik tenant.`);
+          }
 
-        // PAY_FIRST + belum ada OrderItem → auto-create dari TransactionItem
-        // (kasir bayar dulu sebelum kirim ke dapur)
-        if (isPayFirst && !tableOrderHasItems) {
-          for (const item of transactionItems) {
-            await tx.orderItem.create({
-              data: {
-                tableOrderId: tableOrder.id,
-                tenantId,
-                productId: item.productId,
-                productName: item.productName,
-                productSku: item.productSku ?? null,
-                variantSkuId: item.variantSkuId ?? null,
-                variantLabel: item.variantLabel ?? null,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                status: "PENDING",
-                modifiers: item.modifiers && item.modifiers.length > 0
-                  ? {
-                      create: item.modifiers.map((m) => ({
-                        modifierGroupName: m.groupName,
-                        modifierOptionName: m.optionName,
-                        extraPrice: m.extraPrice,
-                      })),
-                    }
-                  : undefined,
-              },
+          // PAY_FIRST + belum ada OrderItem → auto-create dari TransactionItem
+          // (kasir bayar dulu sebelum kirim ke dapur)
+          if (isPayFirst && !tableOrderHasItems) {
+            for (const item of transactionItems) {
+              await tx.orderItem.create({
+                data: {
+                  tableOrderId: tableOrder.id,
+                  tenantId,
+                  productId: item.productId,
+                  productName: item.productName,
+                  productSku: item.productSku ?? null,
+                  variantSkuId: item.variantSkuId ?? null,
+                  variantLabel: item.variantLabel ?? null,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  status: "PENDING",
+                  modifiers: item.modifiers && item.modifiers.length > 0
+                    ? {
+                        create: item.modifiers.map((m) => ({
+                          modifierGroupName: m.groupName,
+                          modifierOptionName: m.optionName,
+                          extraPrice: m.extraPrice,
+                        })),
+                      }
+                    : undefined,
+                },
+              });
+            }
+          }
+
+          // Link transaksi ke TableOrder (tapi jangan tutup dulu untuk PAY_FIRST)
+          await tx.tableOrder.update({
+            where: { id: tableOrder.id },
+            data: {
+              transactionId: transaction!.id,
+              // PAY_LATER → tutup order setelah bayar (alur sekarang)
+              // PAY_FIRST → biarkan terbuka, tutup saat semua item SERVED (lihat order-items API)
+              ...(isPayFirst ? {} : { closedAt: new Date() }),
+            },
+          });
+
+          // Update status meja
+          // PAY_LATER → langsung EMPTY (selesai)
+          // PAY_FIRST → tetap OCCUPIED sampai semua item disajikan
+          if (!isPayFirst) {
+            await tx.table.update({
+              where: { id: tableOrder.tableId },
+              data: { status: "EMPTY" },
             });
           }
-        }
-
-        // Link transaksi ke TableOrder (tapi jangan tutup dulu untuk PAY_FIRST)
-        await tx.tableOrder.update({
-          where: { id: tableOrder.id },
-          data: {
-            transactionId: transaction!.id,
-            // PAY_LATER → tutup order setelah bayar (alur sekarang)
-            // PAY_FIRST → biarkan terbuka, tutup saat semua item SERVED (lihat order-items API)
-            ...(isPayFirst ? {} : { closedAt: new Date() }),
-          },
         });
-
-        // Update status meja
-        // PAY_LATER → langsung EMPTY (selesai)
-        // PAY_FIRST → tetap OCCUPIED sampai semua item disajikan
-        if (!isPayFirst) {
-          await tx.table.update({
-            where: { id: tableOrder.tableId },
-            data: { status: "EMPTY" },
-          });
-        }
-      }).catch((err) => console.error("Failed to handle table order:", err));
+      } catch (err) {
+        // Transaksi sudah committed — tableOrder gagal di-settle.
+        // Log error dan tambahkan warning di response agar kasir tahu.
+        const msg = err instanceof Error ? err.message : "Gagal update meja.";
+        console.error("Failed to handle table order after payment:", err);
+        tableOrderError = `Pembayaran berhasil tapi gagal update meja: ${msg}. Hubungi owner.`;
+      }
     } else if (isPayFirst) {
       // Takeaway PAY_FIRST: create OrderItem langsung ke Transaction agar muncul di Kitchen Display
       try {
@@ -562,7 +571,9 @@ export async function POST(req: NextRequest) {
           )
         );
       } catch (err) {
+        const msg = err instanceof Error ? err.message : "Gagal kirim ke dapur.";
         console.error("Failed to create order items for takeaway:", err);
+        tableOrderError = `Pembayaran berhasil tapi gagal kirim ke dapur: ${msg}. Hubungi owner.`;
       }
     }
 
@@ -620,7 +631,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: true, transaction, earnedPoints },
+      {
+        success: true,
+        transaction,
+        earnedPoints,
+        ...(tableOrderError ? { warning: tableOrderError } : {}),
+      },
       { status: 201 }
     );
   } catch (error) {
