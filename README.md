@@ -1,170 +1,136 @@
-# POS SaaS — Sistem Kasir Modern untuk UMKM
+# POS SaaS
 
-Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untuk membantu UMKM Indonesia mengelola transaksi penjualan, inventaris, dan analitik bisnis secara real-time.
+Aplikasi kasir (Point of Sale) berbasis SaaS & multi-tenant untuk UMKM Indonesia. Dibangun dengan Next.js 16 App Router.
 
 ---
 
 ## Tech Stack
 
-| Komponen | Teknologi |
+| Layer | Teknologi |
 |---|---|
 | Framework | Next.js 16 (App Router) + TypeScript |
-| Database | PostgreSQL (Neon) |
-| ORM | Prisma v6 |
+| Database | PostgreSQL (Neon) via Prisma v6 |
 | Auth | NextAuth.js v5 (JWT) |
 | Styling | Tailwind CSS v4 |
-| State Management | Zustand |
+| State | Zustand |
 | Charts | Recharts |
-| Export | xlsx |
-| Payment Gateway | Tripay |
-| File Storage | Vercel Blob |
-| Toast | Sonner |
-| Validation | Zod |
+| Payment | Tripay |
+| Storage | Vercel Blob |
 | Email | Resend |
-| Offline Storage | Dexie.js (IndexedDB) |
+| Offline | Dexie.js (IndexedDB) |
 | PWA | Service Worker manual |
 
 ---
 
-## Fitur Lengkap
+## Quick Start
 
-### 🏪 Multi-Tenant & Multi-Cabang
-- Setiap tenant (toko) terisolasi secara data via `tenantId`
-- Dukungan multi-cabang (outlet) dengan stok terpisah per cabang
-- Outlet switcher di header untuk Owner berpindah cabang
-- Kasir terikat ke 1 cabang permanen
-- Transfer stok antar cabang dengan log mutasi
+### 1. Clone & Install
+```bash
+git clone https://github.com/BodeTAP/pos-saas.git
+cd pos-saas
+npm install
+```
 
-### 👥 Role-Based Access Control
+### 2. Environment Variables
+Buat file `.env`:
+```env
+DATABASE_URL="postgresql://..."
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="min-32-chars-random-string"
+AUTH_URL="http://localhost:3000"
+AUTH_TRUST_HOST=true
+
+TRIPAY_API_KEY="..."
+TRIPAY_PRIVATE_KEY="..."
+TRIPAY_MERCHANT_CODE="..."
+TRIPAY_BASE_URL="https://tripay.co.id/api-sandbox"
+
+BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+CRON_SECRET="random-secret"
+```
+
+> **Vercel Blob:** Buat store dengan akses **Public** (bukan Private).
+
+### 3. Setup Database
+```bash
+npm run db:migrate    # Jalankan migrasi
+npm run db:seed       # Seed data demo
+npm run dev           # Jalankan dev server
+```
+
+### 4. Akun Demo
+| Role | Email | Password |
+|---|---|---|
+| Super Admin | superadmin@pos-saas.com | superadmin123 |
+| Owner | owner@demo-toko.com | owner123 |
+| Kasir | kasir@demo-toko.com | kasir123 |
+
+---
+
+## Fitur Utama
+
+### Multi-Tenant & Multi-Cabang
+- Setiap toko terisolasi via `tenantId`
+- Multi-cabang dengan stok terpisah per cabang
+- Transfer stok antar cabang
+
+### Role-Based Access
 | Role | Akses |
 |---|---|
-| **Super Admin** | Panel platform — kelola semua tenant, billing global, analitik, manajemen paket, konfigurasi sistem |
-| **Owner** | Dashboard toko, produk, kategori, transaksi, laporan, karyawan, pelanggan, cabang, langganan, pengaturan |
-| **Kasir** | Halaman POS + riwayat shift harian sendiri |
+| **Super Admin** | Panel platform — kelola semua tenant, billing, paket |
+| **Owner** | Dashboard toko lengkap |
+| **Kasir** | POS + riwayat shift |
 
-### 🛒 Kasir (POS)
-- Pencarian produk cepat (nama, SKU, barcode)
-- Filter kategori
-- Keranjang belanja real-time (Zustand)
-- Diskon persentase / nominal (global per transaksi)
-- **Diskon per produk** (nominal per item di keranjang)
-- Tukar poin loyalitas pelanggan
-- Tahan transaksi (hold) & restore
-- Metode bayar dikonfigurasi per toko (CASH, QRIS, Transfer, Kartu)
-- Cetak struk thermal (58mm/80mm) via popup window
-- Unduh struk sebagai HTML
-- Foto produk di grid kasir
+### Kasir (POS)
+- Pencarian produk, filter kategori, scan barcode
+- Varian produk (SKU matrix)
+- Modifier / add-on menu (F&B)
+- Diskon global & per item
+- Tukar poin loyalitas
+- Hold & restore transaksi
+- Cetak struk thermal 58mm/80mm
+- Offline mode dengan sync otomatis
 
-### ⏱️ Manajemen Shift Kasir
-- Buka shift dengan input kas awal
-- Ringkasan transaksi & pendapatan real-time selama shift berjalan
-- Tutup shift dengan input kas akhir
-- Laporan otomatis per shift: total transaksi, pendapatan, tunai vs non-tunai
-- Riwayat shift (Owner melihat semua, Kasir melihat milik sendiri)
+### F&B (Kafe/Restoran)
+- Manajemen meja (area, kapasitas, status real-time)
+- Dua alur pembayaran:
+  - **PAY_FIRST** — bayar dulu, baru dimasak (self-service/fast food)
+  - **PAY_LATER** — pesan dulu, bayar belakangan (kafe tradisional)
+- Kitchen Display System — update status item per meja (Antri → Dimasak → Siap → Disajikan)
+- Takeaway tampil di Kitchen Display
+- Modifier/add-on dengan validasi server (kepedasan, suhu, ukuran)
+- Service charge per toko
+- Struk dapur (tanpa harga)
+- Ketersediaan menu harian (toggle tanpa ubah stok)
 
-### 📦 Manajemen Produk & Inventaris
-- CRUD produk lengkap (nama, SKU auto-generate, barcode, harga beli/jual, kategori, foto)
-- Stok per cabang via `OutletStock`
-- **Halaman Inventaris terpadu** (`/dashboard/inventory`) dengan 4 tab:
-  - **Stok Menipis** — daftar lengkap produk di bawah batas minimum, filter habis/menipis, refresh real-time
-  - **Riwayat Mutasi Stok** — log semua perubahan stok (masuk, keluar, penyesuaian, penjualan, retur) dengan filter tipe & tanggal
-  - **Stock Opname** — rekonsiliasi stok fisik vs sistem, input per produk, laporan selisih, catatan opname
-  - **Penyesuaian Massal** — update stok banyak produk sekaligus (set/tambah/kurangi), quick apply ke semua produk
-- **Warning stok di POS** — produk stok habis ditampilkan disabled (tidak bisa ditambah), badge "Habis"/"Menipis" di grid produk
-- **Warning stok di keranjang** — alert merah jika quantity melebihi stok tersedia, alert oranye jika stok menipis
-- Transfer stok antar cabang
-- Soft delete produk
-- Manajemen kategori (CRUD)
-- Pagination halaman produk
+### Inventaris
+- Stok per cabang, mutasi stok, stock opname
+- Purchase Order dari supplier
+- Alert stok menipis
 
-### � Notifikasi Email (Resend)
-- **Selamat datang** — dikirim otomatis saat tenant baru registrasi
-- **Invoice paid** — konfirmasi pembayaran berhasil dengan detail paket & masa aktif
-- **Trial akan berakhir** — reminder H-3 dan H-1 sebelum trial habis
-- **Low stock alert** — daftar produk stok menipis per cabang
-- Super Admin bisa trigger email manual dari halaman Konfigurasi Sistem
-- Endpoint cron-ready: `POST /api/notifications/low-stock` dan `POST /api/notifications/trial-reminder`
-- Owner dapat meretur transaksi yang sudah selesai
-- Input alasan retur wajib diisi
-- Opsi kembalikan stok — stok semua item dikembalikan ke cabang asal
-- Poin loyalitas pelanggan otomatis dikurangi
-- Transaksi berubah status menjadi `CANCELLED` dengan catatan alasan
+### Laporan
+- Tren pendapatan harian, produk terlaris, performa kasir
+- Laba kotor per produk (HPP snapshot saat transaksi)
+- Laporan F&B: revenue per area, menu terlaris, rata-rata durasi duduk
+- Export Excel / CSV
 
-### 📱 PWA & Offline Mode
-- App bisa di-install ke homescreen Android/iOS (manifest + icons)
-- Service Worker cache halaman POS, static assets, dan gambar produk
-- **Offline transaction queue** — transaksi disimpan ke IndexedDB saat offline, sync otomatis saat internet kembali
-- **Conflict resolution UI** — modal detail status semua transaksi offline, retry transaksi gagal
-- **PIN offline** — Owner set PIN 6 digit untuk kasir, verifikasi lokal (bcrypt), sesi offline 8 jam
-- **Stale data banner** — peringatan jika data produk sudah >24 jam saat offline
-- **Offline fallback page** — halaman proper saat navigasi ke URL yang tidak di-cache
-- Badge status sync di toolbar POS (pending/gagal/tersinkron)
-- Auto-sync saat koneksi kembali online
+### Billing (Tripay)
+- Paket FREE / PRO / ENTERPRISE
+- Checkout otomatis via Tripay
+- Upgrade, downgrade terjadwal, perpanjang
 
-### 👤 Loyalitas Pelanggan
-- Sistem poin: dikonfigurasi per toko (default: 1 poin per Rp 10.000)
-- Redeem poin: dikonfigurasi per toko (default: 1 poin = Rp 100 diskon)
-- Pilih pelanggan langsung dari POS
-- Pagination daftar pelanggan
+### PWA & Offline
+- Installable ke homescreen Android/iOS
+- Transaksi offline → queue IndexedDB → sync otomatis saat online
+- PIN offline kasir (6 digit, sesi 8 jam)
 
-### 📊 Laporan & Analitik
-- Dashboard ringkasan (pendapatan hari ini, transaksi, stok menipis)
-- Grafik tren pendapatan harian (line chart)
-- Bar chart produk terlaris
-- Tabel performa per kasir (transaksi, rata-rata, total pendapatan)
-- Filter tanggal custom + quick preset (7/30/90 hari)
-- Filter per cabang
-- **Laporan Laba Kotor** — tab terpisah dengan tabel per produk: pendapatan, HPP, laba kotor, margin %
-- Summary cards laba kotor: HPP total, laba kotor total, margin % keseluruhan (warna dinamis)
-- `buyPrice` di-snapshot ke `TransactionItem` saat transaksi dibuat (akurat meski harga beli berubah)
-- Ekspor laporan ke **Excel** (multi-sheet: Ringkasan, Transaksi, Detail Item, Laba Kotor) atau **CSV**
-
-### 💳 Billing & Langganan (Tripay)
-- 3 paket: Gratis, Pro, Enterprise — harga & fitur dikelola Super Admin dari database
-- Checkout via Tripay (BRIVA, QRIS, e-wallet, dll)
-- Webhook callback otomatis aktivasi paket
-- Manual cek status pembayaran (untuk dev localhost)
-- Upgrade paket langsung (Pro → Enterprise)
-- Downgrade terjadwal (efektif saat masa aktif berakhir)
-- Perpanjang paket yang sama (extend masa aktif)
-
-### 🔒 Keamanan & Enforcement
-- Password di-hash dengan bcrypt (cost 12)
-- JWT token dengan polling status setiap 5 menit
-- Tenant suspended → auto logout + blokir login dengan pesan custom
-- Tenant expired → redirect ke halaman billing
-- Middleware edge-safe (tanpa Prisma di edge runtime)
-- Tenant isolation di semua query
-- **Zod validation** di semua API endpoint (runtime type safety)
-- Server membuat nomor invoice dan menghitung ulang harga, total, pajak, kembalian, dan metode bayar transaksi POS dari data produk/toko
-- Upload gambar membatasi folder, tipe, ukuran, serta izin upload produk/logo sesuai role
-- Atomic stock deduction untuk transaksi dan transfer stok (mencegah oversell saat transaksi bersamaan)
-- Retur diproses satu kali secara atomik dan membalik poin dari snapshot transaksi
-- Idempotent webhook (mencegah duplikasi aktivasi paket)
-- **Rate limiting brute force** — in-memory sliding window di semua endpoint auth (login, register, forgot/reset password)
-- **Reset password via email** — token 32 bytes, expire 1 jam, satu kali pakai
-- **Konfirmasi email** — tenant baru wajib verifikasi email sebelum dianggap terverifikasi
-
-### ⚙️ Konfigurasi Admin
-
-**Super Admin dapat mengkonfigurasi:**
-- Nama platform & email support
-- Durasi trial tenant baru (hari)
-- Toggle registrasi tenant baru (on/off)
-- Mode maintenance dengan pesan custom
-- Pesan untuk tenant yang disuspend
-- Paket langganan (harga, fitur, batas produk/kasir/cabang)
-- Manajemen akun Super Admin lain
-
-**Owner dapat mengkonfigurasi:**
-- Informasi toko (nama, telepon, alamat, logo)
-- PPN (%)
-- Prefix nomor invoice (INV, TRX, dll)
-- Metode pembayaran aktif (CASH/QRIS/Transfer/Kartu)
-- Sistem poin loyalitas (belanja per poin & nilai per poin)
-- Pengaturan struk (lebar, header/tagline, catatan)
-- Manajemen kategori produk
-- Manajemen kasir & penugasan cabang
+### Lainnya
+- Notifikasi in-app (stok menipis, transaksi baru)
+- Audit log aktivitas
+- Reset password via email
+- Rate limiting brute force
+- Error boundary + loading skeleton
 
 ---
 
@@ -174,166 +140,33 @@ Aplikasi Point of Sale (POS) berbasis **SaaS & Multi-Tenant** yang dibangun untu
 src/
 ├── app/
 │   ├── (auth)/              # Login, Register
-│   ├── (dashboard)/         # Area tenant (Owner & Kasir)
+│   ├── (dashboard)/         # Area tenant
 │   │   └── dashboard/
 │   │       ├── pos/         # Kasir + Riwayat Shift
-│   │       ├── products/    # Manajemen Produk
-│   │       ├── categories/  # Manajemen Kategori
-│   │       ├── inventory/   # Inventaris (Stok Menipis, Mutasi, Opname, Bulk Adj)
-│   │       ├── transactions/# Riwayat Transaksi + Reprint + Retur
-│   │       ├── reports/     # Laporan + Grafik + Per Kasir + Ekspor
-│   │       ├── staff/       # Manajemen Karyawan
+│   │       ├── tables/      # Manajemen Meja (F&B)
+│   │       ├── kitchen/     # Kitchen Display (F&B)
+│   │       ├── modifiers/   # Modifier Menu (F&B)
+│   │       ├── menu-availability/ # Ketersediaan Menu (F&B)
+│   │       ├── products/    # Produk + Varian
+│   │       ├── inventory/   # Stok, Mutasi, Opname
+│   │       ├── purchase-orders/ # PO Supplier
+│   │       ├── transactions/# Riwayat + Reprint + Retur
+│   │       ├── reports/     # Laporan + F&B
 │   │       ├── customers/   # Pelanggan & Poin
-│   │       ├── outlets/     # Manajemen Cabang + Transfer Stok
-│   │       ├── billing/     # Langganan & Tripay
-│   │       └── settings/    # Pengaturan Toko Lengkap
-│   ├── (super-admin)/       # Panel Internal Platform
-│   │   └── super-admin/
-│   │       ├── tenants/     # Kelola semua tenant + detail + suspend
-│   │       ├── plans/       # Manajemen paket langganan
-│   │       ├── billing/     # Billing global + filter
-│   │       ├── analytics/   # Analitik platform + grafik
-│   │       └── settings/    # Konfigurasi sistem + Super Admin
-│   ├── suspended/           # Halaman akun suspended (auto-logout)
+│   │       ├── staff/       # Karyawan
+│   │       ├── outlets/     # Cabang + Transfer Stok
+│   │       ├── billing/     # Langganan
+│   │       └── settings/    # Pengaturan Toko
+│   ├── (super-admin)/       # Panel Platform
 │   └── api/                 # API Routes
-│       ├── shifts/          # Manajemen shift kasir
-│       ├── transactions/
-│       │   └── [id]/refund/ # Retur transaksi
-│       ├── stock-mutations/ # Riwayat & penyesuaian stok (+ /bulk)
-│       ├── stock-opname/    # Stock opname (rekonsiliasi fisik vs sistem)
-│       ├── inventory/
-│       │   └── low-stock/   # Daftar produk stok menipis/habis
-│       ├── offline/
-│       │   ├── sync-data/        # Sync produk+config ke IndexedDB
-│       │   ├── sync-transactions/# Batch sync transaksi offline
-│       │   └── set-pin/          # Set/get PIN offline kasir
-│       └── ...
 ├── components/
-│   ├── layout/              # Sidebar, Header, Outlet Switcher
-│   ├── pos/                 # POS Interface, Cart, Payment, Receipt, ShiftModal
-│   ├── products/            # Product Form Modal (dengan upload foto)
-│   ├── customers/           # Customer Form Modal
-│   ├── outlets/             # Outlet Form Modal, Transfer Stock Modal
-│   ├── staff/               # Staff Form Modal
-│   ├── billing/             # Checkout Modal
-│   ├── transactions/        # Refund Modal
-│   ├── pwa/                 # PWA: OfflineIndicator, SyncStatus, PinModal, ConflictModal
-│   ├── super-admin/         # Super Admin components
-│   └── ui/                  # Shared: Toaster, Pagination, ImageUpload, NoTenant
-├── lib/
-│   ├── auth.ts              # NextAuth full config (server)
-│   ├── auth-config.ts       # NextAuth minimal config (edge/middleware)
-│   ├── prisma.ts            # Prisma client singleton
-│   ├── plans.ts             # Plan pricing dari database (1 query)
-│   ├── schemas.ts           # Zod schemas terpusat + parseBody helper
-│   ├── platform-config.ts   # Platform config (key-value store)
-│   ├── tripay.ts            # Tripay API helper
-│   ├── billing-actions.ts   # Shared billing logic
-│   ├── active-outlet.ts     # Resolve outlet aktif dari session
-│   ├── hold-transactions.ts # Hold transaction via localStorage
-│   ├── print-receipt.ts     # Generate & print struk
-│   ├── offline-db.ts        # IndexedDB schema via Dexie.js
-│   ├── offline-queue.ts     # Offline transaction queue manager
-│   ├── offline-pin.ts       # PIN offline: save, verify, session
-│   └── utils.ts             # Helper functions
-├── stores/
-│   └── cart-store.ts        # Zustand cart state
-├── hooks/
-│   ├── use-offline-sync.ts  # Sync produk+config ke IndexedDB
-│   └── use-offline-queue.ts # Manage offline transaction queue
-└── types/
-    └── next-auth.d.ts       # NextAuth type extensions
-
-public/
-├── manifest.json            # PWA manifest
-├── sw.js                    # Service Worker manual
-├── offline.html             # Halaman fallback saat offline
-└── icons/                   # PWA icons (SVG, semua ukuran)
+│   ├── pos/                 # POS, Cart, Payment, Receipt, Kitchen
+│   ├── layout/              # Sidebar, Header
+│   └── ui/                  # Shared components
+├── lib/                     # Utils, auth, prisma, offline, email
+├── stores/                  # Zustand (cart)
+└── hooks/                   # Offline sync, notifications
 ```
-
----
-
-## Setup Development
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/BodeTAP/pos-saas.git
-cd pos-saas
-npm install
-```
-
-### 2. Konfigurasi Environment
-
-Buat file `.env` di root proyek:
-
-```env
-# Database (PostgreSQL — rekomendasi: Neon)
-DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
-
-# NextAuth
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-min-32-chars"
-# Diperlukan untuk npm start (production build lokal)
-AUTH_URL="http://localhost:3000"
-AUTH_TRUST_HOST=true
-
-# Tripay Payment Gateway
-TRIPAY_API_KEY="your-api-key"
-TRIPAY_PRIVATE_KEY="your-private-key"
-TRIPAY_MERCHANT_CODE="your-merchant-code"
-TRIPAY_BASE_URL="https://tripay.co.id/api-sandbox"
-# Production: TRIPAY_BASE_URL="https://tripay.co.id/api"
-
-# Vercel Blob (untuk upload gambar produk & logo toko)
-# Buat Blob Store PUBLIC di: https://vercel.com/dashboard → Storage → Blob
-# PENTING: Pilih akses "Public" saat membuat store
-BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
-
-# App
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_NAME="POS SaaS"
-
-# Cron notification endpoints
-CRON_SECRET="random-secret-for-cron-requests"
-```
-
-> **Rekomendasi database gratis untuk dev:** [Neon](https://neon.tech) — PostgreSQL serverless, free tier 0.5 GB.
-
-> **Vercel Blob:** Buat store dengan akses **Public** (bukan Private) agar gambar bisa ditampilkan di browser. Free tier: 1GB storage, 10GB transfer.
-
-### 3. Setup Database
-
-```bash
-# Jalankan migrasi
-npm run db:migrate
-
-# Generate Prisma client
-npm run db:generate
-
-# Seed data demo (pricing plans + akun demo + platform config)
-npm run db:seed
-```
-
-### 4. Jalankan Dev Server
-
-```bash
-npm run dev
-```
-
-Buka [http://localhost:3000](http://localhost:3000)
-
-> **Catatan:** Setelah menjalankan `prisma migrate dev`, selalu jalankan `npm run db:generate` dengan dev server dalam keadaan **mati** terlebih dahulu. Windows mengunci file `query_engine-windows.dll.node` saat server berjalan.
-
----
-
-## Akun Demo
-
-| Role | Email | Password |
-|---|---|---|
-| Super Admin | superadmin@pos-saas.com | superadmin123 |
-| Owner | owner@demo-toko.com | owner123 |
-| Kasir | kasir@demo-toko.com | kasir123 |
 
 ---
 
@@ -343,505 +176,100 @@ Buka [http://localhost:3000](http://localhost:3000)
 npm run db:migrate    # Jalankan migrasi baru
 npm run db:push       # Push schema tanpa migrasi (dev only)
 npm run db:seed       # Seed data demo
-npm run db:studio     # Buka Prisma Studio (GUI database)
+npm run db:studio     # Buka Prisma Studio
 npm run db:generate   # Generate ulang Prisma client
+```
+
+---
+
+## Deployment
+
+### Environment Production
+```env
+DATABASE_URL="postgresql://..."
+NEXTAUTH_URL="https://yourdomain.com"
+NEXTAUTH_SECRET="..."
+TRIPAY_BASE_URL="https://tripay.co.id/api"
+BLOB_READ_WRITE_TOKEN="..."
+NEXT_PUBLIC_APP_URL="https://yourdomain.com"
+RESEND_API_KEY="re_..."
+RESEND_FROM_EMAIL="noreply@yourdomain.com"
+```
+
+### Vercel
+Deploy langsung dari GitHub. Set environment variables di dashboard Vercel.
+
+### VPS
+```bash
+npm run build
+npm start
+```
+
+### Webhook Tripay
+Set callback URL di dashboard Tripay:
+```
+https://yourdomain.com/api/billing/callback
 ```
 
 ---
 
 ## Arsitektur Multi-Tenant
 
-Menggunakan **Single Database, Shared Schema** dengan isolasi data berbasis `tenantId`:
+**Single Database, Shared Schema** — semua query wajib filter `tenantId`:
 
 ```
-Tenant A ──┬── Users (Owner, Kasir)
-           ├── Outlets (Cabang Utama, Cabang 2, ...)
-           ├── Products ──── OutletStock (stok per cabang)
-           ├── Transactions (per outlet, per kasir)
-           ├── CashierShifts (shift per kasir per outlet)
-           ├── Customers (shared antar cabang)
-           ├── Categories
-           └── BillingInvoices
-
-Tenant B ──┬── Users
-           └── ...
-
-Platform ──┬── PlatformConfig (konfigurasi global)
-           └── PricingPlan (paket FREE/PRO/ENTERPRISE)
-```
-
-**Aturan query:** Setiap query wajib menyertakan filter `tenantId`:
-```typescript
-prisma.product.findMany({ where: { tenantId: session.user.tenantId } })
+Tenant ──┬── Users (Owner, Kasir)
+         ├── Outlets (Cabang) ──── OutletStock (stok per cabang)
+         ├── Products ──── Variants ──── ModifierGroups
+         ├── Transactions ──── TransactionItems ──── Modifiers
+         ├── Tables ──── TableOrders ──── OrderItems (F&B)
+         └── BillingInvoices
 ```
 
 ---
 
-## Alur Multi-Cabang
+## Alur F&B
 
-1. **Tambah produk** → OutletStock otomatis dibuat di semua cabang (stok awal hanya di cabang utama)
-2. **Tambah cabang baru** → OutletStock dibuat untuk semua produk existing dengan stok 0
-3. **Transfer stok** → UI di halaman Cabang, mencatat 2 StockMutation (OUT + IN)
-4. **Transaksi** → stok di-deduct dari OutletStock cabang aktif saja (atomic, mencegah oversell)
-5. **Owner switch cabang** → semua data (produk, laporan, dashboard) ikut berubah
-6. **Kasir** → terikat ke 1 cabang, tidak bisa switch
-
----
-
-## Alur Shift Kasir
-
-1. Kasir buka shift → input kas awal → shift status `OPEN`
-2. Selama shift berjalan → semua transaksi tercatat
-3. Kasir tutup shift → input kas akhir → sistem hitung ringkasan otomatis
-4. Shift status `CLOSED` → laporan tersimpan permanen
-5. Owner bisa melihat riwayat semua shift di halaman Laporan
-
----
-
-## Konfigurasi Platform (Super Admin)
-
-| Key | Default | Keterangan |
-|---|---|---|
-| `platform_name` | POS SaaS | Nama platform di UI |
-| `support_email` | support@pos-saas.com | Email support di halaman suspended |
-| `trial_days` | 14 | Durasi trial tenant baru (hari) |
-| `registration_enabled` | true | Toggle registrasi tenant baru |
-| `maintenance_mode` | false | Mode maintenance (semua tenant tidak bisa login) |
-| `maintenance_message` | - | Pesan yang ditampilkan saat maintenance |
-| `suspended_message` | - | Pesan untuk tenant yang disuspend |
-
----
-
-## Upload Gambar (Vercel Blob)
-
-Untuk mengaktifkan upload gambar produk dan logo toko:
-
-1. Buka [vercel.com/dashboard](https://vercel.com/dashboard) → Storage → Create → **Blob**
-2. **PENTING:** Pilih akses **Public** (bukan Private) saat membuat store
-3. Setelah dibuat, klik tab `.env.local` di bagian Quickstart
-4. Copy `BLOB_READ_WRITE_TOKEN` ke file `.env`
-
-Jika store sudah terlanjur dibuat sebagai Private, buat store baru dengan akses Public.
-
----
-
-## Deployment (Production)
-
-### Environment Production
-
-```env
-DATABASE_URL="postgresql://..."
-NEXTAUTH_URL="https://yourdomain.com"
-NEXTAUTH_SECRET="random-string-min-32-chars"
-TRIPAY_BASE_URL="https://tripay.co.id/api"
-TRIPAY_API_KEY="..."
-TRIPAY_PRIVATE_KEY="..."
-TRIPAY_MERCHANT_CODE="..."
-BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
-NEXT_PUBLIC_APP_URL="https://yourdomain.com"
+### PAY_FIRST (default — self-service/fast food)
+```
+Pilih meja → Tambah item → Bayar
+→ OrderItem dibuat otomatis → Kitchen Display
+→ Dapur masak → Tandai SERVED
+→ Semua SERVED → Meja otomatis EMPTY
 ```
 
-### Resend (Email)
-
-```env
-RESEND_API_KEY="re_..."
-RESEND_FROM_EMAIL="noreply@yourdomain.com"
-RESEND_FROM_NAME="POS SaaS"
+### PAY_LATER (kafe/restoran tradisional)
+```
+Pilih meja → Tambah item → Kirim ke Dapur
+→ Dapur masak → Tandai SERVED
+→ Kasir klik Bayar → Meja EMPTY
 ```
 
-> Untuk dev/testing tanpa domain: gunakan `RESEND_FROM_EMAIL="onboarding@resend.dev"` (bawaan Resend, tidak perlu verifikasi domain).
+### Takeaway (tanpa meja)
+```
+Tambah item → Bayar
+→ OrderItem dibuat → Kitchen Display (section Takeaway)
+→ Dapur masak → Tandai SERVED → Hilang dari display
+```
 
-### Cron Notifikasi
+---
 
-Endpoint `POST /api/notifications/low-stock` dan `POST /api/notifications/trial-reminder` menerima request cron dengan header `x-cron-secret` yang harus sama dengan `CRON_SECRET`. Trigger manual dari panel Super Admin memakai sesi Super Admin, bukan secret yang dikirim dari browser.
-
-### VPS / Server
+## PWA & Offline
 
 ```bash
-# Build
-npm run build
-
-# Start production server
-npm start
+# Test PWA (hanya aktif di production build)
+npm run build && npm start
 ```
 
-Konfigurasi Nginx sebagai reverse proxy ke port 3000, aktifkan HTTPS via Let's Encrypt.
+**Alur offline:**
+1. Online → data di-sync ke IndexedDB
+2. Offline → transaksi masuk queue lokal
+3. Online kembali → auto-sync ke server
 
-### Webhook Tripay (Production)
-
-Set callback URL di Tripay dashboard:
-```
-https://yourdomain.com/api/billing/callback
-```
-
-Untuk development tanpa webhook, gunakan tombol **"Cek"** di halaman Langganan setelah melakukan pembayaran di Tripay sandbox.
-
----
-
-## PWA & Offline Mode
-
-### Test PWA di Lokal
-
-Service worker aktif di **production build** saja:
-
-```bash
-npm run build
-npm start
-```
-
-Lalu buka `http://localhost:3000`, login, kunjungi `/dashboard/pos` agar halaman ter-cache.
-
-### Setup PIN Offline
-
-1. Login sebagai Owner → **Pengaturan** → scroll ke bawah → **PIN Offline Kasir**
-2. Pilih kasir, input PIN 6 digit, klik **Simpan PIN Offline**
-3. Hash PIN tersimpan di IndexedDB browser kasir
-
-### Alur Offline
-
-```
-Online  → Sync data ke IndexedDB (produk, config, stok)
-Offline → Kasir bisa transaksi → disimpan ke queue IndexedDB
-        → Stok dikurangi secara optimistic di lokal
-Online  → Auto-sync queue ke server (1.5 detik setelah koneksi kembali)
-        → Toast notifikasi hasil sync
-```
-
-### Batasan Offline
-
-- Data produk stale setelah **24 jam** — banner merah muncul
-- Sesi PIN offline berlaku **8 jam** (1 shift)
-- Transaksi FAILED bisa di-retry max **3x**
-- Halaman yang bisa diakses offline: `/dashboard/pos` (harus pernah dikunjungi saat online)
-
----
-
-## Roadmap
-
-### ✅ Fase 1 — MVP
-- Autentikasi multi-role + tenant isolation
-- POS interface lengkap (cart, payment, receipt)
-- CRUD produk + inventaris per cabang
-- Cetak struk thermal (58mm/80mm)
-- Manajemen kategori produk
-
-### ✅ Fase 2 — SaaS & Komersialisasi
-- Self-service onboarding tenant
-- Integrasi Tripay (billing otomatis)
-- Dashboard analitik + grafik (Recharts)
-- Ekspor laporan Excel/CSV
-- Manajemen kasir dengan penugasan cabang
-- Laporan per kasir
-
-### ✅ Fase 3 — Fitur Lanjutan
-- Multi-cabang penuh (stok per outlet, outlet switcher, transfer stok)
-- Sistem loyalitas pelanggan (poin reward + redeem, konfigurasi per toko)
-- Hold transaction
-- Filter tanggal di laporan
-- Panel Super Admin lengkap (tenant management, plan management)
-- Konfigurasi platform (maintenance mode, trial days, dll)
-- Upload gambar produk & logo toko (Vercel Blob)
-- Toast notifications (Sonner)
-- Pagination
-
-### ✅ Fase 4 — Kualitas & Fitur Tambahan
-- Zod validation di semua API endpoint
-- Atomic stock deduction (mencegah oversell)
-- Idempotent webhook billing
-- Unique constraints (tripayReference, invoiceNumber, phone+tenantId)
-- Optimasi query (N+1 SKU generation, getAllPlans single query)
-- **Shift kasir** (buka/tutup shift, kas awal/akhir, laporan per shift)
-- **Retur transaksi** (batalkan + kembalikan stok + reverse poin)
-- **Diskon per produk** di POS
-- Pagination pelanggan
-
-### ✅ Fase 5 — Manajemen Inventaris Lengkap
-- **Halaman Inventaris terpadu** dengan 4 tab (Stok Menipis, Riwayat Mutasi, Stock Opname, Penyesuaian Massal)
-- **Warning stok di POS** — produk habis disabled, badge visual di grid produk
-- **Warning stok di keranjang** — alert jika quantity melebihi stok atau stok menipis
-- **API stock mutations** — endpoint riwayat mutasi dengan filter tipe & tanggal
-- **API stock opname** — rekonsiliasi stok fisik vs sistem secara atomik
-- **API bulk adjustment** — update stok massal dalam satu transaksi
-- **API low-stock** — daftar produk di bawah minStock per outlet
-- Dashboard "Stok Menipis" sekarang link ke halaman Inventaris
-
-### ✅ Fase 6 — PWA & Offline Mode
-- **Installable PWA** — manifest.json, icons, bisa di-install ke homescreen Android/iOS
-- **Service Worker manual** (`public/sw.js`) — cache halaman POS, static assets, gambar
-- **Offline fallback page** (`/offline.html`) — halaman proper saat navigasi offline, tombol kembali ke kasir, auto-redirect saat online
-- **IndexedDB via Dexie.js** — schema: products, categories, tenantConfig, offlineQueue, offlinePins, offlineSession
-- **Sync data ke IndexedDB** — produk, kategori, config tenant di-cache lokal (stale setelah 24 jam)
-- **Offline transaction queue** — transaksi disimpan ke IndexedDB saat offline, sync otomatis saat online kembali
-- **Conflict resolution** — transaksi FAILED bisa di-retry, modal detail status semua transaksi offline
-- **PIN offline** — Owner set PIN 6 digit untuk kasir, verifikasi lokal via bcrypt, sesi offline 8 jam
-- **Stale data banner** — peringatan merah jika data >24 jam saat offline
-- **OfflineSyncStatus badge** — badge oranye/merah di toolbar POS, klik untuk sync atau lihat detail
-- **PWA install prompt** — prompt install ke homescreen (Android native + instruksi iOS)
-- **API offline** — `/api/offline/sync-data`, `/api/offline/sync-transactions`, `/api/offline/set-pin`
-
-### ✅ Fase 7 — Varian Produk (SKU Matrix)
-- **Schema baru**: `ProductVariantType`, `ProductVariantOption`, `ProductVariantSKU`, `OutletStockVariant`, `StockMutationVariant`
-- Satu produk bisa punya banyak tipe varian (Ukuran, Warna, Rasa, dll)
-- Setiap kombinasi opsi = 1 SKU dengan harga, stok, barcode, dan gambar sendiri
-- **Form varian di halaman Produk** — toggle aktifkan varian, builder tipe+opsi, generate kombinasi otomatis, matriks SKU collapsible dengan harga/stok/gambar per varian
-- **Variant Picker Modal** di POS — kasir pilih kombinasi varian sebelum tambah ke keranjang
-- Badge "Varian" + harga mulai di grid produk POS
-- Label varian tampil di keranjang (e.g. "M / Merah")
-- Stok per SKU per outlet, atomic deduction saat transaksi
-- Snapshot `variantLabel` di `TransactionItem` untuk riwayat transaksi
-- API `GET/POST/DELETE /api/products/[id]/variants`
-- Offline support: variant data di-sync ke IndexedDB, queue transaksi varian
-- Backward compatible — produk lama tanpa varian tetap berjalan normal
-
-### ✅ Fase 8 — Purchase Order / Penerimaan Barang
-- **Schema baru**: `PurchaseOrder`, `PurchaseOrderItem`, enum `PurchaseOrderStatus` (DRAFT/ORDERED/PARTIAL/RECEIVED/CANCELLED), `StockMutationType.PURCHASE`
-- Buat PO dengan daftar produk, qty, harga beli, nama supplier, estimasi tiba
-- Status flow: Draft → Dipesan → Sebagian Diterima → Diterima / Dibatalkan
-- **Penerimaan barang**: catat qty diterima per item, stok otomatis bertambah di `OutletStock`, harga beli produk diperbarui jika berubah
-- `StockMutation` type `PURCHASE` dicatat untuk setiap penerimaan
-- Progress bar penerimaan (qty diterima / qty dipesan)
-- API: `GET/POST /api/purchase-orders`, `GET/PUT/DELETE /api/purchase-orders/[id]`, `POST /api/purchase-orders/[id]/receive`
-- Halaman `/dashboard/purchase-orders` dengan filter status dan summary cards
-- Sidebar: menu "Pembelian (PO)" dengan ikon Truck
-
-### ✅ Fase 9 — Keamanan & Auth Lanjutan
-- **Reset password via email** — token 32 bytes, expire 1 jam, atomic update, rate limit per IP + per email via DB
-- **Konfirmasi email saat register** — email verifikasi dikirim otomatis, banner compact di dashboard untuk Owner yang belum verifikasi
-- **Rate limiting brute force** — in-memory sliding window, diterapkan di semua endpoint auth:
-  - Login: 10 percobaan per IP / 5 per email per 15 menit
-  - Register: 5 akun per IP per jam
-  - Forgot password: 5 request per IP per 15 menit + 3 per email per 15 menit (via DB)
-  - Reset password: 10 percobaan per IP per 15 menit
-  - Validasi token: 20 request per IP per 15 menit (soft limit)
-
-### ✅ Fase 10 — Laporan Laba Kotor
-- **`buyPrice` snapshot di `TransactionItem`** — harga beli di-capture saat transaksi dibuat, akurat meski harga beli produk berubah kemudian
-- **Tab Laba Kotor** di halaman Laporan — tabel per produk: pendapatan, HPP, laba kotor, margin % dengan badge warna
-- **6 summary cards** — Pendapatan, Transaksi, Rata-rata, HPP, Laba Kotor, Margin %
-- **Export Excel** — sheet baru "Laba Kotor" + kolom HPP/Laba/Margin di sheet "Detail Item"
-- Ringkasan export juga mencantumkan total HPP, laba kotor, dan margin %
-- Mendukung produk varian (buyPrice per SKU di-snapshot)
-
-### ✅ Fase 11 — Audit Log
-- **Model `AuditLog`** di database — action, entity, entityId, entityName, changes (JSON diff), userId, tenantId
-- **`src/lib/audit.ts`** — helper `logAudit()` fire-and-forget + `diffObjects()` untuk diff field yang berubah
-- **Audit dicatat di**: Produk (create/update/delete), Kategori (create/update/delete), Karyawan (create/update/delete), Cabang (create/update/delete), Pengaturan toko (update)
-- **Halaman `/dashboard/audit-log`** — tabel paginated dengan filter aksi, entitas, pengguna, dan rentang tanggal
-- Detail perubahan UPDATE bisa di-expand: field apa yang berubah, nilai sebelum dan sesudah
-- Menu "Log Aktivitas" di sidebar (OWNER only)
-- API `GET /api/audit-log` dengan filter lengkap
-
-### ✅ Fase 12 — Notifikasi In-App
-- **Model `AppNotification`** — type (LOW_STOCK/NEW_TRANSACTION/SYSTEM), title, message, isRead, link, tenantId
-- **`src/lib/notifications.ts`** — `createNotification()` fire-and-forget + `notifyLowStock()` helper
-- **Trigger otomatis**: transaksi baru oleh kasir → notifikasi ke Owner; stok produk turun di bawah minStock setelah transaksi → notifikasi LOW_STOCK
-- **Deduplication**: notifikasi LOW_STOCK yang sama tidak dibuat ulang dalam 1 jam
-- **Polling 30 detik** via hook `useNotifications` — fetch `/api/notifications`
-- **`NotificationBell`** di header — badge merah unread count, dropdown list notifikasi, klik untuk navigasi
-- Tandai satu / semua notifikasi sebagai dibaca (optimistic update)
-- API: `GET /api/notifications`, `PATCH /api/notifications/[id]/read`, `POST /api/notifications/read-all`
-- Hanya tampil untuk OWNER (kasir tidak perlu notifikasi manajemen)
-
-### ✅ Fase 13 — Dashboard Kasir
-- **Dashboard khusus kasir** di `/dashboard` — tampilan berbeda berdasarkan role
-- **Status shift aktif** — banner hijau/abu dengan durasi berjalan, waktu buka, kas awal, tombol langsung ke kasir
-- **4 summary cards**: Transaksi hari ini, Pendapatan hari ini, Item terjual, Rata-rata per transaksi
-- **Transaksi terbaru** — 5 transaksi terakhir milik kasir ini hari ini (waktu, item, metode bayar, total)
-- **Quick actions** — tombol Kasir (POS) dan Riwayat Shift
-- Data difilter per kasir (bukan semua transaksi toko)
-
-### ✅ Fase 14 — Error Boundary
-- **`src/app/global-error.tsx`** — global error boundary (catch-all untuk root layout, inline styles karena Tailwind tidak tersedia)
-- **`src/app/(dashboard)/error.tsx`** — error boundary area dashboard, sidebar tetap terlihat
-- **`src/app/(super-admin)/error.tsx`** — error boundary area panel admin
-- **`src/app/not-found.tsx`** — halaman 404 yang proper dengan tombol Dashboard dan Kembali
-- Semua error boundary: tombol "Coba Lagi" (`reset()`), link kembali ke halaman aman
-- Dev mode: tampilkan pesan error dan digest untuk debugging
-- Production: pesan generik yang tidak bocorkan detail teknis
-
-### ✅ Fase 15 — Loading State Skeleton
-- **`src/components/ui/skeleton.tsx`** — komponen skeleton reusable: `Skeleton`, `StatCardSkeleton`, `TableSkeleton`, `CardListSkeleton`, `PageHeaderSkeleton`, `FilterBarSkeleton`, `SkeletonPulse`
-- **`loading.tsx`** di semua halaman dashboard: Dashboard, POS, Riwayat Shift, Produk, Kategori, Inventaris, Transaksi, Laporan, Karyawan, Pelanggan, Cabang, Pembelian (PO), Log Aktivitas, Billing, Pengaturan
-- Skeleton disesuaikan per halaman (POS punya grid produk + cart sidebar, Laporan punya chart placeholder, dll)
-- `animate-pulse` di container parent (bukan per-element) — satu animasi untuk seluruh blok skeleton
-- Next.js App Router otomatis wrap `loading.tsx` sebagai React Suspense boundary
-
-### ✅ Fase 16 — Optimistic Updates Konsisten
-- **Pattern optimistic + rollback** di semua mutasi delete/deactivate:
-  - Update state lokal langsung saat user klik (UI responsif)
-  - Jika API gagal, rollback state ke nilai sebelumnya + toast error
-- **Diterapkan di**: Produk (deactivate), Kategori (delete), Karyawan (deactivate), Pelanggan (delete), Cabang (deactivate)
-- **Sudah optimistic sebelumnya**: POS (stok setelah transaksi), Transaksi (refund mark CANCELLED), Purchase Order (status update)
-- **Hapus `router.refresh()` yang tidak perlu**: Transfer stok antar cabang tidak lagi reload halaman outlets (data outlet tidak berubah)
-- Hampir semua halaman tidak butuh `window.location.reload()` atau full page refresh setelah mutasi
-
-### ✅ Fase 17 — Kompresi Gambar Otomatis
-- **`src/lib/image-compression.ts`** — kompresi di client-side via Canvas API (tanpa dependency tambahan)
-- **Resize otomatis**: gambar > 1200px (long edge) di-resize, mempertahankan aspect ratio
-- **Konversi format**: ke WebP (40-60% lebih kecil dari JPEG kualitas sama), fallback JPEG quality 0.85
-- **Skip kompresi** jika file < 100KB DAN dimensi < 1200px (sudah optimal)
-- **Skip kompresi** untuk GIF (preserve animasi) dan SVG
-- **Smart fallback** — jika hasil kompresi malah lebih besar, pakai original
-- Toast info ke user: "Gambar dikompres: 4.5MB → 280KB"
-- Limit upload server dinaikkan dari 2MB → 5MB (safety setelah kompresi)
-
-### ✅ Fase 18 — Audit & Perbaikan Offline Mode
-- Bug: `getOfflineProducts` `.equals(1)` untuk boolean → fix dengan filter di JS
-- Bug: race condition sync paralel → module-level lock di `offline-queue.ts`
-- Bug: SW tidak fallback saat 5xx → cek cache sebelum return error
-- Bug: `clients.claim()` aggressive → claim setelah cleanup cache lama
-- **Notifikasi update SW**: toast "Versi baru tersedia" + tombol Update
-- **Batch sync transaksi**: 1 request untuk N transaksi (bukan N request)
-- Stale check juga untuk CONFIG, bukan hanya PRODUCTS
-- Invoice number lokal append UUID 8 char (mencegah collision)
-- `useEffect` dep refactor ke ref pattern
-- PIN expired record auto-delete saat verifikasi
-- **Integrasi PIN modal**: kolom `User.offlinePinHash` di DB, hook `useOfflinePinSync`, modal muncul saat offline + sesi expired
-- **Stok UI baca dari IndexedDB saat offline**: hydrate `products` state setelah unmount, agar user yang refresh halaman saat offline tetap dapat stok terkini
-
-### ✅ Fase 19 — Audit & Perbaikan PWA
-- **Icons PNG** (bukan SVG) — fix dukungan iOS dan Android lama
-- Script `npm run icons:generate` — auto-generate semua ukuran PNG dari SVG template via `sharp`
-- **Manifest.json**: tambah `id`, `scope`, `dir`, `screenshots` (landscape + mobile), shortcut Dashboard
-- **Background color** match `theme_color` (mencegah flash putih saat splash)
-- **Layout.tsx**: `apple-touch-icon` PNG, `status-bar-style: black-translucent`, viewport `userScalable: true` (a11y compliant), `themeColor` light/dark
-- **Install prompt persistent**: timer 30 detik tidak reset saat navigasi (pakai timestamp di localStorage)
-- Listen event `appinstalled` — auto-mark sebagai installed permanently
-- Auto-dismiss konsisten saat user batal di native prompt
-
-### 🔄 Backlog
-- Notifikasi trial akan berakhir (sudah ada via email, bisa ditambah in-app)
-- Landing page marketing (publik, bukan area auth)
-- Promo rule otomatis (beli N gratis 1, diskon jika total > X)
-- Customer display (layar pelanggan)
+**Batasan:** Data stale setelah 24 jam · PIN sesi 8 jam · Retry max 3x
 
 ---
 
 ## Lisensi
 
-MIT License — bebas digunakan dan dimodifikasi.
-
-### ✅ Fase 20 — F&B Sprint 1 & 2 — Manajemen Meja & Integrasi POS
-- **Schema baru**: `Table`, `TableOrder`, enum `TableStatus` (EMPTY/OCCUPIED/BILL/RESERVED), field `serviceChargePct` di `Tenant`, field `tableOrderId` di `Transaction`, field `serviceCharge`/`serviceChargePct` di `Transaction`
-- **Tipe bisnis**: enum `BusinessType` (RETAIL/FNB/SERVICE/OTHER) di `Tenant` — menentukan fitur & tampilan sidebar
-- **Manajemen Meja** (`/dashboard/tables`) — CRUD meja dengan nomor, nama, kapasitas, area; summary cards per status; grid per area
-- **API Meja**: `GET/POST /api/tables`, `GET/PUT/DELETE /api/tables/[id]`, `POST/GET/DELETE /api/tables/[id]/order`
-- **TableSelectorModal di POS** — kasir pilih meja sebelum transaksi; meja EMPTY otomatis dibuka TableOrder baru; meja OCCUPIED langsung dipilih
-- **Service charge** — dikonfigurasi per toko (%), dihitung setelah diskon sebelum pajak, tampil di payment modal dan struk
-- **Integrasi transaksi F&B** — `tableOrderId` dikirim ke API, TableOrder ditutup dan meja di-set EMPTY setelah bayar
-- **Offline support F&B** — `tableOrderId` disertakan di `OfflineTransactionPayload`, sync-transactions menutup TableOrder saat sync
-- Sidebar: menu "Meja" hanya muncul untuk businessType FNB
-
-### ✅ Fase 21 — F&B Sprint 3 — Kitchen Display, Modifier, Laporan F&B
-- **Schema baru**: `ModifierGroup`, `ModifierOption`, `ProductModifierGroup`, `TransactionItemModifier`, field `availableToday` di `Product`
-- **Modifier / Add-on** (`/dashboard/modifiers`) — buat grup modifier (Tingkat Kepedasan, Suhu, Ukuran, dll), tambah opsi dengan harga tambahan, assign ke produk; support wajib/opsional, single/multi-pilih
-- **ModifierPickerModal di POS** — kasir pilih add-on setelah pilih produk/varian; harga final = harga dasar + total extra modifier; produk dengan modifier berbeda jadi item terpisah di keranjang
-- **Kitchen Display** (`/dashboard/kitchen`) — tampilan real-time semua meja aktif (OCCUPIED/BILL); auto-refresh polling 10 detik; durasi duduk dengan warna (hijau/kuning/merah); tombol Minta Bill; alert meja menunggu pembayaran
-- **Order Meja Detail** (`/dashboard/tables/[id]`) — detail order aktif per meja: daftar item + modifier, estimasi total (subtotal + service charge + pajak), tombol Minta Bill / Bayar di POS / Batalkan Order
-- **Struk Dapur** (`KitchenReceipt`) — struk tanpa harga, font besar untuk dapur, tampilkan modifier per item, info meja/area; print via popup window
-- **Service charge di struk pelanggan** — tampil di `Receipt` dengan persentase dan nominal; info nomor meja juga tampil di struk
-- **Ketersediaan Menu** (`/dashboard/menu-availability`) — toggle menu tersedia/habis hari ini tanpa ubah stok; bulk set semua tersedia/habis; filter per kategori; POS otomatis filter `availableToday = true` untuk FNB
-- **Laporan F&B** — tab baru "F&B" di halaman Laporan (hanya muncul untuk FNB): summary (pendapatan, transaksi, rata-rata, durasi duduk), revenue per area, menu terlaris; data di-fetch client-side saat tab diklik
-- **API baru**: `GET /api/kitchen`, `PATCH /api/tables/[id]/status`, `GET/POST /api/modifiers`, `PUT/DELETE /api/modifiers/[id]`, `POST/DELETE /api/modifiers/[id]/products`, `PATCH /api/products/[id]/availability`, `GET /api/reports/fnb`
-- Sidebar F&B: 4 menu baru (Meja, Kitchen Display, Menu Hari Ini, Modifier Menu) — hanya muncul untuk FNB
-
-
-### ✅ Fase 22 — F&B Kitchen Display Full Flow & Alur Pembayaran
-
-**Kitchen Display — Item Tracking:**
-- **Schema baru**: `OrderItem` (status PENDING/COOKING/READY/SERVED/CANCELLED, timestamp per status), `OrderItemModifier` (snapshot modifier per item), enum `OrderItemStatus`
-- **Alur baru**: Kasir tambah item ke keranjang → klik "Kirim ke Dapur" → `OrderItem` dibuat di DB → Kitchen Display tampilkan item per meja dengan status real-time
-- **Kitchen Display** sekarang menampilkan item pesanan per meja (bukan hanya status meja): nama item, varian, modifier, catatan item, status badge per item
-- **Update status item** langsung dari Kitchen Display: Antri → Mulai Masak → Siap Saji → Sudah Disajikan (PATCH `/api/order-items/[id]`)
-- **API baru**: `GET/POST /api/tables/[id]/order/items`, `PATCH/DELETE /api/order-items/[id]`
-- **Tombol "Kirim ke Dapur"** di CartPanel (hijau) — hanya muncul untuk FnB saat meja terpilih; setelah kirim, keranjang dikosongkan tapi meja tetap terpilih
-- **Halaman Detail Meja** (`/dashboard/tables/[id]`) sekarang menampilkan `OrderItem` (item yang dikirim ke dapur) bukan `TransactionItem` (item setelah bayar) — termasuk status per item dan estimasi total
-
-**Alur Pembayaran F&B:**
-- **Tombol "Proses Pembayaran"** di Kitchen Display pada kartu meja BILL → redirect ke `/dashboard/pos?tableId=xxx`
-- **Tombol "Proses Pembayaran"** di halaman Meja pada kartu meja BILL → redirect ke `/dashboard/pos?tableId=xxx`
-- **Tombol "Bayar di POS"** di halaman Detail Meja → redirect ke `/dashboard/pos?tableId=xxx`
-- **POS auto-select meja** dari URL `?tableId=xxx` saat halaman dimuat (`useEffect` saat mount)
-- **Auto-load order items ke keranjang** saat meja dipilih (baik dari URL param maupun manual): fetch `GET /api/tables/[id]/order/items`, filter item aktif (bukan SERVED/CANCELLED), masukkan ke keranjang dengan modifier — kasir langsung bisa klik "Bayar"
-- **Halaman Meja** (`/dashboard/tables`): kartu meja OCCUPIED/BILL sekarang bisa diklik (link ke detail meja), kartu BILL punya shortcut "Proses Pembayaran"
-
-
-### ✅ Fase 23 — F&B Dual Payment Flow (PAY_FIRST / PAY_LATER)
-
-**Schema baru:**
-- Enum `PaymentFlow` (`PAY_FIRST` default / `PAY_LATER`) di `Tenant.paymentFlow`
-- `OrderItem` sekarang punya dua relasi opsional: `tableOrderId` (dine-in) ATAU `transactionId` (takeaway PAY_FIRST)
-- Field `OrderItem.tenantId` (denormalize untuk filter cepat di Kitchen Display takeaway)
-- Field `Transaction.orderItems` (relasi balik untuk takeaway PAY_FIRST)
-
-**Setting per toko** (`/dashboard/settings` — section F&B):
-- Radio button: "Bayar Di Depan" (PAY_FIRST default) vs "Bayar Belakangan" (PAY_LATER)
-
-**Alur PAY_FIRST + Meja (self-service, fast food, kantin):**
-1. Kasir pilih meja EMPTY → TableOrder dibuka
-2. Tambah item ke keranjang → klik **Bayar** (tombol "Kirim ke Dapur" disembunyikan)
-3. Server auto-create `OrderItem` dari `TransactionItem` dengan status PENDING — langsung muncul di Kitchen Display
-4. Meja **tetap OCCUPIED** (TableOrder tidak ditutup setelah bayar)
-5. Dapur tandai item: PENDING → COOKING → READY → SERVED
-6. Saat **semua item SERVED**, auto-close TableOrder + meja jadi EMPTY (di endpoint `PATCH /api/order-items/[id]`)
-
-**Alur PAY_FIRST + Takeaway:**
-1. Tanpa pilih meja → tambah item → klik Bayar
-2. Server auto-create `OrderItem` terhubung ke `Transaction` (tanpa `tableOrderId`)
-3. Muncul di Kitchen Display section **🥡 Takeaway** (warna ungu, badge "Sudah Dibayar", tampil invoice number)
-4. Dapur masak → tandai SERVED → kartu otomatis hilang saat semua item SERVED
-
-**Alur PAY_LATER (kafe/restoran tradisional, alur sebelumnya):**
-- Tombol "Kirim ke Dapur" tampil — kasir kirim item dulu, bayar belakangan
-- Meja tutup + jadi EMPTY langsung setelah bayar (alur sekarang)
-
-**API yang berubah:**
-- `POST /api/transactions` — sekarang auto-create OrderItem berdasarkan `paymentFlow`; tidak tutup TableOrder untuk PAY_FIRST
-- `PATCH /api/order-items/[id]` — saat semua item TableOrder SERVED → auto-close TableOrder + meja EMPTY
-- `GET /api/kitchen` — return `{ tables, takeaway }` (sebelumnya hanya `tables`)
-
-**UI:**
-- Settings: 2 radio card untuk pilih PaymentFlow (hanya untuk FNB)
-- POS: tombol "Kirim ke Dapur" di CartPanel hanya tampil untuk PAY_LATER
-- Kitchen Display: section baru "🥡 Takeaway" untuk transaksi PAY_FIRST tanpa meja
-
-
-### ✅ Fase 24 — F&B Hardening (Audit Komprehensif & Perbaikan Bug)
-
-Audit menyeluruh menemukan 46 bug di seluruh fitur F&B (Sprint 1-3 + Fase 20-23). 34 di antaranya diperbaiki dalam 3 batch.
-
-**Race Condition & Data Integrity:**
-- **Partial unique index** `table_orders_one_active_per_table` — cegah 2 kasir buka order di meja yang sama bersamaan (P2002 di-handle dengan return 409 + existing order)
-- **Composite index** `OrderItem(tenantId, status, transactionId)` — query Kitchen Display takeaway lebih cepat
-- **Atomic settle TableOrder** dengan try-catch proper — error tidak di-swallow, kembalikan `warning` field di response transaksi
-- **Reject double-charge** — tolak transaksi jika `tableOrder.transactionId` sudah ada (cegah bayar 2x)
-- **Cart store key fix** — semua action (`updateQuantity`, `removeItem`, `updateItemDiscount`) include modifier hash agar item dengan modifier berbeda tidak saling override
-
-**Multi-Outlet Security:**
-- Filter outlet aktif di semua API: `tables/[id]`, `tables/[id]/order`, `tables/[id]/order/items`, `tables/[id]/status`, `order-items/[id]` (PATCH/DELETE) — cegah cross-outlet leak antar cabang dalam tenant sama
-
-**Server-Side Validation:**
-- **Modifier validation** di `POST /api/tables/[id]/order/items`: validasi produk milik tenant, varian SKU milik produk, modifier `required`/`minSelect`/`maxSelect`, option name match (cegah injection), `extraPrice` selalu re-compute dari DB (cegah harga manipulation)
-- **ModifierGroup Zod refine** di POST/PUT `/api/modifiers`: `maxSelect >= minSelect`, single-select harus `maxSelect=1`, jumlah default option tidak melebihi batas
-- **Service charge** dari client diabaikan — server otoritas (cegah bypass via direct API call)
-- **Settings paymentFlow guard** — tolak ubah `paymentFlow` jika ada `TableOrder` aktif (cegah limbo state mid-shift)
-
-**API Baru:**
-- `PATCH /api/products/availability/batch` — bulk update menu availability dalam 1 request (sebelumnya N request paralel)
-
-**Modifier & Receipt Consistency:**
-- `TransactionItemModifier` snapshot saat transaksi dibuat (online & offline sync)
-- `OrderItemModifier` propagate ke auto-create OrderItem (PAY_FIRST meja & takeaway)
-- Receipt thermal (`print-receipt.ts`) include service charge, modifier add-on, info meja
-- Reprint receipt di `/dashboard/transactions` & `/dashboard/pos/history` mapping modifier + serviceCharge + tableOrder
-
-**Auto-Load Cart & Kitchen Display:**
-- POS server fetch `initialCartItems` skip jika `tableOrder.transactionId` sudah ada (cegah double-load)
-- Kitchen Display polling skip saat `updatingItem !== null` (cegah override optimistic update)
-- `loadOrderItemsToCart` set `stock`/`minStock` dari product state (warning low/over stock akurat)
-- Reports F&B include takeaway PAY_FIRST + outlier filter 24 jam (sebelumnya 8 jam, hilang restoran late night)
-
-**Migration Baru:**
-- `20260527100000_add_order_items_kitchen` — schema OrderItem + OrderItemModifier + enum OrderItemStatus + paymentFlow (hilang dari Sprint 3 awal)
-- `20260527110000_table_order_unique_active` — partial unique index
-- `20260527120000_order_items_composite_index` — composite index Kitchen Display
+MIT License
