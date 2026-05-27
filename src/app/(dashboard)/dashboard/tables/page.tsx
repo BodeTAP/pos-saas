@@ -8,7 +8,7 @@ import { TablesClient } from "./tables-client";
 export default async function TablesPage() {
   const session = await auth();
   if (!session?.user.tenantId) return <NoTenant />;
-  if (session.user.role !== "OWNER") redirect("/dashboard");
+  if (!["OWNER", "KASIR"].includes(session.user.role)) redirect("/dashboard");
 
   // Cek businessType — halaman ini hanya untuk F&B
   const tenant = await prisma.tenant.findUnique({
@@ -49,6 +49,7 @@ export default async function TablesPage() {
         tableOrders: undefined,
       }))}
       currentOutletId={resolvedOutletId}
+      isOwner={session.user.role === "OWNER"}
     />
   );
 }

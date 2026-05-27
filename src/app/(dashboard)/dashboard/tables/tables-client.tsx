@@ -20,6 +20,7 @@ interface TableData {
 interface TablesClientProps {
   initialTables: TableData[];
   currentOutletId: string | null;
+  isOwner?: boolean;
 }
 
 const STATUS_CONFIG: Record<TableStatus, { label: string; color: string; bg: string }> = {
@@ -29,7 +30,7 @@ const STATUS_CONFIG: Record<TableStatus, { label: string; color: string; bg: str
   RESERVED: { label: "Dipesan", color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
 };
 
-export function TablesClient({ initialTables, currentOutletId }: TablesClientProps) {
+export function TablesClient({ initialTables, currentOutletId, isOwner = false }: TablesClientProps) {
   const [tables, setTables] = useState<TableData[]>(initialTables);
   const [showModal, setShowModal] = useState(false);
   const [editTable, setEditTable] = useState<TableData | null>(null);
@@ -95,13 +96,15 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
             {tables.length} meja · {totalEmpty} kosong · {totalOccupied} terisi
           </p>
         </div>
-        <button
-          onClick={() => { setEditTable(null); setShowModal(true); }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Tambah Meja
-        </button>
+        {isOwner && (
+          <button
+            onClick={() => { setEditTable(null); setShowModal(true); }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            Tambah Meja
+          </button>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -124,13 +127,15 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
           <UtensilsCrossed className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 font-medium">Belum ada meja</p>
           <p className="text-sm text-gray-400 mt-1">Tambahkan meja untuk mulai menggunakan fitur F&B</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Meja Pertama
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Tambah Meja Pertama
+            </button>
+          )}
         </div>
       ) : (
         areas.map((area) => {
@@ -170,22 +175,26 @@ export function TablesClient({ initialTables, currentOutletId }: TablesClientPro
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
                           )}
-                          <button
-                            onClick={() => { setEditTable(table); setShowModal(true); }}
-                            className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(table)}
-                            disabled={isDeleting === table.id || !!table.activeOrder}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded disabled:opacity-30"
-                          >
-                            {isDeleting === table.id
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <Trash2 className="w-3.5 h-3.5" />
-                            }
-                          </button>
+                          {isOwner && (
+                            <>
+                              <button
+                                onClick={() => { setEditTable(table); setShowModal(true); }}
+                                className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(table)}
+                                disabled={isDeleting === table.id || !!table.activeOrder}
+                                className="p-1 text-gray-400 hover:text-red-500 rounded disabled:opacity-30"
+                              >
+                                {isDeleting === table.id
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  : <Trash2 className="w-3.5 h-3.5" />
+                                }
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
