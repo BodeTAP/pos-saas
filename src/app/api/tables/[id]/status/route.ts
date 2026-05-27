@@ -38,6 +38,23 @@ export async function PATCH(
       return NextResponse.json({ error: "Status tidak valid." }, { status: 400 });
     }
 
+    // Guard: tidak bisa set BILL kalau order aktif sudah dibayar (PAY_FIRST flow)
+    // Kalau dipaksa, meja akan stuck karena tidak ada lagi pembayaran yang harus diproses.
+    if (status === "BILL") {
+      const activeOrder = await prisma.tableOrder.findFirst({
+        where: { tableId: id, tenantId: session.user.tenantId, closedAt: null },
+        select: { transactionId: true },
+      });
+      if (activeOrder?.transactionId) {
+        return NextResponse.json(
+          {
+            error: "Order ini sudah dibayar (PAY_FIRST). Tandai item SERVED di Kitchen Display untuk menutup meja.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const updated = await prisma.table.update({
       where: { id },
       data: { status },

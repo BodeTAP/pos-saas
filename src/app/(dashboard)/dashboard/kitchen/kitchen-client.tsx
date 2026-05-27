@@ -30,6 +30,7 @@ interface ActiveOrder {
   id: string;
   openedAt: string;
   note: string | null;
+  isPaid?: boolean;
   durationMinutes: number;
   items: OrderItem[];
 }
@@ -499,28 +500,40 @@ export function KitchenDisplayClient({ initialTables, initialTakeaway = [] }: Ki
 
                       {/* Table actions */}
                       <div className="px-4 pb-4 pt-2 space-y-2">
-                        {table.status === "OCCUPIED" && (
-                          <button
-                            onClick={() => handleRequestBill(table.id)}
-                            disabled={updatingTableStatus === table.id}
-                            className="w-full px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            {updatingTableStatus === table.id ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <AlertCircle className="w-3.5 h-3.5" />
+                        {table.activeOrder?.isPaid ? (
+                          // PAY_FIRST: order sudah dibayar, tidak perlu tombol bill/payment
+                          <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center gap-2">
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                            <span className="text-xs text-green-700 font-medium">
+                              Sudah Dibayar — Tandai SERVED untuk tutup meja
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            {table.status === "OCCUPIED" && (
+                              <button
+                                onClick={() => handleRequestBill(table.id)}
+                                disabled={updatingTableStatus === table.id}
+                                className="w-full px-3 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                              >
+                                {updatingTableStatus === table.id ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                )}
+                                Minta Bill
+                              </button>
                             )}
-                            Minta Bill
-                          </button>
-                        )}
-                        {table.status === "BILL" && (
-                          <a
-                            href={`/dashboard/pos?tableId=${table.id}`}
-                            className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" />
-                            Proses Pembayaran
-                          </a>
+                            {table.status === "BILL" && (
+                              <a
+                                href={`/dashboard/pos?tableId=${table.id}`}
+                                className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                Proses Pembayaran
+                              </a>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

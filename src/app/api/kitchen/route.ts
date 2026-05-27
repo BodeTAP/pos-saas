@@ -47,6 +47,7 @@ export async function GET() {
 
     const tableResults = tables.map((table) => {
       const activeOrder = table.tableOrders[0] ?? null;
+      const isPaid = !!activeOrder?.transactionId;
       return {
         kind: "TABLE" as const,
         id: table.id,
@@ -61,6 +62,7 @@ export async function GET() {
               id: activeOrder.id,
               openedAt: activeOrder.openedAt,
               note: activeOrder.note,
+              isPaid,
               durationMinutes: Math.floor(
                 (Date.now() - new Date(activeOrder.openedAt).getTime()) / 60000
               ),

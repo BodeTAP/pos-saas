@@ -45,6 +45,7 @@ export default async function KitchenPage() {
 
   const initialTables = tables.map((t) => {
     const order = t.tableOrders[0] ?? null;
+    const isPaid = !!order?.transactionId;
     return {
       id: t.id,
       number: t.number,
@@ -58,6 +59,7 @@ export default async function KitchenPage() {
             id: order.id,
             openedAt: order.openedAt.toISOString(),
             note: order.note,
+            isPaid,
             durationMinutes: Math.floor(
               (Date.now() - order.openedAt.getTime()) / 60000
             ),
