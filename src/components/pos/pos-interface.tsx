@@ -615,7 +615,7 @@ export function POSInterface({
       if (tenant?.autoPrintKitchen) {
         try {
           const { printKitchenReceipt } = await import("@/lib/print-kitchen-receipt");
-          printKitchenReceipt({
+          const ok = printKitchenReceipt({
             invoiceNumber: `MEJA-${selectedTable.number}-${Date.now().toString().slice(-4)}`,
             tableNumber: selectedTable.number,
             tableArea: selectedTable.area,
@@ -629,8 +629,12 @@ export function POSInterface({
               note: item.note ?? undefined,
             })),
           });
+          if (!ok) {
+            toast.error("Pop-up diblokir browser. Izinkan pop-up untuk auto-cetak struk dapur, atau cetak manual dari halaman meja.");
+          }
         } catch (err) {
           console.warn("Failed to print kitchen receipt:", err);
+          toast.error("Gagal mencetak struk dapur otomatis.");
         }
       }
     } catch {

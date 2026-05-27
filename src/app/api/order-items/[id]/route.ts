@@ -67,6 +67,35 @@ export async function PATCH(
       return NextResponse.json({ error: "Status tidak valid." }, { status: 400 });
     }
 
+    // Validasi state machine — cegah regression (misal CANCELLED → PENDING)
+    // Allowed transitions:
+    //   PENDING   → COOKING, CANCELLED
+    //   COOKING   → READY, CANCELLED
+    //   READY     → SERVED, CANCELLED
+    //   SERVED    → (terminal)
+    //   CANCELLED → (terminal)
+    const allowed: Record<OrderItemStatus, OrderItemStatus[]> = {
+      PENDING: ["COOKING", "READY", "SERVED", "CANCELLED"], // skip allowed
+      COOKING: ["READY", "SERVED", "CANCELLED"],
+      READY: ["SERVED", "CANCELLED"],
+      SERVED: [],
+      CANCELLED: [],
+    };
+    if (status === item.status) {
+      // No-op — return tanpa update untuk cegah notif spam & timestamp ovewrite
+      const current = await prisma.orderItem.findUnique({
+        where: { id },
+        include: { modifiers: true },
+      });
+      return NextResponse.json({ item: current });
+    }
+    if (!allowed[item.status].includes(status)) {
+      return NextResponse.json(
+        { error: `Tidak bisa ubah status dari ${item.status} ke ${status}.` },
+        { status: 400 }
+      );
+    }
+
     // Set timestamp sesuai status baru
     const timestampField = STATUS_TIMESTAMPS[status];
     const updateData: Record<string, unknown> = { status };
@@ -88,7 +117,7 @@ export async function PATCH(
         select: {
           productName: true,
           quantity: true,
-          tableOrder: { select: { table: { select: { number: true } } } },
+          tableOrder: { select: { table: { select: { id: true, number: true } } } },
           transaction: { select: { invoiceNumber: true } },
         },
       });
@@ -97,14 +126,15 @@ export async function PATCH(
           itemName: ctx.productName,
           quantity: ctx.quantity,
           tableNumber: ctx.tableOrder?.table.number ?? null,
+          tableId: ctx.tableOrder?.table.id ?? null,
           invoiceNumber: ctx.transaction?.invoiceNumber ?? null,
         });
       }
     }
 
-    // Jika status diubah ke SERVED, cek apakah semua item di order sudah SERVED/CANCELLED
+    // Jika status diubah ke SERVED atau CANCELLED, cek apakah semua item di order sudah SERVED/CANCELLED
     // Hanya auto-close TableOrder yang SUDAH DIBAYAR (PAY_FIRST) — biarkan PAY_LATER tunggu kasir
-    if (status === "SERVED" && updated.tableOrderId) {
+    if ((status === "SERVED" || status === "CANCELLED") && updated.tableOrderId) {
       const allItems = await prisma.orderItem.findMany({
         where: { tableOrderId: updated.tableOrderId },
         select: { status: true },

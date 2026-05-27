@@ -79,8 +79,37 @@ export async function PATCH(
     }
     const data = parsed.data;
 
+    // Validasi state machine
+    // Allowed transitions:
+    //   CONFIRMED → SEATED, CANCELLED, NO_SHOW
+    //   SEATED    → COMPLETED, CANCELLED
+    //   COMPLETED, CANCELLED, NO_SHOW = terminal (no further changes)
+    if (data.status && data.status !== existing.status) {
+      const allowed: Record<typeof existing.status, ReservationStatus[]> = {
+        CONFIRMED: ["SEATED", "CANCELLED", "NO_SHOW"],
+        SEATED: ["COMPLETED", "CANCELLED"],
+        COMPLETED: [],
+        CANCELLED: [],
+        NO_SHOW: [],
+      };
+      if (!allowed[existing.status].includes(data.status as ReservationStatus)) {
+        return NextResponse.json(
+          { error: `Tidak bisa ubah status dari ${existing.status} ke ${data.status}.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: Record<string, unknown> = { ...data };
     if (data.reservedAt) updateData.reservedAt = new Date(data.reservedAt);
+
+    // Re-validate kapasitas kalau guestCount berubah
+    if (data.guestCount && data.guestCount > existing.table.capacity) {
+      return NextResponse.json(
+        { error: `Kapasitas meja hanya ${existing.table.capacity} orang.` },
+        { status: 400 }
+      );
+    }
 
     const reservation = await prisma.$transaction(async (tx) => {
       const updated = await tx.reservation.update({

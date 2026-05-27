@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { getActiveOutletId } from "@/lib/active-outlet";
 
+import { ReservationStatus } from "@prisma/client";
+
 const createSchema = z.object({
   tableId: z.string().cuid(),
   guestName: z.string().min(1).max(100),
@@ -31,13 +33,25 @@ export async function GET(req: NextRequest) {
     const dateStr = searchParams.get("date");
     const statusFilter = searchParams.get("status");
 
+    // Validasi status enum
+    const validStatuses: ReservationStatus[] = ["CONFIRMED", "SEATED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+    const statusValidated = statusFilter && validStatuses.includes(statusFilter as ReservationStatus)
+      ? (statusFilter as ReservationStatus)
+      : null;
+
     // Default: dari awal hari ini sampai 7 hari ke depan
+    // Menggunakan local time server (asumsi server timezone = tenant timezone)
     const now = new Date();
     let from: Date;
     let to: Date;
     if (dateStr) {
-      from = new Date(`${dateStr}T00:00:00`);
-      to = new Date(`${dateStr}T23:59:59`);
+      // Parse YYYY-MM-DD sebagai start-of-day di local timezone
+      const [y, m, d] = dateStr.split("-").map(Number);
+      if (!y || !m || !d) {
+        return NextResponse.json({ error: "Format tanggal tidak valid (gunakan YYYY-MM-DD)." }, { status: 400 });
+      }
+      from = new Date(y, m - 1, d, 0, 0, 0, 0);
+      to = new Date(y, m - 1, d, 23, 59, 59, 999);
     } else {
       from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       to = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -47,13 +61,14 @@ export async function GET(req: NextRequest) {
       where: {
         tenantId: session.user.tenantId,
         reservedAt: { gte: from, lte: to },
-        ...(statusFilter ? { status: statusFilter as never } : {}),
+        ...(statusValidated ? { status: statusValidated } : {}),
         ...(outletId ? { table: { outletId } } : {}),
       },
       include: {
         table: { select: { id: true, number: true, name: true, area: true, capacity: true } },
       },
       orderBy: { reservedAt: "asc" },
+      take: 200, // limit untuk cegah unbounded query
     });
 
     return NextResponse.json({ reservations });
@@ -87,6 +102,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tanggal reservasi tidak valid." }, { status: 400 });
     }
 
+    // Tolak reservasi di masa lalu (toleransi 5 menit untuk slow form submit)
+    const minAllowed = new Date(Date.now() - 5 * 60 * 1000);
+    if (reservedAt < minAllowed) {
+      return NextResponse.json(
+        { error: "Tanggal reservasi tidak boleh di masa lalu." },
+        { status: 400 }
+      );
+    }
+
     const outletId = await getActiveOutletId();
     const table = await prisma.table.findFirst({
       where: {
@@ -107,48 +131,70 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cek konflik jadwal: ada reservasi CONFIRMED/SEATED yang overlap
-    const endAt = new Date(reservedAt.getTime() + data.durationMin * 60 * 1000);
-    const conflict = await prisma.reservation.findFirst({
-      where: {
-        tableId: data.tableId,
-        status: { in: ["CONFIRMED", "SEATED"] },
-        // Overlap: existing.start < new.end AND existing.end > new.start
-        // Approximation: ambil reservasi yang start dalam window [now-12h, endAt]
-        reservedAt: {
-          gte: new Date(reservedAt.getTime() - 12 * 60 * 60 * 1000),
-          lte: endAt,
-        },
-      },
-    });
-    if (conflict) {
-      const existingEnd = new Date(conflict.reservedAt.getTime() + conflict.durationMin * 60 * 1000);
-      // Cek overlap actual
-      if (conflict.reservedAt < endAt && existingEnd > reservedAt) {
-        return NextResponse.json(
-          {
-            error: `Meja sudah ada reservasi a/n ${conflict.guestName} pada ${conflict.reservedAt.toLocaleString("id-ID")}.`,
+    // Check conflict + create dalam satu transaksi (cegah race condition)
+    const reservation = await prisma.$transaction(async (tx) => {
+      // Cek konflik jadwal: ada reservasi CONFIRMED/SEATED yang overlap
+      const endAt = new Date(reservedAt.getTime() + data.durationMin * 60 * 1000);
+      const conflict = await tx.reservation.findFirst({
+        where: {
+          tableId: data.tableId,
+          status: { in: ["CONFIRMED", "SEATED"] },
+          reservedAt: {
+            gte: new Date(reservedAt.getTime() - 12 * 60 * 60 * 1000),
+            lte: endAt,
           },
-          { status: 409 }
-        );
+        },
+      });
+      if (conflict) {
+        const existingEnd = new Date(conflict.reservedAt.getTime() + conflict.durationMin * 60 * 1000);
+        if (conflict.reservedAt < endAt && existingEnd > reservedAt) {
+          throw new Error(`__CONFLICT__:${conflict.guestName}:${conflict.reservedAt.toISOString()}`);
+        }
       }
-    }
 
-    const reservation = await prisma.reservation.create({
-      data: {
-        tableId: data.tableId,
-        tenantId: session.user.tenantId,
-        guestName: data.guestName,
-        guestPhone: data.guestPhone ?? null,
-        guestCount: data.guestCount,
-        reservedAt,
-        durationMin: data.durationMin,
-        note: data.note ?? null,
-      },
-      include: {
-        table: { select: { id: true, number: true, name: true, area: true, capacity: true } },
-      },
+      const created = await tx.reservation.create({
+        data: {
+          tableId: data.tableId,
+          tenantId: session.user.tenantId!,
+          guestName: data.guestName,
+          guestPhone: data.guestPhone ?? null,
+          guestCount: data.guestCount,
+          reservedAt,
+          durationMin: data.durationMin,
+          note: data.note ?? null,
+        },
+        include: {
+          table: { select: { id: true, number: true, name: true, area: true, capacity: true } },
+        },
+      });
+
+      // Set Table.status = RESERVED kalau ini reservasi terdekat (≤30 mnt)
+      const minutesUntil = (reservedAt.getTime() - Date.now()) / 60000;
+      if (minutesUntil <= 30) {
+        const targetTable = await tx.table.findUnique({
+          where: { id: data.tableId },
+          select: { status: true },
+        });
+        if (targetTable?.status === "EMPTY") {
+          await tx.table.update({
+            where: { id: data.tableId },
+            data: { status: "RESERVED" },
+          });
+        }
+      }
+
+      return created;
+    }).catch((err) => {
+      if (err instanceof Error && err.message.startsWith("__CONFLICT__:")) {
+        const [, name, dateIso] = err.message.split(":");
+        return { __error: `Meja sudah ada reservasi a/n ${name} pada ${new Date(dateIso).toLocaleString("id-ID")}.` };
+      }
+      throw err;
     });
+
+    if ("__error" in reservation) {
+      return NextResponse.json({ error: reservation.__error }, { status: 409 });
+    }
 
     return NextResponse.json({ reservation }, { status: 201 });
   } catch (error) {

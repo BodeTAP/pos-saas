@@ -39,9 +39,14 @@ export async function POST(
 
     const outletId = await getActiveOutletId();
 
-    // Ambil order existing
+    // Ambil order existing — filter juga outlet aktif (cegah cross-outlet leak)
     const order = await prisma.tableOrder.findFirst({
-      where: { id, tenantId: session.user.tenantId, closedAt: null },
+      where: {
+        id,
+        tenantId: session.user.tenantId,
+        closedAt: null,
+        ...(outletId ? { table: { outletId } } : {}),
+      },
       include: {
         table: { select: { id: true, outletId: true, status: true } },
       },
@@ -73,9 +78,14 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (targetTable.status !== "EMPTY" && targetTable.status !== "RESERVED") {
+    if (targetTable.status !== "EMPTY") {
+      const reasonByStatus: Partial<Record<typeof targetTable.status, string>> = {
+        OCCUPIED: "Meja tujuan sedang digunakan.",
+        BILL: "Meja tujuan sedang menunggu pembayaran.",
+        RESERVED: "Meja tujuan sudah dipesan (reservasi). Pilih meja lain.",
+      };
       return NextResponse.json(
-        { error: "Meja tujuan tidak kosong. Pilih meja lain." },
+        { error: reasonByStatus[targetTable.status] || "Meja tujuan tidak kosong." },
         { status: 409 }
       );
     }
@@ -87,7 +97,7 @@ export async function POST(
           where: { id },
           data: { tableId: targetTableId },
         });
-        // Tujuan jadi OCCUPIED (atau pertahankan BILL kalau order minta bill)
+        // Tujuan jadi OCCUPIED (atau BILL kalau order sudah minta bill)
         await tx.table.update({
           where: { id: targetTableId },
           data: { status: order.table.status === "BILL" ? "BILL" : "OCCUPIED" },

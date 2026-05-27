@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type KitchenReceiptData } from "@/components/pos/receipt";
+import { printKitchenReceipt } from "@/lib/print-kitchen-receipt";
 
 type OrderItemStatus = "PENDING" | "COOKING" | "READY" | "SERVED" | "CANCELLED";
 
@@ -218,21 +219,8 @@ export function TableDetailClient({
       })),
     };
 
-    const html = renderKitchenReceiptHTML(kitchenData);
-    const win = window.open("", "_blank", "width=400,height=600");
-    if (win) {
-      win.document.write(`
-        <html><head><title>Struk Dapur</title>
-        <style>
-          body { font-family: monospace; margin: 0; padding: 8px; }
-          @media print { body { margin: 0; } }
-        </style>
-        </head><body>${html}</body></html>
-      `);
-      win.document.close();
-      win.focus();
-      setTimeout(() => { win.print(); win.close(); }, 300);
-    }
+    // Pakai helper yang sudah escape HTML untuk cegah XSS dari nama produk/note
+    printKitchenReceipt(kitchenData);
   }
 
   return (
@@ -547,53 +535,4 @@ export function TableDetailClient({
       )}
     </div>
   );
-}
-
-// Helper: render kitchen receipt sebagai HTML string
-function renderKitchenReceiptHTML(data: KitchenReceiptData): string {
-  const formatTime = (d: Date) =>
-    d.toLocaleString("id-ID", {
-      day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-
-  const itemsHTML = data.items
-    .map(
-      (item) => `
-      <div style="margin-bottom:8px">
-        <div style="display:flex;gap:8px">
-          <strong style="width:24px;text-align:right">${item.quantity}x</strong>
-          <strong>${item.name}</strong>
-        </div>
-        ${
-          item.modifiers && item.modifiers.length > 0
-            ? item.modifiers
-                .map((m) => `<div style="padding-left:32px;font-size:12px">→ ${m.optionName}</div>`)
-                .join("")
-            : ""
-        }
-        ${item.note ? `<div style="padding-left:32px;font-size:12px;font-style:italic">! ${item.note}</div>` : ""}
-      </div>
-    `
-    )
-    .join("");
-
-  return `
-    <div style="font-family:monospace;width:80mm;padding:4mm;font-size:12px;line-height:1.5">
-      <div style="text-align:center;margin-bottom:8px">
-        <strong style="font-size:14px">*** STRUK DAPUR ***</strong><br>
-        <strong style="font-size:18px">${data.tableNumber ? `MEJA #${data.tableNumber}${data.tableArea ? ` — ${data.tableArea}` : ""}` : "TAKEAWAY"}</strong>
-      </div>
-      <div style="text-align:center">================================</div>
-      <div style="font-size:11px;margin:4px 0">
-        <div style="display:flex;justify-content:space-between"><span>No.</span><span>${data.invoiceNumber}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>Waktu</span><span>${formatTime(data.createdAt)}</span></div>
-      </div>
-      <div style="text-align:center">================================</div>
-      <div style="margin:8px 0">${itemsHTML}</div>
-      <div style="text-align:center">--------------------------------</div>
-      ${data.note ? `<div style="font-style:italic;text-align:center;font-size:11px">Catatan: ${data.note}</div>` : ""}
-      <div style="text-align:center;font-size:11px;margin-top:4px">*** SEGERA DIPROSES ***</div>
-    </div>
-  `;
 }

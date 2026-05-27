@@ -103,7 +103,8 @@ export function notifyItemReady(
     itemName: string;
     quantity: number;
     tableNumber?: string | null;
-    invoiceNumber?: string | null; // untuk takeaway
+    tableId?: string | null; // untuk link langsung ke detail meja
+    invoiceNumber?: string | null;
   }
 ): void {
   const isTakeaway = !opts.tableNumber;
@@ -118,6 +119,8 @@ export function notifyItemReady(
     type: "SYSTEM",
     title,
     message,
-    link: isTakeaway ? "/dashboard/kitchen" : `/dashboard/tables`,
+    link: isTakeaway
+      ? "/dashboard/kitchen"
+      : opts.tableId ? `/dashboard/tables/${opts.tableId}` : "/dashboard/tables",
   });
 }
