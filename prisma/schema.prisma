@@ -59,11 +59,11 @@ enum StockMutationType {
 }
 
 enum PurchaseOrderStatus {
-  DRAFT      // Baru dibuat, belum dikirim ke supplier
-  ORDERED    // Sudah dipesan ke supplier
-  PARTIAL    // Sebagian barang sudah diterima
-  RECEIVED   // Semua barang sudah diterima
-  CANCELLED  // Dibatalkan
+  DRAFT // Baru dibuat, belum dikirim ke supplier
+  ORDERED // Sudah dipesan ke supplier
+  PARTIAL // Sebagian barang sudah diterima
+  RECEIVED // Semua barang sudah diterima
+  CANCELLED // Dibatalkan
 }
 
 enum BillingStatus {
@@ -74,16 +74,16 @@ enum BillingStatus {
 }
 
 enum BusinessType {
-  RETAIL    // Toko, warung, minimarket
-  FNB       // Kafe, restoran, warung makan
-  SERVICE   // Salon, laundry, bengkel
-  OTHER     // Lainnya
+  RETAIL // Toko, warung, minimarket
+  FNB // Kafe, restoran, warung makan
+  SERVICE // Salon, laundry, bengkel
+  OTHER // Lainnya
 }
 
 // F&B: alur pembayaran
 enum PaymentFlow {
-  PAY_FIRST  // Bayar dulu, baru dimasak (self-service, fast food, kantin)
-  PAY_LATER  // Pesan dulu, bayar belakangan (kafe/restoran tradisional)
+  PAY_FIRST // Bayar dulu, baru dimasak (self-service, fast food, kantin)
+  PAY_LATER // Pesan dulu, bayar belakangan (kafe/restoran tradisional)
 }
 
 // ─────────────────────────────────────────────
@@ -107,17 +107,17 @@ model PlatformConfig {
 model PricingPlan {
   id           String           @id @default(cuid())
   tier         SubscriptionPlan @unique // FREE, PRO, ENTERPRISE
-  name         String           // Display name, misal "Paket Pro"
-  description  String?          // Deskripsi singkat
+  name         String // Display name, misal "Paket Pro"
+  description  String? // Deskripsi singkat
   monthlyPrice Float            @default(0)
   yearlyPrice  Float            @default(0)
 
-  maxProducts  Int @default(50)
-  maxCashiers  Int @default(1)
-  maxOutlets   Int @default(1)
+  maxProducts Int @default(50)
+  maxCashiers Int @default(1)
+  maxOutlets  Int @default(1)
 
-  features    String[] // List fitur yang ditampilkan di UI
-  isActive    Boolean  @default(true) // Bisa dinonaktifkan tanpa hapus
+  features String[] // List fitur yang ditampilkan di UI
+  isActive Boolean  @default(true) // Bisa dinonaktifkan tanpa hapus
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -130,29 +130,29 @@ model PricingPlan {
 // ─────────────────────────────────────────────
 
 model Tenant {
-  id          String   @id @default(cuid())
-  name        String   // Nama toko
-  slug        String   @unique // URL-friendly identifier
-  email       String   @unique
-  phone       String?
-  address     String?
-  city        String?
-  logoUrl     String?
-  currency    String   @default("IDR")
-  taxRate     Float    @default(0) // PPN dalam persen, misal 11
-  receiptNote String?  // Catatan di bawah struk
-  receiptWidth Int     @default(80) // 58 atau 80 mm
+  id            String  @id @default(cuid())
+  name          String // Nama toko
+  slug          String  @unique // URL-friendly identifier
+  email         String  @unique
+  phone         String?
+  address       String?
+  city          String?
+  logoUrl       String?
+  currency      String  @default("IDR")
+  taxRate       Float   @default(0) // PPN dalam persen, misal 11
+  receiptNote   String? // Catatan di bawah struk
+  receiptWidth  Int     @default(80) // 58 atau 80 mm
   receiptHeader String? // Tagline/slogan di atas struk
 
   // Konfigurasi invoice
   invoicePrefix String @default("INV") // Prefix nomor invoice
 
   // Konfigurasi loyalitas
-  pointsPerAmount  Int @default(10000) // Rp X belanja = 1 poin
-  pointValue       Int @default(100)   // 1 poin = Rp X diskon
+  pointsPerAmount Int @default(10000) // Rp X belanja = 1 poin
+  pointValue      Int @default(100) // 1 poin = Rp X diskon
 
   // F&B: Service charge
-  serviceChargePct Float @default(0)   // % biaya layanan (misal 5 = 5%)
+  serviceChargePct Float @default(0) // % biaya layanan (misal 5 = 5%)
 
   // F&B: alur pembayaran (default PAY_FIRST untuk self-service/fast food)
   paymentFlow PaymentFlow @default(PAY_FIRST)
@@ -161,18 +161,18 @@ model Tenant {
   activePaymentMethods String @default("[\"CASH\",\"QRIS\",\"TRANSFER\"]")
 
   // Subscription
-  plan              SubscriptionPlan   @default(FREE)
+  plan               SubscriptionPlan   @default(FREE)
   subscriptionStatus SubscriptionStatus @default(TRIAL)
-  trialEndsAt       DateTime?
+  trialEndsAt        DateTime?
   subscriptionEndsAt DateTime?
 
   // Tipe bisnis — menentukan fitur & tampilan sidebar
-  businessType      BusinessType @default(RETAIL)
+  businessType BusinessType @default(RETAIL)
 
   // Limits berdasarkan plan
-  maxProducts   Int @default(50)   // FREE: 50, PRO: unlimited
-  maxCashiers   Int @default(1)    // FREE: 1, PRO: 5, ENTERPRISE: unlimited
-  maxOutlets    Int @default(1)    // FREE/PRO: 1, ENTERPRISE: unlimited
+  maxProducts Int @default(50) // FREE: 50, PRO: unlimited
+  maxCashiers Int @default(1) // FREE: 1, PRO: 5, ENTERPRISE: unlimited
+  maxOutlets  Int @default(1) // FREE/PRO: 1, ENTERPRISE: unlimited
 
   // Downgrade terjadwal — efektif saat subscriptionEndsAt
   scheduledDowngradePlan SubscriptionPlan?
@@ -181,23 +181,24 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // Relations
-  users         User[]
-  products      Product[]
-  categories    Category[]
-  transactions  Transaction[]
-  stockMutations StockMutation[]
-  billingInvoices BillingInvoice[]
-  customers     Customer[]
-  outlets       Outlet[]
-  cashierShifts CashierShift[]
+  users                 User[]
+  products              Product[]
+  categories            Category[]
+  transactions          Transaction[]
+  stockMutations        StockMutation[]
+  billingInvoices       BillingInvoice[]
+  customers             Customer[]
+  outlets               Outlet[]
+  cashierShifts         CashierShift[]
   stockMutationVariants StockMutationVariant[]
-  purchaseOrders PurchaseOrder[]
-  auditLogs     AuditLog[]
-  notifications AppNotification[]
-  tables        Table[]
-  tableOrders   TableOrder[]
-  modifierGroups ModifierGroup[]
-  orderItems    OrderItem[]
+  purchaseOrders        PurchaseOrder[]
+  auditLogs             AuditLog[]
+  notifications         AppNotification[]
+  tables                Table[]
+  tableOrders           TableOrder[]
+  modifierGroups        ModifierGroup[]
+  orderItems            OrderItem[]
+  reservations          Reservation[]
 
   @@map("tenants")
 }
@@ -207,12 +208,12 @@ model Tenant {
 // ─────────────────────────────────────────────
 
 model Outlet {
-  id        String  @id @default(cuid())
-  name      String
-  address   String?
-  phone     String?
-  isMain    Boolean @default(false) // cabang utama, auto-created saat register
-  isActive  Boolean @default(true)
+  id       String  @id @default(cuid())
+  name     String
+  address  String?
+  phone    String?
+  isMain   Boolean @default(false) // cabang utama, auto-created saat register
+  isActive Boolean @default(true)
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -221,15 +222,15 @@ model Outlet {
   updatedAt DateTime @updatedAt
 
   // Relasi
-  transactions   Transaction[]
-  users          User[]
-  outletStocks   OutletStock[]
-  stockMutations StockMutation[]
-  cashierShifts  CashierShift[]
-  outletStockVariants OutletStockVariant[]
+  transactions          Transaction[]
+  users                 User[]
+  outletStocks          OutletStock[]
+  stockMutations        StockMutation[]
+  cashierShifts         CashierShift[]
+  outletStockVariants   OutletStockVariant[]
   stockMutationVariants StockMutationVariant[]
-  purchaseOrders PurchaseOrder[]
-  tables         Table[]
+  purchaseOrders        PurchaseOrder[]
+  tables                Table[]
 
   @@index([tenantId])
   @@map("outlets")
@@ -267,7 +268,7 @@ model User {
   id            String    @id @default(cuid())
   name          String
   email         String    @unique
-  password      String    // bcrypt hashed
+  password      String // bcrypt hashed
   role          UserRole  @default(KASIR)
   isActive      Boolean   @default(true)
   emailVerified DateTime?
@@ -344,9 +345,9 @@ model VerificationToken {
 // ─────────────────────────────────────────────
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   email     String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
 
@@ -388,10 +389,10 @@ model Product {
   imageUrl    String?
 
   buyPrice  Float @default(0) // Harga beli (base)
-  sellPrice Float             // Harga jual (base)
+  sellPrice Float // Harga jual (base)
 
-  stock    Int @default(0)
-  minStock Int @default(5)  // Threshold low stock alert
+  stock    Int    @default(0)
+  minStock Int    @default(5) // Threshold low stock alert
   unit     String @default("pcs")
 
   // Varian produk
@@ -411,13 +412,13 @@ model Product {
   updatedAt DateTime @updatedAt
 
   // Relations
-  transactionItems TransactionItem[]
-  stockMutations   StockMutation[]
-  outletStocks     OutletStock[]
-  variantTypes     ProductVariantType[]
-  variantSKUs      ProductVariantSKU[]
+  transactionItems   TransactionItem[]
+  stockMutations     StockMutation[]
+  outletStocks       OutletStock[]
+  variantTypes       ProductVariantType[]
+  variantSKUs        ProductVariantSKU[]
   purchaseOrderItems PurchaseOrderItem[]
-  modifierGroups   ProductModifierGroup[]
+  modifierGroups     ProductModifierGroup[]
 
   @@unique([sku, tenantId])
   @@index([tenantId])
@@ -431,14 +432,14 @@ model Product {
 
 // Tipe varian: "Ukuran", "Warna", "Rasa", dll
 model ProductVariantType {
-  id        String  @id @default(cuid())
-  name      String  // e.g. "Ukuran", "Warna"
-  position  Int     @default(0) // urutan tampil
+  id       String @id @default(cuid())
+  name     String // e.g. "Ukuran", "Warna"
+  position Int    @default(0) // urutan tampil
 
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  options   ProductVariantOption[]
+  options ProductVariantOption[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -468,13 +469,13 @@ model ProductVariantOption {
 // SKU = kombinasi unik dari semua tipe varian
 // Contoh: Kaos S+Merah, Kaos S+Biru, Kaos M+Merah, dst
 model ProductVariantSKU {
-  id          String  @id @default(cuid())
-  sku         String? // SKU spesifik varian ini (auto-generate atau manual)
-  barcode     String?
-  imageUrl    String? // Gambar opsional per SKU
-  price       Float   // Harga jual final (bukan delta, langsung harga penuh)
-  buyPrice    Float   @default(0)
-  isActive    Boolean @default(true)
+  id       String  @id @default(cuid())
+  sku      String? // SKU spesifik varian ini (auto-generate atau manual)
+  barcode  String?
+  imageUrl String? // Gambar opsional per SKU
+  price    Float // Harga jual final (bukan delta, langsung harga penuh)
+  buyPrice Float   @default(0)
+  isActive Boolean @default(true)
 
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -483,10 +484,10 @@ model ProductVariantSKU {
   updatedAt DateTime @updatedAt
 
   // Kombinasi opsi yang membentuk SKU ini
-  options        ProductVariantSKUOption[]
-  outletStocks   OutletStockVariant[]
-  stockMutations StockMutationVariant[]
-  transactionItems TransactionItem[]
+  options            ProductVariantSKUOption[]
+  outletStocks       OutletStockVariant[]
+  stockMutations     StockMutationVariant[]
+  transactionItems   TransactionItem[]
   purchaseOrderItems PurchaseOrderItem[]
 
   @@index([productId])
@@ -554,11 +555,11 @@ model StockMutationVariant {
 // ─────────────────────────────────────────────
 
 model Customer {
-  id       String  @id @default(cuid())
-  name     String
-  phone    String?
-  email    String?
-  points   Int     @default(0)
+  id     String  @id @default(cuid())
+  name   String
+  phone  String?
+  email  String?
+  points Int     @default(0)
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -582,38 +583,38 @@ model Transaction {
   status        TransactionStatus @default(PENDING)
   paymentMethod PaymentMethod     @default(CASH)
 
-  subtotal    Float // Sebelum diskon & pajak
-  discount    Float @default(0) // Nominal diskon
-  discountPct Float @default(0) // Persen diskon
-  serviceCharge Float @default(0) // Nominal service charge (F&B)
+  subtotal         Float // Sebelum diskon & pajak
+  discount         Float @default(0) // Nominal diskon
+  discountPct      Float @default(0) // Persen diskon
+  serviceCharge    Float @default(0) // Nominal service charge (F&B)
   serviceChargePct Float @default(0) // Persen service charge
-  tax         Float @default(0) // Nominal pajak
-  taxPct      Float @default(0) // Persen pajak
-  total       Float // Total akhir = (subtotal - discount) * (1 + taxPct/100)
-  amountPaid  Float @default(0) // Uang yang dibayar
-  change      Float @default(0) // Kembalian
-  pointsEarned   Int @default(0) // Snapshot poin yang diberikan saat transaksi
-  pointsRedeemed Int @default(0) // Snapshot poin yang ditukar saat transaksi
+  tax              Float @default(0) // Nominal pajak
+  taxPct           Float @default(0) // Persen pajak
+  total            Float // Total akhir = (subtotal - discount) * (1 + taxPct/100)
+  amountPaid       Float @default(0) // Uang yang dibayar
+  change           Float @default(0) // Kembalian
+  pointsEarned     Int   @default(0) // Snapshot poin yang diberikan saat transaksi
+  pointsRedeemed   Int   @default(0) // Snapshot poin yang ditukar saat transaksi
 
-  note     String?
-  isHeld   Boolean @default(false) // Hold transaction
+  note   String?
+  isHeld Boolean @default(false) // Hold transaction
 
   // F&B: link ke order meja (null untuk retail/takeaway)
   tableOrderId String? @unique
 
   tenantId   String
-  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cashierId  String
-  cashier    User   @relation(fields: [cashierId], references: [id])
+  cashier    User      @relation(fields: [cashierId], references: [id])
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   outletId   String
-  outlet     Outlet  @relation(fields: [outletId], references: [id])
+  outlet     Outlet    @relation(fields: [outletId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items TransactionItem[]
+  items      TransactionItem[]
   tableOrder TableOrder? // F&B: link ke order meja
   orderItems OrderItem[] // F&B PAY_FIRST takeaway: link ke order items dapur
 
@@ -626,23 +627,23 @@ model Transaction {
 model TransactionItem {
   id        String @id @default(cuid())
   quantity  Int
-  unitPrice Float  // Harga jual saat transaksi (snapshot)
+  unitPrice Float // Harga jual saat transaksi (snapshot)
   buyPrice  Float  @default(0) // Harga beli saat transaksi (snapshot, untuk laba kotor)
   discount  Float  @default(0)
-  subtotal  Float  // quantity * unitPrice - discount
+  subtotal  Float // quantity * unitPrice - discount
 
   transactionId String
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   productId     String
   product       Product     @relation(fields: [productId], references: [id])
 
-  productName  String  // Snapshot nama produk
-  productSku   String? // Snapshot SKU
+  productName String // Snapshot nama produk
+  productSku  String? // Snapshot SKU
 
   // Varian (null jika produk tidak punya varian)
-  variantSkuId   String?
-  variantSku     ProductVariantSKU? @relation(fields: [variantSkuId], references: [id])
-  variantLabel   String? // Snapshot label varian, e.g. "M / Merah"
+  variantSkuId String?
+  variantSku   ProductVariantSKU? @relation(fields: [variantSkuId], references: [id])
+  variantLabel String? // Snapshot label varian, e.g. "M / Merah"
 
   modifiers TransactionItemModifier[]
 
@@ -654,12 +655,12 @@ model TransactionItem {
 // ─────────────────────────────────────────────
 
 model StockMutation {
-  id        String            @id @default(cuid())
-  type      StockMutationType
-  quantity  Int               // Positif = masuk, negatif = keluar
+  id          String            @id @default(cuid())
+  type        StockMutationType
+  quantity    Int // Positif = masuk, negatif = keluar
   stockBefore Int
   stockAfter  Int
-  note      String?
+  note        String?
 
   tenantId  String
   tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -690,8 +691,8 @@ model CashierShift {
   status      ShiftStatus @default(OPEN)
   openedAt    DateTime    @default(now())
   closedAt    DateTime?
-  openingCash Float       @default(0)  // Kas awal
-  closingCash Float?                   // Kas akhir (diisi saat tutup)
+  openingCash Float       @default(0) // Kas awal
+  closingCash Float? // Kas akhir (diisi saat tutup)
   note        String?
 
   // Ringkasan (dihitung saat tutup shift)
@@ -721,18 +722,18 @@ model CashierShift {
 // ─────────────────────────────────────────────
 
 model BillingInvoice {
-  id              String        @id @default(cuid())
-  invoiceNumber   String        @unique
-  plan            SubscriptionPlan
-  amount          Float
-  status          BillingStatus @default(PENDING)
-  periodStart     DateTime
-  periodEnd       DateTime
+  id            String           @id @default(cuid())
+  invoiceNumber String           @unique
+  plan          SubscriptionPlan
+  amount        Float
+  status        BillingStatus    @default(PENDING)
+  periodStart   DateTime
+  periodEnd     DateTime
 
   // Tripay fields
-  tripayReference  String?  @unique // Merchant ref dari Tripay (unique untuk idempotency)
-  tripayPaymentUrl String?  // URL pembayaran
-  tripayChannel    String?  // Metode pembayaran (BRIVA, MANDIRIVA, dll)
+  tripayReference  String?   @unique // Merchant ref dari Tripay (unique untuk idempotency)
+  tripayPaymentUrl String? // URL pembayaran
+  tripayChannel    String? // Metode pembayaran (BRIVA, MANDIRIVA, dll)
   paidAt           DateTime?
 
   tenantId String
@@ -746,10 +747,18 @@ model BillingInvoice {
 }
 
 enum TableStatus {
-  EMPTY     // Kosong — bisa dipakai
-  OCCUPIED  // Terisi — ada order aktif
-  BILL      // Minta bill — menunggu pembayaran
-  RESERVED  // Dipesan — reservasi
+  EMPTY // Kosong — bisa dipakai
+  OCCUPIED // Terisi — ada order aktif
+  BILL // Minta bill — menunggu pembayaran
+  RESERVED // Dipesan — reservasi
+}
+
+enum ReservationStatus {
+  CONFIRMED // Reservasi terjadwal
+  SEATED // Tamu sudah datang & duduk
+  COMPLETED // Selesai (bisa otomatis saat order ditutup)
+  CANCELLED // Dibatalkan
+  NO_SHOW // Tamu tidak datang
 }
 
 // ─────────────────────────────────────────────
@@ -757,22 +766,22 @@ enum TableStatus {
 // ─────────────────────────────────────────────
 
 model PurchaseOrder {
-  id             String              @id @default(cuid())
-  poNumber       String              @unique // Nomor PO, e.g. PO-20260523-0001
-  status         PurchaseOrderStatus @default(DRAFT)
-  supplierName   String?             // Nama supplier (opsional)
-  supplierPhone  String?
-  note           String?
-  expectedDate   DateTime?           // Tanggal estimasi tiba
-  receivedAt     DateTime?           // Tanggal diterima
+  id            String              @id @default(cuid())
+  poNumber      String              @unique // Nomor PO, e.g. PO-20260523-0001
+  status        PurchaseOrderStatus @default(DRAFT)
+  supplierName  String? // Nama supplier (opsional)
+  supplierPhone String?
+  note          String?
+  expectedDate  DateTime? // Tanggal estimasi tiba
+  receivedAt    DateTime? // Tanggal diterima
 
   // Total nilai PO (dihitung dari items)
-  totalItems     Int   @default(0)   // Total qty item dipesan
-  totalCost      Float @default(0)   // Total harga beli
+  totalItems Int   @default(0) // Total qty item dipesan
+  totalCost  Float @default(0) // Total harga beli
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  outletId String                    // Cabang tujuan penerimaan
+  outletId String // Cabang tujuan penerimaan
   outlet   Outlet @relation(fields: [outletId], references: [id])
 
   createdAt DateTime @default(now())
@@ -786,11 +795,11 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String @id @default(cuid())
-  quantity        Int    // Qty dipesan
-  quantityReceived Int   @default(0) // Qty sudah diterima
-  buyPrice        Float  // Harga beli per unit saat PO dibuat
-  note            String?
+  id               String  @id @default(cuid())
+  quantity         Int // Qty dipesan
+  quantityReceived Int     @default(0) // Qty sudah diterima
+  buyPrice         Float // Harga beli per unit saat PO dibuat
+  note             String?
 
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
@@ -816,11 +825,11 @@ model PurchaseOrderItem {
 
 model AuditLog {
   id         String  @id @default(cuid())
-  action     String  // e.g. "CREATE", "UPDATE", "DELETE"
-  entity     String  // e.g. "Product", "Category", "Staff", "Settings"
+  action     String // e.g. "CREATE", "UPDATE", "DELETE"
+  entity     String // e.g. "Product", "Category", "Staff", "Settings"
   entityId   String? // ID record yang terpengaruh
   entityName String? // Snapshot nama (e.g. nama produk saat dihapus)
-  changes    Json?   // { before: {...}, after: {...} } — hanya field yang berubah
+  changes    Json? // { before: {...}, after: {...} } — hanya field yang berubah
 
   userId   String
   user     User   @relation(fields: [userId], references: [id])
@@ -840,21 +849,21 @@ model AuditLog {
 // ─────────────────────────────────────────────
 
 enum NotificationType {
-  LOW_STOCK       // Stok produk menipis / habis
+  LOW_STOCK // Stok produk menipis / habis
   NEW_TRANSACTION // Transaksi baru selesai
-  SYSTEM          // Pesan sistem (trial, billing, dll)
+  SYSTEM // Pesan sistem (trial, billing, dll)
 }
 
 model AppNotification {
-  id        String           @id @default(cuid())
-  type      NotificationType
-  title     String
-  message   String
-  isRead    Boolean          @default(false)
-  link      String?          // URL tujuan saat notifikasi diklik
+  id      String           @id @default(cuid())
+  type    NotificationType
+  title   String
+  message String
+  isRead  Boolean          @default(false)
+  link    String? // URL tujuan saat notifikasi diklik
 
-  tenantId  String
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -869,10 +878,10 @@ model AppNotification {
 
 model Table {
   id       String      @id @default(cuid())
-  number   String      // "1", "2", "VIP-1"
-  name     String?     // Nama opsional: "Meja Pojok", "Teras"
+  number   String // "1", "2", "VIP-1"
+  name     String? // Nama opsional: "Meja Pojok", "Teras"
   capacity Int         @default(4)
-  area     String?     // "Indoor", "Outdoor", "VIP"
+  area     String? // "Indoor", "Outdoor", "VIP"
   status   TableStatus @default(EMPTY)
   isActive Boolean     @default(true)
 
@@ -884,7 +893,8 @@ model Table {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tableOrders TableOrder[]
+  tableOrders  TableOrder[]
+  reservations Reservation[]
 
   @@unique([number, outletId]) // nomor meja unik per outlet
   @@index([tenantId])
@@ -893,18 +903,18 @@ model Table {
 }
 
 model TableOrder {
-  id     String @id @default(cuid())
-  note   String? // catatan per meja (misal: "alergi kacang")
+  id   String  @id @default(cuid())
+  note String? // catatan per meja (misal: "alergi kacang")
 
   tableId String
-  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  table   Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   // Saat order dibayar, link ke Transaction
-  transactionId String?     @unique
+  transactionId String?      @unique
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
-  openedAt  DateTime  @default(now())
-  closedAt  DateTime?
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -921,10 +931,10 @@ model TableOrder {
 // ─────────────────────────────────────────────
 
 enum OrderItemStatus {
-  PENDING   // Baru dipesan, belum diproses dapur
-  COOKING   // Sedang dimasak
-  READY     // Siap disajikan
-  SERVED    // Sudah disajikan ke meja
+  PENDING // Baru dipesan, belum diproses dapur
+  COOKING // Sedang dimasak
+  READY // Siap disajikan
+  SERVED // Sudah disajikan ke meja
   CANCELLED // Dibatalkan
 }
 
@@ -939,22 +949,22 @@ model OrderItem {
   variantSkuId String?
   variantLabel String?
   quantity     Int
-  unitPrice    Float   // harga final (sudah include modifier extra)
+  unitPrice    Float // harga final (sudah include modifier extra)
   note         String? // catatan per item (misal: "tanpa bawang")
 
   // Untuk dine-in: link ke TableOrder
   // Untuk takeaway PAY_FIRST: link langsung ke Transaction
-  tableOrderId String?
-  tableOrder   TableOrder? @relation(fields: [tableOrderId], references: [id], onDelete: Cascade)
+  tableOrderId  String?
+  tableOrder    TableOrder?  @relation(fields: [tableOrderId], references: [id], onDelete: Cascade)
   transactionId String?
   transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  sentAt    DateTime  @default(now()) // kapan item dikirim ke dapur
-  cookedAt  DateTime?                 // kapan mulai dimasak
-  readyAt   DateTime?                 // kapan siap
-  servedAt  DateTime?                 // kapan disajikan
+  sentAt   DateTime  @default(now()) // kapan item dikirim ke dapur
+  cookedAt DateTime? // kapan mulai dimasak
+  readyAt  DateTime? // kapan siap
+  servedAt DateTime? // kapan disajikan
 
   modifiers OrderItemModifier[]
 
@@ -967,13 +977,13 @@ model OrderItem {
 }
 
 model OrderItemModifier {
-  id          String @id @default(cuid())
+  id          String    @id @default(cuid())
   orderItemId String
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   modifierGroupName  String
   modifierOptionName String
-  extraPrice         Float @default(0)
+  extraPrice         Float  @default(0)
 
   @@index([orderItemId])
   @@map("order_item_modifiers")
@@ -985,12 +995,12 @@ model OrderItemModifier {
 
 // Grup modifier: "Tingkat Kepedasan", "Suhu", "Ukuran", "Topping"
 model ModifierGroup {
-  id       String  @id @default(cuid())
-  name     String  // e.g. "Tingkat Kepedasan"
-  required Boolean @default(false) // wajib dipilih atau opsional
-  multiple Boolean @default(false) // bisa pilih lebih dari satu opsi
-  minSelect Int    @default(0)     // min pilihan (0 = opsional)
-  maxSelect Int    @default(1)     // max pilihan
+  id        String  @id @default(cuid())
+  name      String // e.g. "Tingkat Kepedasan"
+  required  Boolean @default(false) // wajib dipilih atau opsional
+  multiple  Boolean @default(false) // bisa pilih lebih dari satu opsi
+  minSelect Int     @default(0) // min pilihan (0 = opsional)
+  maxSelect Int     @default(1) // max pilihan
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1007,11 +1017,11 @@ model ModifierGroup {
 
 // Opsi dalam grup: "Tidak Pedas", "Sedang", "Pedas", "Extra Pedas"
 model ModifierOption {
-  id          String  @id @default(cuid())
-  name        String  // e.g. "Pedas"
-  extraPrice  Float   @default(0) // tambahan harga (0 = gratis)
-  isDefault   Boolean @default(false)
-  position    Int     @default(0)
+  id         String  @id @default(cuid())
+  name       String // e.g. "Pedas"
+  extraPrice Float   @default(0) // tambahan harga (0 = gratis)
+  isDefault  Boolean @default(false)
+  position   Int     @default(0)
 
   groupId String
   group   ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -1038,16 +1048,45 @@ model ProductModifierGroup {
 
 // Snapshot modifier yang dipilih saat transaksi
 model TransactionItemModifier {
-  id            String @id @default(cuid())
+  id                String          @id @default(cuid())
   transactionItemId String
   transactionItem   TransactionItem @relation(fields: [transactionItemId], references: [id], onDelete: Cascade)
 
-  modifierGroupId   String
-  modifierGroupName String  // snapshot nama grup
-  modifierOptionId  String
+  modifierGroupId    String
+  modifierGroupName  String // snapshot nama grup
+  modifierOptionId   String
   modifierOptionName String // snapshot nama opsi
-  extraPrice        Float  @default(0) // snapshot harga tambahan
+  extraPrice         Float  @default(0) // snapshot harga tambahan
 
   @@index([transactionItemId])
   @@map("transaction_item_modifiers")
+}
+
+// ─────────────────────────────────────────────
+// F&B — RESERVASI MEJA
+// ─────────────────────────────────────────────
+
+model Reservation {
+  id          String            @id @default(cuid())
+  guestName   String // Nama tamu yang reservasi
+  guestPhone  String? // Nomor HP untuk konfirmasi
+  guestCount  Int               @default(2) // Jumlah orang
+  reservedAt  DateTime // Tanggal & jam reservasi
+  durationMin Int               @default(120) // Estimasi durasi (menit)
+  note        String? // Catatan: "ulang tahun", "alergi seafood"
+  status      ReservationStatus @default(CONFIRMED)
+
+  tableId  String
+  table    Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tableId])
+  @@index([reservedAt])
+  @@index([tenantId, status, reservedAt])
+  @@map("reservations")
 }

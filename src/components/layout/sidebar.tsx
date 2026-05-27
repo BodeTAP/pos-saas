@@ -7,7 +7,7 @@ import {
   Users, UserCircle, CreditCard, ShoppingBag, Store, Tag,
   ChevronLeft, ChevronRight, History, X, Warehouse, Truck,
   PanelLeftClose, PanelLeftOpen, ClipboardList, UtensilsCrossed,
-  ChefHat, ClipboardCheck, SlidersHorizontal,
+  ChefHat, ClipboardCheck, SlidersHorizontal, CalendarClock,
 } from "lucide-react";
 import { UserRole, BusinessType } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,14 @@ const tenantNavItems: NavItem[] = [
     label: "Meja",
     href: "/dashboard/tables",
     icon: UtensilsCrossed,
+    roles: ["OWNER", "KASIR"],
+    businessTypes: ["FNB"] as BusinessType[],
+  },
+  // F&B only: Reservasi
+  {
+    label: "Reservasi",
+    href: "/dashboard/reservations",
+    icon: CalendarClock,
     roles: ["OWNER", "KASIR"],
     businessTypes: ["FNB"] as BusinessType[],
   },
